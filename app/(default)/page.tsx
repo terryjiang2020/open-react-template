@@ -9,6 +9,7 @@ import Workflows from "@/components/workflows";
 import Features from "@/components/features";
 import Testimonials from "@/components/testimonials";
 import Cta from "@/components/cta";
+import ChatWidget from "@/components/chat-widget";
 
 export default function Home() {
   return (
@@ -19,6 +20,7 @@ export default function Home() {
       <Features />
       <Testimonials />
       <Cta />
+      <ChatWidget />
     </>
   );
 }

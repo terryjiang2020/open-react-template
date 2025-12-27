@@ -1,0 +1,1152 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Project API",
+    "description": "Project management endpoints for ElasticDash platform",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/project",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.elasticdash.com/project",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/list/{page}": {
+      "get": {
+        "summary": "Get projects by page",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projects retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number" },
+                    "data": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/list/all": {
+      "post": {
+        "summary": "Get all projects",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filters": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "All projects retrieved"
+          }
+        }
+      }
+    },
+    "/list/page": {
+      "post": {
+        "summary": "Get projects with pagination",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page": { "type": "number" },
+                  "pageSize": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paginated projects retrieved"
+          }
+        }
+      }
+    },
+    "/create": {
+      "post": {
+        "summary": "Create new project",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/byid/{projectId}": {
+      "get": {
+        "summary": "Get project details",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project retrieved"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update project",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete project",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project deleted"
+          }
+        }
+      }
+    },
+    "/duplicate/{projectId}": {
+      "get": {
+        "summary": "Duplicate project",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project duplicated"
+          }
+        }
+      }
+    },
+    "/{projectId}/activate": {
+      "get": {
+        "summary": "Activate project",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project activated"
+          }
+        }
+      }
+    },
+    "/{projectId}/activate/testrun": {
+      "get": {
+        "summary": "Test run project activation",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test run initiated"
+          }
+        }
+      }
+    },
+    "/step/templates": {
+      "get": {
+        "summary": "Get available step templates",
+        "tags": ["Project"],
+        "responses": {
+          "200": {
+            "description": "Templates retrieved"
+          }
+        }
+      }
+    },
+    "/{projectId}/step/list": {
+      "get": {
+        "summary": "Get project steps",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Steps retrieved"
+          }
+        }
+      }
+    },
+    "/{projectId}/step/create": {
+      "post": {
+        "summary": "Create project step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "type": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Step created"
+          }
+        }
+      }
+    },
+    "/step/update/{stepId}": {
+      "put": {
+        "summary": "Update step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Step updated"
+          }
+        }
+      }
+    },
+    "/step/delete/{stepId}": {
+      "delete": {
+        "summary": "Delete step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step deleted"
+          }
+        }
+      }
+    },
+    "/step/evaluate/{stepId}": {
+      "put": {
+        "summary": "Evaluate step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evaluation": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Step evaluated"
+          }
+        }
+      }
+    },
+    "/step/attachment/upload/{stepId}": {
+      "post": {
+        "summary": "Upload step attachment",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Attachment uploaded"
+          }
+        }
+      }
+    },
+    "/step/attachment/delete/{attachmentId}": {
+      "delete": {
+        "summary": "Delete step attachment",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment deleted"
+          }
+        }
+      }
+    },
+    "/session/{sessionId}": {
+      "get": {
+        "summary": "Get session details",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session retrieved"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update session",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete session",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session deleted"
+          }
+        }
+      }
+    },
+    "/session/exist/{projectId}": {
+      "get": {
+        "summary": "Check if project session exists",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session existence checked"
+          }
+        }
+      }
+    },
+    "/session/heartbeat/{sessionId}": {
+      "get": {
+        "summary": "Session heartbeat",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Heartbeat received"
+          }
+        }
+      }
+    },
+    "/{projectId}/session/create": {
+      "post": {
+        "summary": "Create new session",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session created"
+          }
+        }
+      }
+    },
+    "/session/abort": {
+      "post": {
+        "summary": "Abort current session",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session aborted"
+          }
+        }
+      }
+    },
+    "/session/latest/all/{page}": {
+      "get": {
+        "summary": "Get latest sessions paginated",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions retrieved"
+          }
+        }
+      },
+      "post": {
+        "summary": "Get latest sessions with filters",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sessions retrieved"
+          }
+        }
+      }
+    },
+    "/session/latest/test/{projectId}": {
+      "get": {
+        "summary": "Get latest test session",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session retrieved"
+          }
+        }
+      }
+    },
+    "/session/list/byprojectid": {
+      "post": {
+        "summary": "Get sessions by project",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["projectId"],
+                "properties": {
+                  "projectId": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sessions retrieved"
+          }
+        }
+      }
+    },
+    "/session/update": {
+      "post": {
+        "summary": "Update session",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sessionId"],
+                "properties": {
+                  "sessionId": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated"
+          }
+        }
+      }
+    },
+    "/draft/create": {
+      "post": {
+        "summary": "Create project draft",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft created"
+          }
+        }
+      }
+    },
+    "/draft/byid/{projectId}": {
+      "get": {
+        "summary": "Get draft project",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft retrieved"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update draft project",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete draft project",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft deleted"
+          }
+        }
+      }
+    },
+    "/draft/{projectId}/step/list": {
+      "get": {
+        "summary": "Get draft steps",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Steps retrieved"
+          }
+        }
+      }
+    },
+    "/draft/{projectId}/step/create": {
+      "post": {
+        "summary": "Create draft step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Step created"
+          }
+        }
+      }
+    },
+    "/draft/step/update/{stepId}": {
+      "put": {
+        "summary": "Update draft step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Step updated"
+          }
+        }
+      }
+    },
+    "/draft/step/delete/{stepId}": {
+      "delete": {
+        "summary": "Delete draft step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step deleted"
+          }
+        }
+      }
+    },
+    "/draft/step/evaluate/{stepId}": {
+      "put": {
+        "summary": "Evaluate draft step",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Step evaluated"
+          }
+        }
+      }
+    },
+    "/draft/step/attachment/upload/{stepId}": {
+      "post": {
+        "summary": "Upload draft step attachment",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "stepId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Attachment uploaded"
+          }
+        }
+      }
+    },
+    "/draft/step/attachment/delete/{attachmentId}": {
+      "delete": {
+        "summary": "Delete draft step attachment",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment deleted"
+          }
+        }
+      }
+    },
+    "/draft/apply/{projectId}": {
+      "get": {
+        "summary": "Apply draft changes",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft applied"
+          }
+        }
+      }
+    },
+    "/reorder": {
+      "put": {
+        "summary": "Reorder project steps",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "steps": {
+                    "type": "array",
+                    "items": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Steps reordered"
+          }
+        }
+      }
+    },
+    "/keypoint/generate": {
+      "post": {
+        "summary": "Generate keypoints for project",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Keypoints generated"
+          }
+        }
+      }
+    },
+    "/balance/update/{userId}": {
+      "get": {
+        "summary": "Update user balance",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Balance updated"
+          }
+        }
+      }
+    },
+    "/{projectId}/session/testrun/check": {
+      "get": {
+        "summary": "Check test run status",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status checked"
+          }
+        }
+      }
+    },
+    "/{projectId}/session/testrun/abort": {
+      "get": {
+        "summary": "Abort test run",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test run aborted"
+          }
+        }
+      }
+    },
+    "/{projectId}/session/testrun/update": {
+      "post": {
+        "summary": "Update test run",
+        "tags": ["Project"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test run updated"
+          }
+        }
+      }
+    }
+  }
+}

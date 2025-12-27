@@ -1,0 +1,832 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash API",
+    "description": "Complete API documentation for ElasticDash platform",
+    "version": "1.0.0",
+    "contact": {
+      "name": "ElasticDash Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.elasticdash.com",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "User login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "rememberme": { "type": "boolean" },
+                  "sessionId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "message": { "type": "string", "example": "Login successful" },
+                    "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIs..." },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "number" },
+                        "username": { "type": "string" },
+                        "email": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string", "example": "Invalid username or password" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/session/{sessionId}": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get session information",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": { "type": "string" },
+                    "userId": { "type": "number" },
+                    "createdAt": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 404 },
+                    "message": { "type": "string", "example": "Session not found" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/register": {
+      "post": {
+        "tags": ["User"],
+        "summary": "Register new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "message": { "type": "string", "example": "User registered successfully" },
+                    "userId": { "type": "number" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 400 },
+                    "message": { "type": "string", "example": "Email already exists" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/register/verify": {
+      "post": {
+        "tags": ["User"],
+        "summary": "Verify registration email",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "verificationCode": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "message": { "type": "string", "example": "Email verified successfully" },
+                    "token": { "type": "string" },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "number" },
+                        "email": { "type": "string" },
+                        "username": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid verification code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 400 },
+                    "message": { "type": "string", "example": "Invalid or expired verification code" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/register/verify/resend": {
+      "post": {
+        "tags": ["User"],
+        "summary": "Resend verification email",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email resent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "message": { "type": "string", "example": "Verification email resent" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 400 },
+                    "message": { "type": "string", "example": "Email not found" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/account": {
+      "get": {
+        "tags": ["User"],
+        "summary": "Get user account information",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Account info retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "userId": { "type": "number" },
+                        "email": { "type": "string", "example": "user@example.com" },
+                        "firstName": { "type": "string" },
+                        "lastName": { "type": "string" },
+                        "createdAt": { "type": "string", "format": "date-time" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["User"],
+        "summary": "Update user account information",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "message": { "type": "string", "example": "Account updated successfully" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "userId": { "type": "number" },
+                        "email": { "type": "string" },
+                        "firstName": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/project/list/{page}": {
+      "get": {
+        "tags": ["Project"],
+        "summary": "Get projects by page",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projects retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "projects": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "number" },
+                              "name": { "type": "string" },
+                              "url": { "type": "string" },
+                              "createdAt": { "type": "string", "format": "date-time" }
+                            }
+                          }
+                        },
+                        "totalPages": { "type": "number" },
+                        "currentPage": { "type": "number" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plan/balance": {
+      "get": {
+        "tags": ["Plan"],
+        "summary": "Get credit balance",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Balance retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "totalCredits": { "type": "number", "example": 1000 },
+                        "usedCredits": { "type": "number", "example": 250 },
+                        "availableCredits": { "type": "number", "example": 750 },
+                        "lastUpdated": { "type": "string", "format": "date-time" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/general/files/{key}": {
+      "get": {
+        "tags": ["General"],
+        "summary": "Get file by key",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File retrieved",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 404 },
+                    "message": { "type": "string", "example": "File not found" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vocabulary/translate": {
+      "post": {
+        "tags": ["Vocabulary"],
+        "summary": "Translate vocabulary",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "word": { "type": "string", "example": "eloquent" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Translation retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "word": { "type": "string", "example": "eloquent" },
+                        "translation": { "type": "string", "example": "雄辩的，有说服力的" },
+                        "phonetic": { "type": "string", "example": "['eləkwənt]" },
+                        "partOfSpeech": { "type": "string", "example": "adjective" },
+                        "example": { "type": "string", "example": "He is an eloquent speaker." }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ielts/onboarding/status": {
+      "get": {
+        "tags": ["IELTS"],
+        "summary": "Check onboarding status",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Status retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "needsOnboarding": { "type": "boolean", "example": true },
+                        "currentStep": { "type": "number", "example": 1 },
+                        "totalSteps": { "type": "number", "example": 5 },
+                        "completedSteps": { "type": "number", "example": 0 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ielts/dashboard/stats": {
+      "get": {
+        "tags": ["IELTS"],
+        "summary": "Get dashboard statistics",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Stats retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "totalTests": { "type": "number", "example": 15 },
+                        "completedTests": { "type": "number", "example": 12 },
+                        "averageScore": { "type": "number", "example": 7.5 },
+                        "lastTestDate": { "type": "string", "format": "date-time" },
+                        "readingScore": { "type": "number", "example": 8.0 },
+                        "writingScore": { "type": "number", "example": 7.0 },
+                        "listeningScore": { "type": "number", "example": 7.5 },
+                        "speakingScore": { "type": "number", "example": 7.5 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/user": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create user",
+        "security": [{ "adminAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "newuser@example.com" },
+                  "fullName": { "type": "string", "example": "John Doe" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "message": { "type": "string", "example": "User created successfully" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "userId": { "type": "number" },
+                        "email": { "type": "string" },
+                        "fullName": { "type": "string" },
+                        "verificationCode": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/creditcard": {
+      "get": {
+        "tags": ["Credit Card"],
+        "summary": "Get credit cards",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Cards retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 200 },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "number" },
+                          "cardNumber": { "type": "string", "example": "****1234" },
+                          "cardHolder": { "type": "string" },
+                          "expiryDate": { "type": "string", "example": "12/25" },
+                          "isDefault": { "type": "boolean" },
+                          "createdAt": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number", "example": 401 },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "adminAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    { "name": "Auth", "description": "Authentication endpoints" },
+    { "name": "User", "description": "User management endpoints" },
+    { "name": "Project", "description": "Project management endpoints" },
+    { "name": "Plan", "description": "Plan and subscription endpoints" },
+    { "name": "General", "description": "General utility endpoints" },
+    { "name": "Vocabulary", "description": "Vocabulary and translation endpoints" },
+    { "name": "RAG", "description": "RAG system endpoints" },
+    { "name": "IELTS", "description": "IELTS exam endpoints" },
+    { "name": "Admin", "description": "Admin management endpoints" },
+    { "name": "Credit Card", "description": "Credit card management endpoints" },
+    { "name": "Study Plan", "description": "Study plan management endpoints" }
+  ]
+}

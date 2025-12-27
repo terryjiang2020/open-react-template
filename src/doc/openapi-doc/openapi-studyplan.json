@@ -1,0 +1,125 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Study Plan API",
+    "description": "Study plan management endpoints",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/studyplan",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.elasticdash.com/studyplan",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/current": {
+      "get": {
+        "summary": "Get current study plan",
+        "tags": ["Study Plan"],
+        "responses": {
+          "200": {
+            "description": "Study plan retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "number" },
+                        "name": { "type": "string" },
+                        "startDate": { "type": "string", "format": "date" },
+                        "endDate": { "type": "string", "format": "date" },
+                        "progress": { "type": "number" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{id}": {
+      "get": {
+        "summary": "Get study plan by ID",
+        "tags": ["Study Plan"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Study plan retrieved"
+          }
+        }
+      }
+    },
+    "/create": {
+      "post": {
+        "summary": "Create study plan",
+        "tags": ["Study Plan"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "targetScore": { "type": "number" },
+                  "duration": { "type": "number" },
+                  "hoursPerWeek": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Study plan created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "planId": { "type": "number" },
+                        "name": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

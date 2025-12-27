@@ -1,0 +1,386 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Admin API",
+    "description": "Admin management endpoints for ElasticDash platform",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/admin",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.elasticdash.com/admin",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "adminAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [{ "adminAuth": [] }],
+  "paths": {
+    "/allrealusers": {
+      "get": {
+        "summary": "Get all real users",
+        "tags": ["Admin"],
+        "responses": {
+          "200": {
+            "description": "Users retrieved"
+          }
+        }
+      }
+    },
+    "/user": {
+      "post": {
+        "summary": "Create user",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "fullName": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User created"
+          }
+        }
+      }
+    },
+    "/user/password": {
+      "put": {
+        "summary": "Update user password",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "newPassword"],
+                "properties": {
+                  "userId": { "type": "number" },
+                  "newPassword": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password updated"
+          }
+        }
+      }
+    },
+    "/user/email": {
+      "put": {
+        "summary": "Update user email",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "newEmail"],
+                "properties": {
+                  "userId": { "type": "number" },
+                  "newEmail": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email updated"
+          }
+        }
+      }
+    },
+    "/user/delete/{userId}": {
+      "delete": {
+        "summary": "Delete user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted"
+          }
+        }
+      }
+    },
+    "/user/testrequest/bystatus": {
+      "get": {
+        "summary": "Get test requests by status",
+        "tags": ["Admin"],
+        "responses": {
+          "200": {
+            "description": "Requests retrieved"
+          }
+        }
+      }
+    },
+    "/user/testrequest/list": {
+      "post": {
+        "summary": "Get test requests list",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string" },
+                  "page": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requests retrieved"
+          }
+        }
+      }
+    },
+    "/user/testrequest/status": {
+      "put": {
+        "summary": "Update test request status",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["requestId", "status"],
+                "properties": {
+                  "requestId": { "type": "number" },
+                  "status": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          }
+        }
+      }
+    },
+    "/test": {
+      "get": {
+        "summary": "Get tests",
+        "tags": ["Admin"],
+        "responses": {
+          "200": {
+            "description": "Tests retrieved"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create test",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "type": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test created"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update test",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["testId"],
+                "properties": {
+                  "testId": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete test",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["testId"],
+                "properties": {
+                  "testId": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test deleted"
+          }
+        }
+      }
+    },
+    "/socket": {
+      "post": {
+        "summary": "Socket test",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Socket test successful"
+          }
+        }
+      }
+    },
+    "/project/ai-only/{projectId}": {
+      "get": {
+        "summary": "Get AI-only project configuration",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuration retrieved"
+          }
+        }
+      }
+    },
+    "/project/ai-only": {
+      "put": {
+        "summary": "Update AI-only project configuration",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["projectId"],
+                "properties": {
+                  "projectId": { "type": "number" },
+                  "aiOnly": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuration updated"
+          }
+        }
+      }
+    },
+    "/user/search": {
+      "get": {
+        "summary": "Search users",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Search query for user names or emails"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "number" },
+                          "email": { "type": "string" },
+                          "fullName": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

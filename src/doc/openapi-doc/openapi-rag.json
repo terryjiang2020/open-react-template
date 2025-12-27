@@ -1,0 +1,228 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash RAG API",
+    "description": "Retrieval-Augmented Generation endpoints for code/feature search",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/rag",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.elasticdash.com/rag",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/search": {
+      "post": {
+        "summary": "Search codebase",
+        "tags": ["Search"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": { "type": "string" },
+                  "limit": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": { "type": "string" },
+                          "snippet": { "type": "string" },
+                          "relevance": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/feature": {
+      "post": {
+        "summary": "Search features",
+        "tags": ["Search"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feature search results"
+          }
+        }
+      }
+    },
+    "/search/commit": {
+      "post": {
+        "summary": "Search commits",
+        "tags": ["Search"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Commit search results"
+          }
+        }
+      }
+    },
+    "/query": {
+      "post": {
+        "summary": "Query with RAG",
+        "tags": ["Query"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query result with context"
+          }
+        }
+      }
+    },
+    "/commit": {
+      "post": {
+        "summary": "Add commit to RAG",
+        "tags": ["Commits"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["hash", "message", "diff"],
+                "properties": {
+                  "hash": { "type": "string" },
+                  "message": { "type": "string" },
+                  "diff": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Commit added"
+          }
+        }
+      }
+    },
+    "/commits/batch": {
+      "post": {
+        "summary": "Add multiple commits",
+        "tags": ["Commits"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["commits"],
+                "properties": {
+                  "commits": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Commits added"
+          }
+        }
+      }
+    },
+    "/commit/{commitHash}": {
+      "delete": {
+        "summary": "Delete commit from RAG",
+        "tags": ["Commits"],
+        "parameters": [
+          {
+            "name": "commitHash",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Commit deleted"
+          }
+        }
+      }
+    }
+  }
+}

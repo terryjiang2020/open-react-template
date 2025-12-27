@@ -1,0 +1,107 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Plan API",
+    "description": "Subscription and plan management endpoints",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/plan",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.elasticdash.com/plan",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/balance": {
+      "get": {
+        "summary": "Get credit balance",
+        "tags": ["Plan"],
+        "responses": {
+          "200": {
+            "description": "Balance retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "totalCredits": { "type": "number" },
+                        "usedCredits": { "type": "number" },
+                        "availableCredits": { "type": "number" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/list": {
+      "get": {
+        "summary": "Get available plans",
+        "tags": ["Plan"],
+        "responses": {
+          "200": {
+            "description": "Plans retrieved"
+          }
+        }
+      }
+    },
+    "/subscription/current": {
+      "get": {
+        "summary": "Get current subscription",
+        "tags": ["Plan"],
+        "responses": {
+          "200": {
+            "description": "Subscription retrieved"
+          }
+        }
+      }
+    },
+    "/webhook": {
+      "post": {
+        "summary": "Webhook for payment events",
+        "tags": ["Plan"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event": { "type": "string" },
+                  "data": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook processed"
+          }
+        }
+      }
+    }
+  }
+}
