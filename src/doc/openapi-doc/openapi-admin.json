@@ -73,10 +73,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["userId", "newPassword"],
+                "required": ["password", "userId"],
                 "properties": {
-                  "userId": { "type": "number" },
-                  "newPassword": { "type": "string" }
+                  "password": { "type": "string" },
+                  "userId": { "type": "number" }
                 }
               }
             }
@@ -84,7 +84,18 @@
         },
         "responses": {
           "200": {
-            "description": "Password updated"
+            "description": "Password updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "number" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -343,20 +354,19 @@
     },
     "/admin/user/search": {
       "get": {
-        "summary": "Search users",
+        "summary": "Search users by email or name",
         "tags": ["Admin"],
         "parameters": [
           {
             "name": "q",
             "in": "query",
             "required": true,
-            "schema": { "type": "string" },
-            "description": "Search query for user names or emails"
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
           "200": {
-            "description": "Search results returned",
+            "description": "Search results",
             "content": {
               "application/json": {
                 "schema": {

@@ -43,38 +43,6 @@
         "size": "~3KB"
       },
       {
-        "module_id": "creditcard",
-        "file_name": "openapi-creditcard.json",
-        "file_path": "openapi-doc/openapi-creditcard.json",
-        "description": "信用卡和支付方式管理 API",
-        "endpoints": ["GET /creditcard", "POST /creditcard", "PUT /creditcard/{id}", "DELETE /creditcard/{id}"],
-        "size": "~7KB"
-      },
-      {
-        "module_id": "ielts",
-        "file_name": "openapi-ielts.json",
-        "file_path": "openapi-doc/openapi-ielts.json",
-        "description": "IELTS 考试准备和学习资源 API",
-        "endpoints": ["GET /ielts/onboarding/status", "GET /ielts/dashboard/stats", "POST /ielts/practice", "GET /ielts/results"],
-        "size": "~24KB"
-      },
-      {
-        "module_id": "vocabulary",
-        "file_name": "openapi-vocabulary.json",
-        "file_path": "openapi-doc/openapi-vocabulary.json",
-        "description": "词汇管理和学习 API",
-        "endpoints": ["POST /vocabulary/translate", "GET /vocabulary/list", "POST /vocabulary/save", "DELETE /vocabulary/{id}"],
-        "size": "~4KB"
-      },
-      {
-        "module_id": "studyplan",
-        "file_name": "openapi-studyplan.json",
-        "file_path": "openapi-doc/openapi-studyplan.json",
-        "description": "个性化学习计划和课程表 API",
-        "endpoints": ["GET /studyplan/current", "POST /studyplan", "PUT /studyplan/{id}", "GET /studyplan/progress"],
-        "size": "~3KB"
-      },
-      {
         "module_id": "rag",
         "file_name": "openapi-rag.json",
         "file_path": "openapi-doc/openapi-rag.json",

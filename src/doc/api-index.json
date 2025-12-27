@@ -45,38 +45,6 @@
       "endpoints_count": "~6"
     },
     {
-      "id": "creditcard",
-      "name": "Payment Methods",
-      "file": "openapi-doc/openapi-creditcard.json",
-      "description": "Credit card and payment method management",
-      "keywords": ["credit card", "payment", "card", "billing method", "payment method"],
-      "endpoints_count": "~5"
-    },
-    {
-      "id": "ielts",
-      "name": "IELTS Learning",
-      "file": "openapi-doc/openapi-ielts.json",
-      "description": "IELTS test preparation and learning resources",
-      "keywords": ["ielts", "test", "exam", "learning", "english", "preparation"],
-      "endpoints_count": "~10"
-    },
-    {
-      "id": "vocabulary",
-      "name": "Vocabulary",
-      "file": "openapi-doc/openapi-vocabulary.json",
-      "description": "Vocabulary management and learning",
-      "keywords": ["vocabulary", "word", "dictionary", "term", "definition", "flashcard"],
-      "endpoints_count": "~8"
-    },
-    {
-      "id": "studyplan",
-      "name": "Study Plans",
-      "file": "openapi-doc/openapi-studyplan.json",
-      "description": "Personalized study plans and schedules",
-      "keywords": ["study plan", "schedule", "learning path", "curriculum", "course"],
-      "endpoints_count": "~7"
-    },
-    {
       "id": "rag",
       "name": "RAG & AI",
       "file": "openapi-doc/openapi-rag.json",

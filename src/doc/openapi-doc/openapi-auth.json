@@ -70,7 +70,7 @@
     },
     "/auth/session/{sessionId}": {
       "get": {
-        "summary": "Get session information",
+        "summary": "Retrieve session details",
         "tags": ["Auth"],
         "parameters": [
           {
@@ -82,15 +82,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Session found",
+            "description": "Session details retrieved",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "sessionId": { "type": "string" },
-                    "userId": { "type": "number" },
-                    "createdAt": { "type": "string", "format": "date-time" }
+                    "status": { "type": "number" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sessionId": { "type": "string" },
+                        "userId": { "type": "number" },
+                        "expiresAt": { "type": "string", "format": "date-time" }
+                      }
+                    }
                   }
                 }
               }
