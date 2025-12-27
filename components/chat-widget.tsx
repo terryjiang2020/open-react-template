@@ -76,6 +76,9 @@ export default function ChatWidget() {
               console.log(`📚 类型: 文档加载请求`);
               console.log(`\n📋 LLM 输出:`);
               console.log(log.llm_output);
+              if (log.details.explanatory_text) {
+                console.log(`\n💬 说明文本: ${log.details.explanatory_text}`);
+              }
               console.log(`\n📦 详情:`);
               console.log(`   请求的模块:`, log.details.requested);
               console.log(`   已加载的模块:`, log.details.loaded);
@@ -89,6 +92,9 @@ export default function ChatWidget() {
               console.log(`🔧 类型: API调用`);
               console.log(`\n📋 LLM 输出:`);
               console.log(log.llm_output);
+              if (log.details.explanatory_text) {
+                console.log(`\n💬 说明文本: ${log.details.explanatory_text}`);
+              }
               console.log(`\n🛠️  工具调用详情:`);
               log.details.tool_calls.forEach((call: any, idx: number) => {
                 console.log(`\n   [${idx + 1}/${log.details.tool_calls.length}] ${call.tool_name}`);
@@ -107,6 +113,9 @@ export default function ChatWidget() {
               console.log(`❓ 类型: 需要澄清`);
               console.log(`\n📋 LLM 输出:`);
               console.log(log.llm_output);
+              if (log.details.explanatory_text) {
+                console.log(`\n💬 说明文本: ${log.details.explanatory_text}`);
+              }
               console.log(`\n💬 问题:`, log.details.question);
               break;
 
@@ -131,6 +140,19 @@ export default function ChatWidget() {
       console.log('═'.repeat(80) + '\n');
     } catch (error) {
       console.error('Error sending message:', error);
+
+      // Enhanced logging for better debugging
+      if (error instanceof Response) {
+        try {
+          const errorBody = await error.text();
+          console.error('Error response body:', errorBody);
+        } catch (bodyError) {
+          console.error('Failed to read error response body:', bodyError);
+        }
+      } else {
+        console.error('Non-response error:', error);
+      }
+
       const errorMessage: Message = {
         role: 'assistant',
         content: '抱歉，发生了错误。请稍后再试。',

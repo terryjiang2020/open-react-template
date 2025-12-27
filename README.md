@@ -91,3 +91,29 @@ We're an Italian developer/designer duo creating high-quality design/code resour
 ## Stay in the loop
 
 If you would like to know when we release new resources, you can follow [@pacovitiello](https://x.com/pacovitiello) and [@DavidePacilio](https://x.com/DavidePacilio) on X, or you can subscribe to our [newsletter](https://cruip.com/newsletter/).
+
+## API Configuration (Chat Agent)
+
+The chat agent can call external APIs (e.g., ElasticDash). To make calls like `/user/account` work locally, set the following environment variables:
+
+```
+# .env.local
+NEXT_PUBLIC_ELASTICDASH_API=https://devserver.elasticdash.com/api
+NEXT_PUBLIC_ELASTICDASH_TOKEN=YOUR_BEARER_TOKEN
+```
+
+- `NEXT_PUBLIC_ELASTICDASH_API`: Base URL for ElasticDash. Defaults to `https://devserver.elasticdash.com/api` in development and `https://api.elasticdash.com` in production.
+- `NEXT_PUBLIC_ELASTICDASH_TOKEN`: Your bearer token used for authorized requests. Do not commit this token.
+
+On macOS (zsh), you can export temp values for a single shell session:
+
+```zsh
+export NEXT_PUBLIC_ELASTICDASH_API="https://devserver.elasticdash.com/api"
+export NEXT_PUBLIC_ELASTICDASH_TOKEN="<paste-your-token>"
+npm run dev
+```
+
+Notes:
+- Tokens are only read on the server side in `app/api/chat/route.ts`.
+- If `NEXT_PUBLIC_ELASTICDASH_TOKEN` is missing, requests to secured endpoints will likely return 401.
+- Error responses from the external API are now logged with status and body for easier debugging.

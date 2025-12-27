@@ -24,6 +24,11 @@ function loadApiIndex(): string {
   return fs.readFileSync(indexPath, 'utf-8');
 }
 
+function loadFileList(): string {
+  const fileListPath = path.join(process.cwd(), 'src/doc/openapi-doc/openapi.json');
+  return fs.readFileSync(fileListPath, 'utf-8');
+}
+
 function loadApiModule(moduleId: string): string | null {
   try {
     const indexPath = path.join(process.cwd(), 'src/doc/api-index.json');
@@ -43,13 +48,73 @@ function loadApiModule(moduleId: string): string | null {
   }
 }
 
+// 从混合响应中提取JSON部分
+function extractJSON(content: string): { json: string; text: string } | null {
+  try {
+    const trimmed = content.trim();
+
+    // 尝试找到JSON对象 {...} 或数组 [...]
+    let jsonStart = -1;
+    let jsonEnd = -1;
+
+    // 查找JSON对象
+    const objStart = trimmed.indexOf('{');
+    const arrStart = trimmed.indexOf('[');
+
+    if (objStart === -1 && arrStart === -1) {
+      return null;
+    }
+
+    // 确定JSON的起始位置（取最先出现的）
+    if (objStart !== -1 && (arrStart === -1 || objStart < arrStart)) {
+      jsonStart = objStart;
+      // 找到匹配的闭合括号
+      let depth = 0;
+      for (let i = objStart; i < trimmed.length; i++) {
+        if (trimmed[i] === '{') depth++;
+        if (trimmed[i] === '}') depth--;
+        if (depth === 0) {
+          jsonEnd = i + 1;
+          break;
+        }
+      }
+    } else if (arrStart !== -1) {
+      jsonStart = arrStart;
+      // 找到匹配的闭合括号
+      let depth = 0;
+      for (let i = arrStart; i < trimmed.length; i++) {
+        if (trimmed[i] === '[') depth++;
+        if (trimmed[i] === ']') depth--;
+        if (depth === 0) {
+          jsonEnd = i + 1;
+          break;
+        }
+      }
+    }
+
+    if (jsonStart === -1 || jsonEnd === -1) {
+      return null;
+    }
+
+    const json = trimmed.substring(jsonStart, jsonEnd);
+    const text = trimmed.substring(0, jsonStart).trim();
+
+    // 验证JSON是否有效
+    JSON.parse(json);
+
+    return { json, text };
+  } catch {
+    return null;
+  }
+}
+
 // 检测响应是否为文档加载请求
 function isDocLoadRequest(content: string): boolean {
   try {
-    const trimmed = content.trim();
-    if (!trimmed.startsWith('{')) return false;
+    const extracted = extractJSON(content);
+    if (!extracted) return false;
 
-    const parsed = JSON.parse(trimmed);
+    const parsed = JSON.parse(extracted.json);
     return parsed.load_docs && Array.isArray(parsed.load_docs);
   } catch {
     return false;
@@ -59,10 +124,10 @@ function isDocLoadRequest(content: string): boolean {
 // 检测响应是否为clarification请求
 function isClarificationRequest(content: string): boolean {
   try {
-    const trimmed = content.trim();
-    if (!trimmed.startsWith('{')) return false;
+    const extracted = extractJSON(content);
+    if (!extracted) return false;
 
-    const parsed = JSON.parse(trimmed);
+    const parsed = JSON.parse(extracted.json);
     return parsed.clarification && typeof parsed.clarification === 'string';
   } catch {
     return false;
@@ -72,10 +137,10 @@ function isClarificationRequest(content: string): boolean {
 // 检测响应是否为单个工具调用JSON
 function isSingleToolCall(content: string): boolean {
   try {
-    const trimmed = content.trim();
-    if (!trimmed.startsWith('{')) return false;
+    const extracted = extractJSON(content);
+    if (!extracted) return false;
 
-    const parsed = JSON.parse(trimmed);
+    const parsed = JSON.parse(extracted.json);
     return parsed.tool_name && typeof parsed.tool_name === 'string';
   } catch {
     return false;
@@ -85,10 +150,10 @@ function isSingleToolCall(content: string): boolean {
 // 检测响应是否为工具调用数组JSON
 function isToolCallResponse(content: string): boolean {
   try {
-    const trimmed = content.trim();
-    if (!trimmed.startsWith('[')) return false;
+    const extracted = extractJSON(content);
+    if (!extracted) return false;
 
-    const parsed = JSON.parse(trimmed);
+    const parsed = JSON.parse(extracted.json);
     return Array.isArray(parsed) && parsed.length > 0 &&
            parsed.every(item => item.tool_name);
   } catch {
@@ -190,8 +255,13 @@ async function executeToolCall(
     // 确定使用哪个基础URL
     const isElasticDashApi = !toolCall.tool_name.startsWith('/api/v2/');
     const baseUrl = isElasticDashApi
-      ? (process.env.ELASTICDASH_API || 'https://api.elasticdash.com')
-      : (process.env.POKEMON_API || 'https://pokeapi.co');
+      ? (
+          process.env.NEXT_PUBLIC_ELASTICDASH_API ||
+          (process.env.NODE_ENV === 'development'
+            ? 'https://devserver.elasticdash.com/api'
+            : 'https://api.elasticdash.com')
+        )
+      : (process.env.NEXT_PUBLIC_POKEMON_API || 'https://pokeapi.co');
 
     let url = `${baseUrl}${toolCall.tool_name}`;
 
@@ -240,14 +310,14 @@ async function executeToolCall(
       'Content-Type': 'application/json',
     };
 
-    // 如果是ElasticDash API，添加Bearer token
+    // 如果是ElasticDash API，添加Bearer token（来自环境变量）
     if (isElasticDashApi) {
-      const token = process.env.ELASTICDASH_TOKEN;
+      const token = process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN;
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
-        console.log('🔐 Authentication: Bearer token added');
+        console.log('🔐 Authentication: Bearer token added from env NEXT_PUBLIC_ELASTICDASH_TOKEN');
       } else {
-        console.log('⚠️  Warning: ELASTICDASH_TOKEN not found in environment');
+        console.log('⚠️  Warning: NEXT_PUBLIC_ELASTICDASH_TOKEN not found in environment — requests may fail with 401');
       }
     }
 
@@ -269,8 +339,15 @@ async function executeToolCall(
     const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
       const errorMsg = `API调用失败: ${response.status} ${response.statusText}`;
       console.log('❌ Error:', errorMsg);
+      if (bodyText) {
+        console.log('\n📥 Error Response Body:');
+        console.log('-'.repeat(80));
+        console.log(bodyText.substring(0, 800));
+        console.log('-'.repeat(80));
+      }
       console.log('='.repeat(80) + '\n');
 
       const log: ToolCallLog = {
@@ -279,7 +356,7 @@ async function executeToolCall(
         url,
         response_size: 0,
         compressed: false,
-        response_preview: errorMsg,
+        response_preview: bodyText ? `${errorMsg}\n${bodyText.substring(0, 200)}...` : errorMsg,
         response_data: null
       };
 
@@ -433,7 +510,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
         { error: 'OpenAI API key not configured' },
@@ -444,11 +521,12 @@ export async function POST(request: NextRequest) {
     // 加载系统配置
     const systemPrompt = loadSystemPrompt();
     const apiIndex = loadApiIndex();
+    const fileList = loadFileList();
 
     // 处理消息上下文（摘要如果需要）
     const processedMessages = await summarizeMessages(messages, apiKey);
 
-    // 构建完整的消息数组，确保系统提示和API索引始终在最前面
+    // 构建完整的消息数组，确保系统提示、文件列表和API索引始终在最前面
     let conversationMessages = [
       {
         role: 'system',
@@ -456,7 +534,11 @@ export async function POST(request: NextRequest) {
       },
       {
         role: 'system',
-        content: `以下是可用的API模块索引（api-index.json）：\n\n${apiIndex}\n\n如果你需要某个模块的详细文档，使用 {"load_docs": ["module_id"]} 格式请求加载。`,
+        content: `📁 可用的文档文件列表（始终可见）：\n\n${fileList}\n\n你可以随时通过 {"load_docs": ["module_id"]} 加载这些模块的详细文档。`,
+      },
+      {
+        role: 'system',
+        content: `📋 API模块索引（api-index.json）：\n\n${apiIndex}\n\n此索引提供了模块的关键词和描述，帮助你匹配用户意图。`,
       },
       ...processedMessages,
     ];
@@ -511,8 +593,12 @@ export async function POST(request: NextRequest) {
         console.log(`❓ ITERATION ${iteration}: CLARIFICATION REQUEST`);
         console.log('█'.repeat(80));
 
-        const clarification = JSON.parse(assistantMessage.trim());
-        console.log('\n💬 Clarification needed:', clarification.clarification);
+        const extracted = extractJSON(assistantMessage);
+        const clarification = JSON.parse(extracted!.json);
+        const explanatoryText = extracted!.text;
+
+        console.log('\n💬 Explanatory text:', explanatoryText || '(none)');
+        console.log('💬 Clarification needed:', clarification.clarification);
         console.log('█'.repeat(80) + '\n');
 
         // 记录迭代
@@ -520,7 +606,10 @@ export async function POST(request: NextRequest) {
           iteration,
           type: 'clarification',
           llm_output: assistantMessage,
-          details: { question: clarification.clarification }
+          details: {
+            question: clarification.clarification,
+            explanatory_text: explanatoryText
+          }
         });
 
         // 将clarification作为最终响应返回给用户
@@ -534,9 +623,14 @@ export async function POST(request: NextRequest) {
         console.log(`📚 ITERATION ${iteration}: DOCUMENTATION LOAD REQUEST`);
         console.log('█'.repeat(80));
 
-        const loadRequest = JSON.parse(assistantMessage.trim());
+        const extracted = extractJSON(assistantMessage);
+        const loadRequest = JSON.parse(extracted!.json);
+        const explanatoryText = extracted!.text;
         const moduleIds: string[] = loadRequest.load_docs;
 
+        if (explanatoryText) {
+          console.log('\n💬 Explanatory text:', explanatoryText);
+        }
         console.log('\n📋 Requested modules:', moduleIds);
         console.log('-'.repeat(80));
 
@@ -586,7 +680,8 @@ export async function POST(request: NextRequest) {
             details: {
               requested: moduleIds,
               loaded: newModules,
-              total_loaded: loadedModules.size
+              total_loaded: loadedModules.size,
+              explanatory_text: explanatoryText
             }
           });
         } else {
@@ -600,7 +695,8 @@ export async function POST(request: NextRequest) {
             details: {
               requested: moduleIds,
               loaded: [],
-              already_loaded: true
+              already_loaded: true,
+              explanatory_text: explanatoryText
             }
           });
         }
@@ -618,9 +714,14 @@ export async function POST(request: NextRequest) {
         console.log('█'.repeat(80));
 
         // 解析单个工具调用，转换为数组格式处理
-        const singleCall: ToolCall = JSON.parse(assistantMessage.trim());
+        const extracted = extractJSON(assistantMessage);
+        const singleCall: ToolCall = JSON.parse(extracted!.json);
+        const explanatoryText = extracted!.text;
         const toolCalls: ToolCall[] = [singleCall];
 
+        if (explanatoryText) {
+          console.log('\n💬 Explanatory text:', explanatoryText);
+        }
         console.log('\n📋 LLM OUTPUT (Single Tool Call):');
         console.log('-'.repeat(80));
         console.log(JSON.stringify(singleCall, null, 2));
@@ -651,7 +752,7 @@ export async function POST(request: NextRequest) {
           console.log('\n⚠️  Large tool results detected (>3000 tokens), optimizing context...');
           console.log(`📝 Messages before optimization: ${conversationMessages.length}`);
 
-          const systemMessages = conversationMessages.filter(m => m.role === 'system').slice(0, 2);
+          const systemMessages = conversationMessages.filter(m => m.role === 'system').slice(0, 3);
           const recentUserMessages = conversationMessages
             .filter(m => m.role === 'user')
             .slice(-2);
@@ -663,7 +764,7 @@ export async function POST(request: NextRequest) {
           ];
 
           console.log(`✅ Messages after optimization: ${conversationMessages.length}`);
-          console.log('🔒 System prompts preserved: prompt.txt + api-index.json');
+          console.log('🔒 System prompts preserved: prompt.txt + file-list + api-index.json');
         }
 
         conversationMessages.push({
@@ -682,11 +783,9 @@ export async function POST(request: NextRequest) {
           llm_output: assistantMessage,
           details: {
             tool_calls: toolCalls.map((tc, i) => ({
-              tool_name: tc.tool_name,
-              arguments: tc.arguments,
-              method: tc.method || 'GET',
               ...toolCallLogs[toolCallLogs.length - toolCalls.length + i]
-            }))
+            })),
+            explanatory_text: explanatoryText
           }
         });
 
@@ -701,8 +800,13 @@ export async function POST(request: NextRequest) {
         console.log('█'.repeat(80));
 
         // 解析工具调用
-        const toolCalls: ToolCall[] = JSON.parse(assistantMessage.trim());
+        const extracted = extractJSON(assistantMessage);
+        const toolCalls: ToolCall[] = JSON.parse(extracted!.json);
+        const explanatoryText = extracted!.text;
 
+        if (explanatoryText) {
+          console.log('\n💬 Explanatory text:', explanatoryText);
+        }
         console.log('\n📋 LLM OUTPUT (Tool Call JSON):');
         console.log('-'.repeat(80));
         console.log(JSON.stringify(toolCalls, null, 2));
@@ -737,8 +841,8 @@ export async function POST(request: NextRequest) {
           console.log('\n⚠️  Large tool results detected (>3000 tokens), optimizing context...');
           console.log(`📝 Messages before optimization: ${conversationMessages.length}`);
 
-          // 保留system prompts（前2条）和最近的关键消息
-          const systemMessages = conversationMessages.filter(m => m.role === 'system').slice(0, 2);
+          // 保留system prompts（前3条）和最近的关键消息
+          const systemMessages = conversationMessages.filter(m => m.role === 'system').slice(0, 3);
           const recentUserMessages = conversationMessages
             .filter(m => m.role === 'user')
             .slice(-2);
@@ -750,7 +854,7 @@ export async function POST(request: NextRequest) {
           ];
 
           console.log(`✅ Messages after optimization: ${conversationMessages.length}`);
-          console.log('🔒 System prompts preserved: prompt.txt + openapi-index.json');
+          console.log('🔒 System prompts preserved: prompt.txt + file-list + api-index.json');
         }
 
         // 添加工具调用和结果到对话
@@ -771,10 +875,9 @@ export async function POST(request: NextRequest) {
           llm_output: assistantMessage,
           details: {
             tool_calls: toolCalls.map((tc, i) => ({
-              tool_name: tc.tool_name,
-              arguments: tc.arguments,
               ...toolCallLogs[toolCallLogs.length - toolCalls.length + i]
-            }))
+            })),
+            explanatory_text: explanatoryText
           }
         });
 
