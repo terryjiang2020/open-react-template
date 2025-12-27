@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/admin",
+      "url": "https://devserver.elasticdash.com/api/admin",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/admin",
+      "url": "https://server.elasticdash.com/api/admin",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "adminAuth": [] }],
   "paths": {
-    "/allrealusers": {
+    "/admin/allrealusers": {
       "get": {
         "summary": "Get all real users",
         "tags": ["Admin"],
@@ -37,7 +37,7 @@
         }
       }
     },
-    "/user": {
+    "/admin/user": {
       "post": {
         "summary": "Create user",
         "tags": ["Admin"],
@@ -63,7 +63,7 @@
         }
       }
     },
-    "/user/password": {
+    "/admin/user/password": {
       "put": {
         "summary": "Update user password",
         "tags": ["Admin"],
@@ -89,7 +89,7 @@
         }
       }
     },
-    "/user/email": {
+    "/admin/user/email": {
       "put": {
         "summary": "Update user email",
         "tags": ["Admin"],
@@ -115,7 +115,7 @@
         }
       }
     },
-    "/user/delete/{userId}": {
+    "/admin/user/delete/{userId}": {
       "delete": {
         "summary": "Delete user",
         "tags": ["Admin"],
@@ -134,7 +134,7 @@
         }
       }
     },
-    "/user/testrequest/bystatus": {
+    "/admin/user/testrequest/bystatus": {
       "get": {
         "summary": "Get test requests by status",
         "tags": ["Admin"],
@@ -145,7 +145,7 @@
         }
       }
     },
-    "/user/testrequest/list": {
+    "/admin/user/testrequest/list": {
       "post": {
         "summary": "Get test requests list",
         "tags": ["Admin"],
@@ -170,7 +170,7 @@
         }
       }
     },
-    "/user/testrequest/status": {
+    "/admin/user/testrequest/status": {
       "put": {
         "summary": "Update test request status",
         "tags": ["Admin"],
@@ -196,7 +196,7 @@
         }
       }
     },
-    "/test": {
+    "/admin/test": {
       "get": {
         "summary": "Get tests",
         "tags": ["Admin"],
@@ -277,7 +277,7 @@
         }
       }
     },
-    "/socket": {
+    "/admin/socket": {
       "post": {
         "summary": "Socket test",
         "tags": ["Admin"],
@@ -296,7 +296,7 @@
         }
       }
     },
-    "/project/ai-only/{projectId}": {
+    "/admin/project/ai-only/{projectId}": {
       "get": {
         "summary": "Get AI-only project configuration",
         "tags": ["Admin"],
@@ -315,7 +315,7 @@
         }
       }
     },
-    "/project/ai-only": {
+    "/admin/project/ai-only": {
       "put": {
         "summary": "Update AI-only project configuration",
         "tags": ["Admin"],
@@ -341,13 +341,13 @@
         }
       }
     },
-    "/user/search": {
+    "/admin/user/search": {
       "get": {
         "summary": "Search users",
         "tags": ["Admin"],
         "parameters": [
           {
-            "name": "query",
+            "name": "q",
             "in": "query",
             "required": true,
             "schema": { "type": "string" },

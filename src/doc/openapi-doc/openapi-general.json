@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/general",
+      "url": "https://devserver.elasticdash.com/api/general",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/general",
+      "url": "https://server.elasticdash.com/api/general",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/files/{key}": {
+    "/general/files/{key}": {
       "get": {
         "summary": "Get file by key",
         "tags": ["Files"],
@@ -57,7 +57,7 @@
         }
       }
     },
-    "/secret/list": {
+    "/general/secret/list": {
       "get": {
         "summary": "Get secrets list",
         "tags": ["Secrets"],
@@ -68,7 +68,7 @@
         }
       }
     },
-    "/secret/get/{secretName}": {
+    "/general/secret/get/{secretName}": {
       "get": {
         "summary": "Get secret by name",
         "tags": ["Secrets"],
@@ -87,7 +87,7 @@
         }
       }
     },
-    "/secret/create": {
+    "/general/secret/create": {
       "post": {
         "summary": "Create secret",
         "tags": ["Secrets"],
@@ -113,7 +113,7 @@
         }
       }
     },
-    "/secret/delete/{secretName}": {
+    "/general/secret/delete/{secretName}": {
       "delete": {
         "summary": "Delete secret",
         "tags": ["Secrets"],
@@ -132,7 +132,7 @@
         }
       }
     },
-    "/aiservice/xai": {
+    "/general/aiservice/xai": {
       "post": {
         "summary": "Call XAI service",
         "tags": ["AI Services"],
@@ -175,7 +175,7 @@
         }
       }
     },
-    "/aiservice/claude": {
+    "/general/aiservice/claude": {
       "post": {
         "summary": "Call Claude AI service",
         "tags": ["AI Services"],
@@ -218,7 +218,7 @@
         }
       }
     },
-    "/waitlist": {
+    "/general/waitlist": {
       "post": {
         "summary": "Add to waitlist",
         "tags": ["Waitlist"],
@@ -244,7 +244,7 @@
         }
       }
     },
-    "/waitlist/{id}": {
+    "/general/waitlist/{id}": {
       "put": {
         "summary": "Update waitlist entry",
         "tags": ["Waitlist"],

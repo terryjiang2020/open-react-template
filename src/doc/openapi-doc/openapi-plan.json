@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/plan",
+      "url": "https://devserver.elasticdash.com/api/plan",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/plan",
+      "url": "https://server.elasticdash.com/api/plan",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/balance": {
+    "/plan/balance": {
       "get": {
         "summary": "Get credit balance",
         "tags": ["Plan"],
@@ -55,7 +55,7 @@
         }
       }
     },
-    "/list": {
+    "/plan/list": {
       "get": {
         "summary": "Get available plans",
         "tags": ["Plan"],
@@ -66,7 +66,7 @@
         }
       }
     },
-    "/subscription/current": {
+    "/plan/subscription/current": {
       "get": {
         "summary": "Get current subscription",
         "tags": ["Plan"],
@@ -77,7 +77,7 @@
         }
       }
     },
-    "/webhook": {
+    "/plan/webhook": {
       "post": {
         "summary": "Webhook for payment events",
         "tags": ["Plan"],

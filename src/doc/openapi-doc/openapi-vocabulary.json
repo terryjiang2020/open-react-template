@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/vocabulary",
+      "url": "https://devserver.elasticdash.com/api/vocabulary",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/vocabulary",
+      "url": "https://server.elasticdash.com/api/vocabulary",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/translate": {
+    "/vocabulary/translate": {
       "post": {
         "summary": "Translate vocabulary",
         "tags": ["Vocabulary"],
@@ -71,7 +71,7 @@
         }
       }
     },
-    "/my-words": {
+    "/vocabulary/my-words": {
       "get": {
         "summary": "Get user's word list",
         "tags": ["Vocabulary"],
@@ -104,7 +104,7 @@
         }
       }
     },
-    "/history": {
+    "/vocabulary/history": {
       "get": {
         "summary": "Get translation history",
         "tags": ["Vocabulary"],

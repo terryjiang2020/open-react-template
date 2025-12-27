@@ -263,28 +263,13 @@ async function executeToolCall(
         )
       : (process.env.NEXT_PUBLIC_POKEMON_API || 'https://pokeapi.co');
 
-    let url = `${baseUrl}${toolCall.tool_name}`;
+    // 提取模块前缀和路径
+    const [modulePrefix, ...pathParts] = toolCall.tool_name.split('/').filter(Boolean);
+    const path = pathParts.join('/');
 
-    // 处理路径参数（替换{id}等占位符）
-    if (toolCall.arguments) {
-      for (const [key, value] of Object.entries(toolCall.arguments)) {
-        const placeholder = `{${key}}`;
-        if (url.includes(placeholder)) {
-          url = url.replace(placeholder, String(value));
-        }
-      }
-
-      // 处理查询参数（如果URL中没有占位符，则作为查询参数）
-      const unusedParams = Object.entries(toolCall.arguments).filter(
-        ([key]) => !toolCall.tool_name.includes(`{${key}}`)
-      );
-
-      if (unusedParams.length > 0) {
-        const queryString = new URLSearchParams(
-          unusedParams.map(([k, v]) => [k, String(v)])
-        ).toString();
-        url += `?${queryString}`;
-      }
+    // 验证模块前缀和路径
+    if (!modulePrefix || !path) {
+      throw new Error(`Invalid tool_name: "${toolCall.tool_name}" must include a module prefix and path.`);
     }
 
     // 获取HTTP方法（从arguments中提取，默认为GET）
@@ -294,6 +279,16 @@ async function executeToolCall(
     const actualArguments = { ...toolCall.arguments };
     delete actualArguments.method;
 
+    // 对于GET请求，将参数作为query string附加到URL
+    let url = `${baseUrl}/${modulePrefix}/${path}`;
+    if (method === 'GET' && Object.keys(actualArguments).length > 0) {
+      const queryParams = new URLSearchParams();
+      Object.entries(actualArguments).forEach(([key, value]) => {
+        queryParams.append(key, String(value));
+      });
+      url += `?${queryParams.toString()}`;
+    }
+
     console.log('\n' + '='.repeat(80));
     console.log(`🔧 [${index + 1}/${total}] TOOL CALL`);
     console.log('='.repeat(80));
@@ -301,7 +296,7 @@ async function executeToolCall(
     console.log('HTTP Method:', method);
     console.log('Arguments:', JSON.stringify(actualArguments, null, 2));
     console.log('API Type:', isElasticDashApi ? 'ElasticDash' : 'Pokemon');
-    console.log('Full URL:', url);
+    console.log('Constructed URL:', url);
     console.log('-'.repeat(80));
 
     // 构建请求头
@@ -315,9 +310,6 @@ async function executeToolCall(
       const token = process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN;
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
-        console.log('🔐 Authentication: Bearer token added from env NEXT_PUBLIC_ELASTICDASH_TOKEN');
-      } else {
-        console.log('⚠️  Warning: NEXT_PUBLIC_ELASTICDASH_TOKEN not found in environment — requests may fail with 401');
       }
     }
 
@@ -329,38 +321,14 @@ async function executeToolCall(
 
     // 对于POST、PUT、PATCH等需要body的请求，添加请求体
     if (['POST', 'PUT', 'PATCH'].includes(method)) {
-      // 如果URL没有查询参数，将actualArguments作为body
-      if (!url.includes('?') && Object.keys(actualArguments).length > 0) {
-        fetchOptions.body = JSON.stringify(actualArguments);
-        console.log('📤 Request body:', JSON.stringify(actualArguments, null, 2));
-      }
+      fetchOptions.body = JSON.stringify(actualArguments);
     }
 
     const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
-      const bodyText = await response.text().catch(() => '');
-      const errorMsg = `API调用失败: ${response.status} ${response.statusText}`;
-      console.log('❌ Error:', errorMsg);
-      if (bodyText) {
-        console.log('\n📥 Error Response Body:');
-        console.log('-'.repeat(80));
-        console.log(bodyText.substring(0, 800));
-        console.log('-'.repeat(80));
-      }
-      console.log('='.repeat(80) + '\n');
-
-      const log: ToolCallLog = {
-        tool_name: toolCall.tool_name,
-        arguments: toolCall.arguments || {},
-        url,
-        response_size: 0,
-        compressed: false,
-        response_preview: bodyText ? `${errorMsg}\n${bodyText.substring(0, 200)}...` : errorMsg,
-        response_data: null
-      };
-
-      return { result: errorMsg, log };
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
@@ -374,7 +342,7 @@ async function executeToolCall(
     console.log('-'.repeat(80));
     // 显示前500个字符的响应预览
     if (jsonString.length > 500) {
-      console.log(jsonString.substring(0, 500) + '\n... (truncated for display)');
+      console.log(jsonString.substring(0, 500) + '...');
     } else {
       console.log(jsonString);
     }
@@ -384,19 +352,9 @@ async function executeToolCall(
     let wasCompressed = false;
 
     if (tokens > 1500) {
-      console.log(`⚠️  Large response detected, compressing...`);
-      const compressed = compressLargeJson(jsonString);
-      console.log(`✅ Compressed to: ~${estimateTokens(compressed)} tokens`);
-      console.log('\n📤 COMPRESSED RESPONSE:');
-      console.log('-'.repeat(80));
-      console.log(compressed);
-      console.log('-'.repeat(80));
-      console.log('='.repeat(80) + '\n');
-      finalResult = compressed;
+      finalResult = compressLargeJson(jsonString);
       wasCompressed = true;
     } else {
-      console.log('✅ Response within size limit, no compression needed');
-      console.log('='.repeat(80) + '\n');
       finalResult = jsonString;
     }
 
@@ -407,7 +365,7 @@ async function executeToolCall(
       response_size: tokens,
       compressed: wasCompressed,
       response_preview: jsonString.substring(0, 200) + (jsonString.length > 200 ? '...' : ''),
-      response_data: data // 保存完整的JSON对象
+      response_data: data,
     };
 
     return { result: finalResult, log };
@@ -423,7 +381,7 @@ async function executeToolCall(
       response_size: 0,
       compressed: false,
       response_preview: errorMsg,
-      response_data: null
+      response_data: null,
     };
 
     return { result: errorMsg, log };
@@ -617,7 +575,7 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      // 检测是否为文档加载请求
+      // 检测响应是否为文档加载请求
       if (isDocLoadRequest(assistantMessage)) {
         console.log('\n' + '█'.repeat(80));
         console.log(`📚 ITERATION ${iteration}: DOCUMENTATION LOAD REQUEST`);

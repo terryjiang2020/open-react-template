@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/studyplan",
+      "url": "https://devserver.elasticdash.com/api/studyplan",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/studyplan",
+      "url": "https://server.elasticdash.com/api/studyplan",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/current": {
+    "/studyplan/current": {
       "get": {
         "summary": "Get current study plan",
         "tags": ["Study Plan"],
@@ -57,7 +57,7 @@
         }
       }
     },
-    "/{id}": {
+    "/studyplan/{id}": {
       "get": {
         "summary": "Get study plan by ID",
         "tags": ["Study Plan"],
@@ -76,7 +76,7 @@
         }
       }
     },
-    "/create": {
+    "/studyplan/create": {
       "post": {
         "summary": "Create study plan",
         "tags": ["Study Plan"],

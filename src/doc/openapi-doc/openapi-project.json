@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/project",
+      "url": "https://devserver.elasticdash.com/api/project",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/project",
+      "url": "https://server.elasticdash.com/api/project",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/list/{page}": {
+    "/project/list/{page}": {
       "get": {
         "summary": "Get projects by page",
         "tags": ["Project"],
@@ -59,7 +59,7 @@
         }
       }
     },
-    "/list/all": {
+    "/project/list/all": {
       "post": {
         "summary": "Get all projects",
         "tags": ["Project"],
@@ -83,7 +83,7 @@
         }
       }
     },
-    "/list/page": {
+    "/project/list/page": {
       "post": {
         "summary": "Get projects with pagination",
         "tags": ["Project"],
@@ -108,7 +108,7 @@
         }
       }
     },
-    "/create": {
+    "/project/create": {
       "post": {
         "summary": "Create new project",
         "tags": ["Project"],
@@ -144,7 +144,7 @@
         }
       }
     },
-    "/byid/{projectId}": {
+    "/project/byid/{projectId}": {
       "get": {
         "summary": "Get project details",
         "tags": ["Project"],
@@ -211,7 +211,7 @@
         }
       }
     },
-    "/duplicate/{projectId}": {
+    "/project/duplicate/{projectId}": {
       "get": {
         "summary": "Duplicate project",
         "tags": ["Project"],
@@ -230,7 +230,7 @@
         }
       }
     },
-    "/{projectId}/activate": {
+    "/project/{projectId}/activate": {
       "get": {
         "summary": "Activate project",
         "tags": ["Project"],
@@ -249,7 +249,7 @@
         }
       }
     },
-    "/{projectId}/activate/testrun": {
+    "/project/{projectId}/activate/testrun": {
       "get": {
         "summary": "Test run project activation",
         "tags": ["Project"],
@@ -268,7 +268,7 @@
         }
       }
     },
-    "/step/templates": {
+    "/project/step/templates": {
       "get": {
         "summary": "Get available step templates",
         "tags": ["Project"],
@@ -279,7 +279,7 @@
         }
       }
     },
-    "/{projectId}/step/list": {
+    "/project/{projectId}/step/list": {
       "get": {
         "summary": "Get project steps",
         "tags": ["Project"],
@@ -298,7 +298,7 @@
         }
       }
     },
-    "/{projectId}/step/create": {
+    "/project/{projectId}/step/create": {
       "post": {
         "summary": "Create project step",
         "tags": ["Project"],
@@ -331,7 +331,7 @@
         }
       }
     },
-    "/step/update/{stepId}": {
+    "/project/step/update/{stepId}": {
       "put": {
         "summary": "Update step",
         "tags": ["Project"],
@@ -363,7 +363,7 @@
         }
       }
     },
-    "/step/delete/{stepId}": {
+    "/project/step/delete/{stepId}": {
       "delete": {
         "summary": "Delete step",
         "tags": ["Project"],
@@ -382,7 +382,7 @@
         }
       }
     },
-    "/step/evaluate/{stepId}": {
+    "/project/step/evaluate/{stepId}": {
       "put": {
         "summary": "Evaluate step",
         "tags": ["Project"],
@@ -414,7 +414,7 @@
         }
       }
     },
-    "/step/attachment/upload/{stepId}": {
+    "/project/step/attachment/upload/{stepId}": {
       "post": {
         "summary": "Upload step attachment",
         "tags": ["Project"],
@@ -446,7 +446,7 @@
         }
       }
     },
-    "/step/attachment/delete/{attachmentId}": {
+    "/project/step/attachment/delete/{attachmentId}": {
       "delete": {
         "summary": "Delete step attachment",
         "tags": ["Project"],
@@ -465,7 +465,7 @@
         }
       }
     },
-    "/session/{sessionId}": {
+    "/project/session/{sessionId}": {
       "get": {
         "summary": "Get session details",
         "tags": ["Project"],
@@ -531,7 +531,7 @@
         }
       }
     },
-    "/session/exist/{projectId}": {
+    "/project/session/exist/{projectId}": {
       "get": {
         "summary": "Check if project session exists",
         "tags": ["Project"],
@@ -550,7 +550,7 @@
         }
       }
     },
-    "/session/heartbeat/{sessionId}": {
+    "/project/session/heartbeat/{sessionId}": {
       "get": {
         "summary": "Session heartbeat",
         "tags": ["Project"],
@@ -569,7 +569,7 @@
         }
       }
     },
-    "/{projectId}/session/create": {
+    "/project/{projectId}/session/create": {
       "post": {
         "summary": "Create new session",
         "tags": ["Project"],
@@ -598,7 +598,7 @@
         }
       }
     },
-    "/session/abort": {
+    "/project/session/abort": {
       "post": {
         "summary": "Abort current session",
         "tags": ["Project"],
@@ -619,7 +619,7 @@
         }
       }
     },
-    "/session/latest/all/{page}": {
+    "/project/session/latest/all/{page}": {
       "get": {
         "summary": "Get latest sessions paginated",
         "tags": ["Project"],
@@ -665,7 +665,7 @@
         }
       }
     },
-    "/session/latest/test/{projectId}": {
+    "/project/session/latest/test/{projectId}": {
       "get": {
         "summary": "Get latest test session",
         "tags": ["Project"],
@@ -684,7 +684,7 @@
         }
       }
     },
-    "/session/list/byprojectid": {
+    "/project/session/list/byprojectid": {
       "post": {
         "summary": "Get sessions by project",
         "tags": ["Project"],
@@ -709,7 +709,7 @@
         }
       }
     },
-    "/session/update": {
+    "/project/session/update": {
       "post": {
         "summary": "Update session",
         "tags": ["Project"],
@@ -734,7 +734,7 @@
         }
       }
     },
-    "/draft/create": {
+    "/project/draft/create": {
       "post": {
         "summary": "Create project draft",
         "tags": ["Project"],
@@ -759,7 +759,7 @@
         }
       }
     },
-    "/draft/byid/{projectId}": {
+    "/project/draft/byid/{projectId}": {
       "get": {
         "summary": "Get draft project",
         "tags": ["Project"],
@@ -822,7 +822,7 @@
         }
       }
     },
-    "/draft/{projectId}/step/list": {
+    "/project/draft/{projectId}/step/list": {
       "get": {
         "summary": "Get draft steps",
         "tags": ["Project"],
@@ -841,7 +841,7 @@
         }
       }
     },
-    "/draft/{projectId}/step/create": {
+    "/project/draft/{projectId}/step/create": {
       "post": {
         "summary": "Create draft step",
         "tags": ["Project"],
@@ -870,7 +870,7 @@
         }
       }
     },
-    "/draft/step/update/{stepId}": {
+    "/project/draft/step/update/{stepId}": {
       "put": {
         "summary": "Update draft step",
         "tags": ["Project"],
@@ -899,7 +899,7 @@
         }
       }
     },
-    "/draft/step/delete/{stepId}": {
+    "/project/draft/step/delete/{stepId}": {
       "delete": {
         "summary": "Delete draft step",
         "tags": ["Project"],
@@ -918,7 +918,7 @@
         }
       }
     },
-    "/draft/step/evaluate/{stepId}": {
+    "/project/draft/step/evaluate/{stepId}": {
       "put": {
         "summary": "Evaluate draft step",
         "tags": ["Project"],
@@ -947,7 +947,7 @@
         }
       }
     },
-    "/draft/step/attachment/upload/{stepId}": {
+    "/project/draft/step/attachment/upload/{stepId}": {
       "post": {
         "summary": "Upload draft step attachment",
         "tags": ["Project"],
@@ -976,7 +976,7 @@
         }
       }
     },
-    "/draft/step/attachment/delete/{attachmentId}": {
+    "/project/draft/step/attachment/delete/{attachmentId}": {
       "delete": {
         "summary": "Delete draft step attachment",
         "tags": ["Project"],
@@ -995,7 +995,7 @@
         }
       }
     },
-    "/draft/apply/{projectId}": {
+    "/project/draft/apply/{projectId}": {
       "get": {
         "summary": "Apply draft changes",
         "tags": ["Project"],
@@ -1014,7 +1014,7 @@
         }
       }
     },
-    "/reorder": {
+    "/project/reorder": {
       "put": {
         "summary": "Reorder project steps",
         "tags": ["Project"],
@@ -1041,7 +1041,7 @@
         }
       }
     },
-    "/keypoint/generate": {
+    "/project/keypoint/generate": {
       "post": {
         "summary": "Generate keypoints for project",
         "tags": ["Project"],
@@ -1062,7 +1062,7 @@
         }
       }
     },
-    "/balance/update/{userId}": {
+    "/project/balance/update/{userId}": {
       "get": {
         "summary": "Update user balance",
         "tags": ["Project"],
@@ -1081,7 +1081,7 @@
         }
       }
     },
-    "/{projectId}/session/testrun/check": {
+    "/project/{projectId}/session/testrun/check": {
       "get": {
         "summary": "Check test run status",
         "tags": ["Project"],
@@ -1100,7 +1100,7 @@
         }
       }
     },
-    "/{projectId}/session/testrun/abort": {
+    "/project/{projectId}/session/testrun/abort": {
       "get": {
         "summary": "Abort test run",
         "tags": ["Project"],
@@ -1119,7 +1119,7 @@
         }
       }
     },
-    "/{projectId}/session/testrun/update": {
+    "/project/{projectId}/session/testrun/update": {
       "post": {
         "summary": "Update test run",
         "tags": ["Project"],

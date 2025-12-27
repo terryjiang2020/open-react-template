@@ -7,16 +7,16 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/auth",
+      "url": "https://devserver.elasticdash.com/api/auth",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/auth",
+      "url": "https://server.elasticdash.com/api/auth",
       "description": "Production server"
     }
   ],
   "paths": {
-    "/login": {
+    "/auth/login": {
       "post": {
         "summary": "User login",
         "description": "Authenticate user with credentials",
@@ -68,7 +68,7 @@
         }
       }
     },
-    "/session/{sessionId}": {
+    "/auth/session/{sessionId}": {
       "get": {
         "summary": "Get session information",
         "tags": ["Auth"],

@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/user",
+      "url": "https://devserver.elasticdash.com/api/user",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/user",
+      "url": "https://server.elasticdash.com/api/user",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/register": {
+    "/user/register": {
       "post": {
         "summary": "Register new user",
         "tags": ["User"],
@@ -66,7 +66,7 @@
         }
       }
     },
-    "/register/verify": {
+    "/user/register/verify": {
       "post": {
         "summary": "Verify registration email",
         "tags": ["User"],
@@ -106,7 +106,7 @@
         }
       }
     },
-    "/register/verify/resend": {
+    "/user/register/verify/resend": {
       "post": {
         "summary": "Resend verification email",
         "tags": ["User"],
@@ -132,7 +132,7 @@
         }
       }
     },
-    "/account": {
+    "/user/account": {
       "get": {
         "summary": "Get user account information",
         "tags": ["User"],
@@ -187,7 +187,7 @@
         }
       }
     },
-    "/account/email": {
+    "/user/account/email": {
       "put": {
         "summary": "Update user email",
         "tags": ["User"],
@@ -212,7 +212,7 @@
         }
       }
     },
-    "/account/email/verify/{url}": {
+    "/user/account/email/verify/{url}": {
       "get": {
         "summary": "Verify email change",
         "tags": ["User"],
@@ -232,7 +232,7 @@
         }
       }
     },
-    "/account/photo": {
+    "/user/account/photo": {
       "put": {
         "summary": "Update user profile photo",
         "tags": ["User"],
@@ -256,7 +256,7 @@
         }
       }
     },
-    "/profile/my": {
+    "/user/profile/my": {
       "get": {
         "summary": "Get my profile",
         "tags": ["User"],
@@ -267,7 +267,7 @@
         }
       }
     },
-    "/profile/other/{id}": {
+    "/user/profile/other/{id}": {
       "get": {
         "summary": "Get other user profile",
         "tags": ["User"],
@@ -286,7 +286,7 @@
         }
       }
     },
-    "/profile": {
+    "/user/profile": {
       "put": {
         "summary": "Update profile",
         "tags": ["User"],
@@ -311,7 +311,7 @@
         }
       }
     },
-    "/profile/resume": {
+    "/user/profile/resume": {
       "put": {
         "summary": "Update user resume",
         "tags": ["User"],
@@ -335,7 +335,7 @@
         }
       }
     },
-    "/notification": {
+    "/user/notification": {
       "get": {
         "summary": "Get user notifications",
         "tags": ["User"],
@@ -346,7 +346,7 @@
         }
       }
     },
-    "/notification/read/{id}": {
+    "/user/notification/read/{id}": {
       "get": {
         "summary": "Mark notification as read",
         "tags": ["User"],
@@ -365,7 +365,7 @@
         }
       }
     },
-    "/notification/delete/{id}": {
+    "/user/notification/delete/{id}": {
       "delete": {
         "summary": "Delete notification",
         "tags": ["User"],
@@ -384,7 +384,7 @@
         }
       }
     },
-    "/testrequest": {
+    "/user/testrequest": {
       "post": {
         "summary": "Create test request",
         "tags": ["User"],
@@ -409,7 +409,7 @@
         }
       }
     },
-    "/testrequest/page/{page}": {
+    "/user/testrequest/page/{page}": {
       "get": {
         "summary": "Get test requests by page",
         "tags": ["User"],
@@ -428,7 +428,7 @@
         }
       }
     },
-    "/testrequest/delete/{id}": {
+    "/user/testrequest/delete/{id}": {
       "delete": {
         "summary": "Delete test request",
         "tags": ["User"],
@@ -447,7 +447,7 @@
         }
       }
     },
-    "/checkpassword": {
+    "/user/checkpassword": {
       "get": {
         "summary": "Check password validity",
         "tags": ["User"],
@@ -458,7 +458,7 @@
         }
       }
     },
-    "/confirmpassword": {
+    "/user/confirmpassword": {
       "put": {
         "summary": "Confirm password",
         "tags": ["User"],
@@ -483,7 +483,7 @@
         }
       }
     },
-    "/updatepassword": {
+    "/user/updatepassword": {
       "put": {
         "summary": "Update password",
         "tags": ["User"],
@@ -509,7 +509,7 @@
         }
       }
     },
-    "/forgotpassword": {
+    "/user/forgotpassword": {
       "post": {
         "summary": "Request password reset",
         "tags": ["User"],
@@ -535,7 +535,7 @@
         }
       }
     },
-    "/resetpassword": {
+    "/user/resetpassword": {
       "post": {
         "summary": "Reset password with token",
         "tags": ["User"],
@@ -562,7 +562,7 @@
         }
       }
     },
-    "/google/auth": {
+    "/user/google/auth": {
       "post": {
         "summary": "Google OAuth authentication",
         "tags": ["User"],
@@ -588,7 +588,7 @@
         }
       }
     },
-    "/microsoft/auth": {
+    "/user/microsoft/auth": {
       "post": {
         "summary": "Microsoft OAuth authentication",
         "tags": ["User"],
@@ -614,7 +614,7 @@
         }
       }
     },
-    "/onboarding/process": {
+    "/user/onboarding/process": {
       "get": {
         "summary": "Get onboarding process status",
         "tags": ["User"],
@@ -648,7 +648,7 @@
         }
       }
     },
-    "/unsubscribe/{url}": {
+    "/user/unsubscribe/{url}": {
       "get": {
         "summary": "Unsubscribe from emails",
         "tags": ["User"],

@@ -5,6 +5,7 @@ Your PRIMARY responsibility is to:
 2. Request detailed documentation ONLY for relevant modules
 3. Determine if the user's request matches any available APIs
 4. Decide the appropriate response strategy
+5. ALWAYS prioritize the `servers` attribute in OpenAPI specifications to construct the base URL for endpoints.
 
 ========================
 TWO-STAGE PROCESS

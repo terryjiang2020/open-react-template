@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/creditcard",
+      "url": "https://devserver.elasticdash.com/api/creditcard",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/creditcard",
+      "url": "https://server.elasticdash.com/api/creditcard",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/": {
+    "/creditcard/": {
       "get": {
         "summary": "Get all credit cards",
         "tags": ["Cards"],
@@ -86,7 +86,7 @@
         }
       }
     },
-    "/{id}": {
+    "/creditcard/{id}": {
       "get": {
         "summary": "Get card details",
         "tags": ["Cards"],
@@ -122,7 +122,7 @@
         }
       }
     },
-    "/{id}/default": {
+    "/creditcard/{id}/default": {
       "put": {
         "summary": "Set as default card",
         "tags": ["Cards"],
@@ -149,7 +149,7 @@
         }
       }
     },
-    "/{id}/address": {
+    "/creditcard/{id}/address": {
       "put": {
         "summary": "Update card billing address",
         "tags": ["Cards"],
@@ -182,7 +182,7 @@
         }
       }
     },
-    "/address": {
+    "/creditcard/address": {
       "get": {
         "summary": "Get all addresses",
         "tags": ["Address"],
@@ -220,7 +220,7 @@
         }
       }
     },
-    "/address/{id}": {
+    "/creditcard/address/{id}": {
       "put": {
         "summary": "Update address",
         "tags": ["Address"],

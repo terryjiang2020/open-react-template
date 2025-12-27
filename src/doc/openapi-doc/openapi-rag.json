@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/rag",
+      "url": "https://devserver.elasticdash.com/api/rag",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/rag",
+      "url": "https://server.elasticdash.com/api/rag",
       "description": "Production server"
     }
   ],
@@ -26,7 +26,7 @@
   },
   "security": [{ "bearerAuth": [] }],
   "paths": {
-    "/search": {
+    "/rag/search": {
       "post": {
         "summary": "Search codebase",
         "tags": ["Search"],
@@ -73,7 +73,7 @@
         }
       }
     },
-    "/search/feature": {
+    "/rag/search/feature": {
       "post": {
         "summary": "Search features",
         "tags": ["Search"],
@@ -98,7 +98,7 @@
         }
       }
     },
-    "/search/commit": {
+    "/rag/search/commit": {
       "post": {
         "summary": "Search commits",
         "tags": ["Search"],
@@ -123,7 +123,7 @@
         }
       }
     },
-    "/query": {
+    "/rag/query": {
       "post": {
         "summary": "Query with RAG",
         "tags": ["Query"],
@@ -148,7 +148,7 @@
         }
       }
     },
-    "/commit": {
+    "/rag/commit": {
       "post": {
         "summary": "Add commit to RAG",
         "tags": ["Commits"],
@@ -175,7 +175,7 @@
         }
       }
     },
-    "/commits/batch": {
+    "/rag/commits/batch": {
       "post": {
         "summary": "Add multiple commits",
         "tags": ["Commits"],
@@ -205,7 +205,7 @@
         }
       }
     },
-    "/commit/{commitHash}": {
+    "/rag/commit/{commitHash}": {
       "delete": {
         "summary": "Delete commit from RAG",
         "tags": ["Commits"],

@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/ielts",
+      "url": "https://devserver.elasticdash.com/api/ielts",
       "description": "Development server"
     },
     {
-      "url": "https://api.elasticdash.com/ielts",
+      "url": "https://server.elasticdash.com/api/ielts",
       "description": "Production server"
     }
   ],
@@ -38,7 +38,7 @@
     { "name": "Admin", "description": "Admin test generation" }
   ],
   "paths": {
-    "/onboarding/status": {
+    "/ielts/onboarding/status": {
       "get": {
         "summary": "Check onboarding status",
         "tags": ["Onboarding"],
@@ -68,7 +68,7 @@
         }
       }
     },
-    "/onboarding/placement-test/start": {
+    "/ielts/onboarding/placement-test/start": {
       "post": {
         "summary": "Start placement test",
         "tags": ["Onboarding"],
@@ -87,7 +87,7 @@
         }
       }
     },
-    "/onboarding/placement-test/submit": {
+    "/ielts/onboarding/placement-test/submit": {
       "post": {
         "summary": "Submit placement test",
         "tags": ["Onboarding"],
@@ -111,7 +111,7 @@
         }
       }
     },
-    "/onboarding/placement-test/result": {
+    "/ielts/onboarding/placement-test/result": {
       "get": {
         "summary": "Get placement test result",
         "tags": ["Onboarding"],
@@ -122,7 +122,7 @@
         }
       }
     },
-    "/onboarding/complete": {
+    "/ielts/onboarding/complete": {
       "post": {
         "summary": "Complete onboarding",
         "tags": ["Onboarding"],
@@ -141,7 +141,7 @@
         }
       }
     },
-    "/onboarding/studyplan/estimate": {
+    "/ielts/onboarding/studyplan/estimate": {
       "post": {
         "summary": "Estimate study plan",
         "tags": ["Onboarding"],
@@ -166,7 +166,7 @@
         }
       }
     },
-    "/dashboard/stats": {
+    "/ielts/dashboard/stats": {
       "get": {
         "summary": "Get dashboard statistics",
         "tags": ["Dashboard"],
@@ -195,7 +195,7 @@
         }
       }
     },
-    "/reading/stats": {
+    "/ielts/reading/stats": {
       "get": {
         "summary": "Get reading statistics",
         "tags": ["Dashboard"],
@@ -206,7 +206,7 @@
         }
       }
     },
-    "/writing/stats": {
+    "/ielts/writing/stats": {
       "get": {
         "summary": "Get writing statistics",
         "tags": ["Dashboard"],
@@ -217,7 +217,7 @@
         }
       }
     },
-    "/skill/rating": {
+    "/ielts/skill/rating": {
       "get": {
         "summary": "Get skill ratings",
         "tags": ["Skills"],
@@ -228,7 +228,7 @@
         }
       }
     },
-    "/skill/rating/{skillId}/trend": {
+    "/ielts/skill/rating/{skillId}/trend": {
       "get": {
         "summary": "Get skill trend",
         "tags": ["Skills"],
@@ -247,7 +247,7 @@
         }
       }
     },
-    "/skill/rating/history": {
+    "/ielts/skill/rating/history": {
       "get": {
         "summary": "Get skill history",
         "tags": ["Skills"],
@@ -258,7 +258,7 @@
         }
       }
     },
-    "/test/start": {
+    "/ielts/test/start": {
       "post": {
         "summary": "Start a test",
         "tags": ["Tests"],
@@ -283,7 +283,7 @@
         }
       }
     },
-    "/test/submit": {
+    "/ielts/test/submit": {
       "post": {
         "summary": "Submit test",
         "tags": ["Tests"],
@@ -308,7 +308,7 @@
         }
       }
     },
-    "/test/result/{id}": {
+    "/ielts/test/result/{id}": {
       "get": {
         "summary": "Get test result",
         "tags": ["Tests"],
@@ -327,7 +327,7 @@
         }
       }
     },
-    "/study-plan/current": {
+    "/ielts/study-plan/current": {
       "get": {
         "summary": "Get current study plan",
         "tags": ["Study Plan"],
@@ -338,7 +338,7 @@
         }
       }
     },
-    "/study-plan/submit": {
+    "/ielts/study-plan/submit": {
       "post": {
         "summary": "Submit study plan",
         "tags": ["Study Plan"],
@@ -362,7 +362,7 @@
         }
       }
     },
-    "/exam-goal": {
+    "/ielts/exam-goal": {
       "post": {
         "summary": "Set exam goal",
         "tags": ["Tests"],
@@ -387,7 +387,7 @@
         }
       }
     },
-    "/exam-goal/current": {
+    "/ielts/exam-goal/current": {
       "get": {
         "summary": "Get current exam goal",
         "tags": ["Tests"],
@@ -398,7 +398,7 @@
         }
       }
     },
-    "/exam-goal/history": {
+    "/ielts/exam-goal/history": {
       "get": {
         "summary": "Get exam goal history",
         "tags": ["Tests"],
@@ -409,7 +409,7 @@
         }
       }
     },
-    "/tasks/progress": {
+    "/ielts/tasks/progress": {
       "get": {
         "summary": "Get tasks progress",
         "tags": ["Study Plan"],
@@ -420,7 +420,7 @@
         }
       }
     },
-    "/daily-plan/today": {
+    "/ielts/daily-plan/today": {
       "get": {
         "summary": "Get today's daily plan",
         "tags": ["Daily Plan"],
@@ -431,7 +431,7 @@
         }
       }
     },
-    "/daily-plan/bydate/{date}": {
+    "/ielts/daily-plan/bydate/{date}": {
       "get": {
         "summary": "Get daily plan by date",
         "tags": ["Daily Plan"],
@@ -450,7 +450,7 @@
         }
       }
     },
-    "/daily-plan/generate": {
+    "/ielts/daily-plan/generate": {
       "post": {
         "summary": "Generate daily plan",
         "tags": ["Daily Plan"],
@@ -469,7 +469,7 @@
         }
       }
     },
-    "/daily-plan/generate-today": {
+    "/ielts/daily-plan/generate-today": {
       "post": {
         "summary": "Generate today's plan",
         "tags": ["Daily Plan"],
@@ -488,7 +488,7 @@
         }
       }
     },
-    "/daily-plan/incomplete": {
+    "/ielts/daily-plan/incomplete": {
       "get": {
         "summary": "Get incomplete daily plans",
         "tags": ["Daily Plan"],
@@ -499,7 +499,7 @@
         }
       }
     },
-    "/daily-plan/incomplete/reading": {
+    "/ielts/daily-plan/incomplete/reading": {
       "get": {
         "summary": "Get incomplete reading tasks",
         "tags": ["Daily Plan"],
@@ -510,7 +510,7 @@
         }
       }
     },
-    "/daily-plan/incomplete/writing": {
+    "/ielts/daily-plan/incomplete/writing": {
       "get": {
         "summary": "Get incomplete writing tasks",
         "tags": ["Daily Plan"],
@@ -521,7 +521,7 @@
         }
       }
     },
-    "/daily-plan/history": {
+    "/ielts/daily-plan/history": {
       "get": {
         "summary": "Get daily plan history",
         "tags": ["Daily Plan"],
@@ -532,7 +532,7 @@
         }
       }
     },
-    "/daily-plan/plan/complete/{planId}": {
+    "/ielts/daily-plan/plan/complete/{planId}": {
       "put": {
         "summary": "Complete daily plan",
         "tags": ["Daily Plan"],
@@ -559,7 +559,7 @@
         }
       }
     },
-    "/response/detail/{responseId}": {
+    "/ielts/response/detail/{responseId}": {
       "get": {
         "summary": "Get response details",
         "tags": ["Responses"],
@@ -578,7 +578,7 @@
         }
       }
     },
-    "/response/status/{queueId}": {
+    "/ielts/response/status/{queueId}": {
       "get": {
         "summary": "Get response evaluation status",
         "tags": ["Responses"],
@@ -597,7 +597,7 @@
         }
       }
     },
-    "/response/evaluation/{responseId}": {
+    "/ielts/response/evaluation/{responseId}": {
       "get": {
         "summary": "Get response evaluation",
         "tags": ["Responses"],
@@ -616,7 +616,7 @@
         }
       }
     },
-    "/response/upload-image": {
+    "/ielts/response/upload-image": {
       "post": {
         "summary": "Upload response image",
         "tags": ["Responses"],
@@ -640,7 +640,7 @@
         }
       }
     },
-    "/question/history/{responseId}": {
+    "/ielts/question/history/{responseId}": {
       "get": {
         "summary": "Get question history",
         "tags": ["Questions"],
@@ -659,7 +659,7 @@
         }
       }
     },
-    "/question/ask": {
+    "/ielts/question/ask": {
       "post": {
         "summary": "Ask a question",
         "tags": ["Questions"],
@@ -685,7 +685,7 @@
         }
       }
     },
-    "/question/followup": {
+    "/ielts/question/followup": {
       "post": {
         "summary": "Send followup question",
         "tags": ["Questions"],
@@ -711,7 +711,7 @@
         }
       }
     },
-    "/question/summarize/{responseId}": {
+    "/ielts/question/summarize/{responseId}": {
       "post": {
         "summary": "Summarize feedback",
         "tags": ["Questions"],
@@ -738,7 +738,7 @@
         }
       }
     },
-    "/plan-task/{taskId}": {
+    "/ielts/plan-task/{taskId}": {
       "get": {
         "summary": "Get task details",
         "tags": ["Study Plan"],
@@ -757,7 +757,7 @@
         }
       }
     },
-    "/plan-task/{taskId}/start": {
+    "/ielts/plan-task/{taskId}/start": {
       "post": {
         "summary": "Start plan task",
         "tags": ["Study Plan"],
@@ -784,7 +784,7 @@
         }
       }
     },
-    "/answer-sheet/config-status": {
+    "/ielts/answer-sheet/config-status": {
       "get": {
         "summary": "Get answer sheet config status",
         "tags": ["Answer Sheet"],
@@ -795,7 +795,7 @@
         }
       }
     },
-    "/answer-sheet/template": {
+    "/ielts/answer-sheet/template": {
       "get": {
         "summary": "Get answer sheet template",
         "tags": ["Answer Sheet"],
@@ -815,7 +815,7 @@
         }
       }
     },
-    "/answer-sheet/templates/list": {
+    "/ielts/answer-sheet/templates/list": {
       "get": {
         "summary": "Get answer sheet templates list",
         "tags": ["Answer Sheet"],
@@ -826,7 +826,7 @@
         }
       }
     },
-    "/answer-sheet/template/upload": {
+    "/ielts/answer-sheet/template/upload": {
       "post": {
         "summary": "Upload answer sheet template",
         "tags": ["Answer Sheet"],
@@ -850,7 +850,7 @@
         }
       }
     },
-    "/penalty/history": {
+    "/ielts/penalty/history": {
       "get": {
         "summary": "Get penalty history",
         "tags": ["Tests"],
@@ -861,7 +861,7 @@
         }
       }
     },
-    "/penalty/apply": {
+    "/ielts/penalty/apply": {
       "post": {
         "summary": "Apply penalty",
         "tags": ["Tests"],
@@ -885,7 +885,7 @@
         }
       }
     },
-    "/socketio/health": {
+    "/ielts/socketio/health": {
       "get": {
         "summary": "Socket.IO health check",
         "tags": ["Admin"],
@@ -897,7 +897,7 @@
         }
       }
     },
-    "/socketio/test": {
+    "/ielts/socketio/test": {
       "post": {
         "summary": "Socket.IO test",
         "tags": ["Admin"],
@@ -916,7 +916,7 @@
         }
       }
     },
-    "/admin/generate-reading-test": {
+    "/ielts/admin/generate-reading-test": {
       "post": {
         "summary": "Generate reading test",
         "tags": ["Admin"],
@@ -940,7 +940,7 @@
         }
       }
     },
-    "/admin/generate-writing-test": {
+    "/ielts/admin/generate-writing-test": {
       "post": {
         "summary": "Generate writing test",
         "tags": ["Admin"],
@@ -964,7 +964,7 @@
         }
       }
     },
-    "/usertest/list": {
+    "/ielts/usertest/list": {
       "post": {
         "summary": "Get user tests list",
         "tags": ["Tests"],
