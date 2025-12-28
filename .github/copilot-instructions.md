@@ -205,3 +205,4 @@ Working on step 2...
 - Plans serve as both documentation and crash recovery
 - Always be transparent about what you're doing at each step
 - If a step fails, update the plan with the error and stop for user guidance
+- `import { useRouter } from "next/navigation";` instead of `import { useRouter } from "next/router";` for Next.js 13+

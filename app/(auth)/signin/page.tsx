@@ -1,11 +1,38 @@
-export const metadata = {
-  title: "Sign In - Open PRO",
-  description: "Page description",
-};
+"use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { login, validateToken } from "../../../services/authService";
 
 export default function SignIn() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      validateToken(token)
+        .then(() => {
+          router.push("/dashboard");
+        })
+        .catch((err) => console.error(err));
+    }
+  }, [router]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const data = await login(username, password);
+      localStorage.setItem("token", data.result.token);
+      localStorage.setItem("user", JSON.stringify(data.result.user));
+      router.push("/dashboard");
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
     <section>
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -17,7 +44,10 @@ export default function SignIn() {
             </h1>
           </div>
           {/* Contact form */}
-          <form className="mx-auto max-w-[400px]">
+          <form
+            className="mx-auto max-w-[400px]"
+            onSubmit={handleLogin}
+          >
             <div className="space-y-5">
               <div>
                 <label
@@ -31,6 +61,9 @@ export default function SignIn() {
                   type="email"
                   className="form-input w-full"
                   placeholder="Your email"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
                 />
               </div>
               <div>
@@ -53,6 +86,9 @@ export default function SignIn() {
                   type="password"
                   className="form-input w-full"
                   placeholder="Your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
               </div>
             </div>
