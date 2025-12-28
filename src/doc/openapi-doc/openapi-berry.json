@@ -1,0 +1,46 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Berry API",
+    "description": "Endpoints for retrieving Pokémon berry data",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/berry/search/{input}": {
+      "get": {
+        "summary": "Retrieve Berry by ID or name",
+        "tags": ["Berry"],
+        "parameters": [
+          {
+            "name": "input",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berry details retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "number" },
+                    "name": { "type": "string" },
+                    "flavor": { "type": "string" },
+                    "firmness": { "type": "string" },
+                    "naturalGiftPower": { "type": "number" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Berry not found"
+          }
+        }
+      }
+    }
+  }
+}

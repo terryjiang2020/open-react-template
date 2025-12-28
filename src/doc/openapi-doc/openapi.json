@@ -4,59 +4,45 @@
     "files": [
       {
         "module_id": "auth",
-        "file_name": "openapi-auth.json",
-        "file_path": "openapi-doc/openapi-auth.json",
-        "description": "身份验证和会话管理 API",
-        "endpoints": ["POST /auth/login", "GET /auth/session/{sessionId}", "POST /auth/logout", "POST /auth/refresh"],
-        "size": "~3KB"
+        "title": "ElasticDash Auth API",
+        "description": "Authentication endpoints for ElasticDash platform",
+        "version": "1.0.0",
+        "size_estimate": "~15KB"
       },
       {
         "module_id": "user",
-        "file_name": "openapi-user.json",
-        "file_path": "openapi-doc/openapi-user.json",
-        "description": "用户配置文件、设置和账户管理 API",
-        "endpoints": ["POST /user/register", "POST /user/register/verify", "GET /user/account", "PUT /user/account", "GET /user/profile"],
-        "size": "~17KB"
-      },
-      {
-        "module_id": "admin",
-        "file_name": "openapi-admin.json",
-        "file_path": "openapi-doc/openapi-admin.json",
-        "description": "管理功能和系统管理 API",
-        "endpoints": ["POST /admin/user", "GET /admin/users", "PUT /admin/user/{id}", "DELETE /admin/user/{id}"],
-        "size": "~9KB"
+        "title": "ElasticDash User API",
+        "description": "User management endpoints for ElasticDash platform",
+        "version": "1.0.0",
+        "size_estimate": "~20KB"
       },
       {
         "module_id": "project",
-        "file_name": "openapi-project.json",
-        "file_path": "openapi-doc/openapi-project.json",
-        "description": "项目创建、管理和协作 API",
-        "endpoints": ["GET /project/list/{page}", "POST /project", "GET /project/{id}", "PUT /project/{id}", "DELETE /project/{id}"],
-        "size": "~27KB"
+        "title": "ElasticDash Project API",
+        "description": "Project management endpoints for ElasticDash platform",
+        "version": "1.0.0",
+        "size_estimate": "~18KB"
       },
       {
-        "module_id": "plan",
-        "file_name": "openapi-plan.json",
-        "file_path": "openapi-doc/openapi-plan.json",
-        "description": "订阅计划、账单和定价 API",
-        "endpoints": ["GET /plan/balance", "GET /plan/current", "POST /plan/upgrade", "GET /plan/history"],
-        "size": "~3KB"
-      },
-      {
-        "module_id": "rag",
-        "file_name": "openapi-rag.json",
-        "file_path": "openapi-doc/openapi-rag.json",
-        "description": "检索增强生成（RAG）和 AI 功能 API",
-        "endpoints": ["POST /rag/query", "POST /rag/index", "GET /rag/status", "DELETE /rag/index/{id}"],
-        "size": "~6KB"
+        "module_id": "admin",
+        "title": "ElasticDash Admin API",
+        "description": "Admin management endpoints for ElasticDash platform",
+        "version": "1.0.0",
+        "size_estimate": "~22KB"
       },
       {
         "module_id": "general",
-        "file_name": "openapi-general.json",
-        "file_path": "openapi-doc/openapi-general.json",
-        "description": "通用工具端点和其他功能 API",
-        "endpoints": ["GET /general/files/{key}", "POST /general/upload", "GET /general/health"],
-        "size": "~7KB"
+        "title": "ElasticDash General API",
+        "description": "General purpose endpoints for ElasticDash platform",
+        "version": "1.0.0",
+        "size_estimate": "~25KB"
+      },
+      {
+        "module_id": "pokemon",
+        "title": "ElasticDash Pokémon API",
+        "description": "Pokémon data endpoints for ElasticDash platform",
+        "version": "1.0.0",
+        "size_estimate": "~25KB"
       }
     ],
     "usage_instructions": [
@@ -66,8 +52,8 @@
       "4. 已加载的模块会自动缓存，无需重复加载",
       "5. 优先只加载需要的模块以节省上下文空间"
     ],
-    "total_modules": 11,
-    "total_size_estimate": "~110KB (if all loaded)",
+    "total_modules": 10,
+    "total_size_estimate": "~125KB (if all loaded)",
     "note": "此索引文件始终可见，帮助你了解可用的 API 文档资源"
   }
 }

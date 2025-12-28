@@ -1,0 +1,47 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Move API",
+    "description": "Endpoints for retrieving Pokémon move data",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/move/search/{input}": {
+      "get": {
+        "summary": "Retrieve Move by ID or name",
+        "tags": ["Move"],
+        "parameters": [
+          {
+            "name": "input",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Move details retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "number" },
+                    "name": { "type": "string" },
+                    "type": { "type": "string" },
+                    "power": { "type": "number" },
+                    "accuracy": { "type": "number" },
+                    "pp": { "type": "number" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Move not found"
+          }
+        }
+      }
+    }
+  }
+}

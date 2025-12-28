@@ -1,0 +1,45 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Ability API",
+    "description": "Endpoints for retrieving Pokémon ability data",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/ability/search/{input}": {
+      "get": {
+        "summary": "Retrieve Ability by ID or name",
+        "tags": ["Ability"],
+        "parameters": [
+          {
+            "name": "input",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ability details retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "number" },
+                    "name": { "type": "string" },
+                    "effect": { "type": "string" },
+                    "shortEffect": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ability not found"
+          }
+        }
+      }
+    }
+  }
+}

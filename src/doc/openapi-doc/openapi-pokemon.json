@@ -1,0 +1,246 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ElasticDash Pokémon API",
+    "description": "Pokémon-related endpoints for ElasticDash platform",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://devserver.elasticdash.com/api/pokemon",
+      "description": "Development server"
+    },
+    {
+      "url": "https://server.elasticdash.com/api/pokemon",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/pokemon/search/{input}": {
+      "get": {
+        "summary": "Retrieve Pokémon by ID or name",
+        "tags": ["Pokémon"],
+        "parameters": [
+          {
+            "name": "input",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pokémon details retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "number" },
+                      "name": { "type": "string" },
+                      "type": { "type": "string" },
+                      "abilities": { "type": "array", "items": { "type": "string" } },
+                      "sprite": { "type": "string", "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pokémon not found"
+          }
+        }
+      }
+    },
+    "/pokemon/watchlist": {
+      "post": {
+        "summary": "Add Pokémon to watchlist",
+        "tags": ["Watchlist"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pokemonId": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pokémon added to watchlist"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove Pokémon from watchlist",
+        "tags": ["Watchlist"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pokemonId": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pokémon removed from watchlist"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get user's Pokémon watchlist",
+        "tags": ["Watchlist"],
+        "responses": {
+          "200": {
+            "description": "User's watchlist retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "pokemonId": { "type": "number" },
+                      "createdAt": { "type": "string", "format": "date-time" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pokemon/teams": {
+      "post": {
+        "summary": "Create a Pokémon team",
+        "tags": ["Teams"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "teamName": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Team created"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get user's Pokémon teams",
+        "tags": ["Teams"],
+        "responses": {
+          "200": {
+            "description": "User's teams retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "teamId": { "type": "number" },
+                      "teamName": { "type": "string" },
+                      "createdAt": { "type": "string", "format": "date-time" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pokemon/teams/{teamId}/members": {
+      "post": {
+        "summary": "Add a member to a Pokémon team",
+        "tags": ["Teams"],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pokemonId": { "type": "number" },
+                  "nickname": { "type": "string" },
+                  "level": { "type": "number" },
+                  "moves": { "type": "array", "items": { "type": "number" } },
+                  "shiny": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Member added to team"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all members of a Pokémon team",
+        "tags": ["Teams"],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team members retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "memberId": { "type": "number" },
+                      "pokemonId": { "type": "number" },
+                      "nickname": { "type": "string" },
+                      "level": { "type": "number" },
+                      "shiny": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
