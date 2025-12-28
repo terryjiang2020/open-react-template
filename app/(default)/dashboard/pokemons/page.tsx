@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchPokemons, searchPokemon } from "@/services/pokemonService";
+import { searchPokemon } from "@/services/pokemonService";
 
 const PokemonPage = () => {
   const [pokemons, setPokemons] = useState([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(0); // Updated to start at 0
   const [totalPages, setTotalPages] = useState(1);
+  const [lastSearch, setLastSearch] = useState(""); // Track the last search term
 
   useEffect(() => {
-    fetchPokemons()
+    searchPokemon({ query: "", page: 0 })
       .then((data) => {
         console.log('Fetched Pokémon data:', data);
         let pokemonList = [];
@@ -27,9 +28,15 @@ const PokemonPage = () => {
 
   const handleSearch = async (e: any) => {
     e.preventDefault();
+    const formattedSearchTerm = search.trim().toLowerCase();
+
+    if (formattedSearchTerm !== lastSearch) {
+      setCurrentPage(0); // Reset page if search term changes
+    }
+
+    setLastSearch(formattedSearchTerm); // Update last search term
 
     try {
-        const formattedSearchTerm = search.trim().toLowerCase();
         const data = await searchPokemon({ query: formattedSearchTerm, page: currentPage });
         let pokemonList = [];
         let totalPages = 1;
@@ -65,7 +72,7 @@ const PokemonPage = () => {
           placeholder="Search Pokémon by name or ID"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: "0.5rem", marginRight: "0.5rem" }}
+          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "black" }} // Set text color to black
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
       </form>
