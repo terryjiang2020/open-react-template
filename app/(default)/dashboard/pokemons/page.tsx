@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation"; // Corrected import for Next.js 13+
 import { searchPokemon } from "@/services/pokemonService";
 
 const PokemonPage = () => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [pokemons, setPokemons] = useState<any>([]);
-  const [search, setSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(0); // Updated to start at 0
+  const [search, setSearch] = useState(searchParams.get("query") || "");
+  const [currentPage, setCurrentPage] = useState(
+    parseInt(searchParams.get("page") || "0", 10)
+  );
   const [totalPages, setTotalPages] = useState(1);
   const [lastSearch, setLastSearch] = useState<string | null>(null);; // Track the last search term
 
@@ -26,42 +31,58 @@ const PokemonPage = () => {
       .catch((error) => console.error("Error fetching Pokémon data:", error));
   }, []);
 
+  const updateUrl = (query: string, page: number) => {
+    const params = new URLSearchParams();
+    if (query) params.set("query", query);
+    params.set("page", page.toString());
+    router.push(`/dashboard/pokemons?${params.toString()}`);
+  };
+
   const handleSearch = async (e: any) => {
     e.preventDefault();
-    const formattedSearchTerm = search.trim().toLowerCase();
-
-    if (formattedSearchTerm !== lastSearch) {
-      setCurrentPage(0); // Reset page if search term changes
-    }
-
-    setLastSearch(formattedSearchTerm); // Update last search term
-
+    updateUrl(search, 0);
     try {
-        const data = await searchPokemon({ query: formattedSearchTerm, page: currentPage });
-        let pokemonList = [];
-        let totalPages = 1;
-        if (data.success) {
-            pokemonList = data.result.results;
-            totalPages = data.result.totalPage;
-        } else {
-            console.error("No Pokémon found for the given search term.");
-        }
-        setPokemons(pokemonList);
-        setTotalPages(totalPages);
+      const data = await searchPokemon({ query: search, page: 0 });
+      let pokemonList = [];
+      let totalPages = 1;
+      if (data.success) {
+        pokemonList = data.result.results;
+        totalPages = data.result.totalPage;
+      }
+      setPokemons(pokemonList);
+      setTotalPages(totalPages);
     } catch (error) {
       console.error(error);
     }
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage < 0 || newPage >= totalPages) return; // Adjusted bounds for 0-based index
-    setCurrentPage(newPage);
+  const handlePageChange = async (newPage: number) => {
+    if (newPage < 0 || newPage >= totalPages) return;
+    updateUrl(search, newPage);
+    try {
+      const data = await searchPokemon({ query: search, page: newPage });
+      let pokemonList = [];
+      if (data.success) {
+        pokemonList = data.result.results;
+      }
+      setPokemons(pokemonList);
+      setCurrentPage(newPage);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   useEffect(() => {
-    console.log('Current page changed to:', currentPage);
+    const initialQuery = searchParams.get("query") || "";
+    const initialPage = parseInt(searchParams.get("page") || "0", 10);
+    setSearch(initialQuery);
+    setCurrentPage(initialPage);
     handleSearch(new Event("submit"));
-  }, [currentPage]);
+  }, []);
+
+  const handleViewDetail = (pokemon: any) => {
+    router.push(`/dashboard/pokemons/${pokemon.id}`);
+  };
 
   return (
     <div>
@@ -85,14 +106,14 @@ const PokemonPage = () => {
           </tr>
         </thead>
         <tbody>
-          {pokemons.map((pokemon, index) => (
+          {pokemons.map((pokemon: any, index: number) => (
             <tr key={index}>
               <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "center" }}>
                 <img src={pokemon.sprite} alt={pokemon.identifier} style={{ width: "50px", height: "50px" }} />
               </td>
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>{pokemon.identifier}</td>
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                <button style={{ marginRight: "8px" }}>View Detail</button>
+                <button style={{ marginRight: "8px" }} onClick={() => handleViewDetail(pokemon)}>View Detail</button>
                 <button>{pokemon.isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}</button>
               </td>
             </tr>

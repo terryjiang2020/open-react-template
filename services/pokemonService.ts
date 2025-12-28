@@ -49,3 +49,16 @@ export const searchAbility = async ({ query = '', page = 0 }: { query: string; p
     throw error;
   }
 };
+
+export const fetchPokemonDetails = async (id: number) => {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_ELASTICDASH_API}/pokemon/details/${id}`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch Pokémon details");
+    }
+    return response.json();
+  } catch (error) {
+    console.error("Error fetching Pokémon details:", error);
+    throw error;
+  }
+};
