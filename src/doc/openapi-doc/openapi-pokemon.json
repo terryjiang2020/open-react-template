@@ -16,16 +16,23 @@
     }
   ],
   "paths": {
-    "/pokemon/search/{input}": {
+    "/pokemon/search": {
       "get": {
         "summary": "Retrieve Pokémon by ID or name",
         "tags": ["Pokémon"],
         "parameters": [
           {
-            "name": "input",
-            "in": "path",
-            "required": true,
+            "name": "searchterm",
+            "in": "query",
+            "required": false,
             "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Page number for pagination"
           }
         ],
         "responses": {
@@ -34,16 +41,23 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "number" },
-                      "name": { "type": "string" },
-                      "type": { "type": "string" },
-                      "abilities": { "type": "array", "items": { "type": "string" } },
-                      "sprite": { "type": "string", "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png" }
-                    }
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "number" },
+                          "name": { "type": "string" },
+                          "type": { "type": "string" },
+                          "abilities": { "type": "array", "items": { "type": "string" } },
+                          "sprite": { "type": "string", "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png" }
+                        }
+                      }
+                    },
+                    "totalCount": { "type": "integer" },
+                    "totalPage": { "type": "integer" }
                   }
                 }
               }

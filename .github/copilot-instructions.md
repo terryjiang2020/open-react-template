@@ -206,3 +206,6 @@ Working on step 2...
 - Always be transparent about what you're doing at each step
 - If a step fails, update the plan with the error and stop for user guidance
 - `import { useRouter } from "next/navigation";` instead of `import { useRouter } from "next/router";` for Next.js 13+
+- Keep all API calls in files under `./services/`
+- Keep the code type-safe by using TypeScript interfaces and types wherever applicable
+- When referencing functions or variables from other files, use this format: `import { functionName } from "@/services/fileName";`

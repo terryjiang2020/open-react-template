@@ -6,16 +6,23 @@
     "version": "1.0.0"
   },
   "paths": {
-    "/ability/search/{input}": {
+    "/ability/search": {
       "get": {
         "summary": "Retrieve Ability by ID or name",
         "tags": ["Ability"],
         "parameters": [
           {
-            "name": "input",
-            "in": "path",
-            "required": true,
+            "name": "searchterm",
+            "in": "query",
+            "required": false,
             "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Page number for pagination"
           }
         ],
         "responses": {
@@ -26,10 +33,20 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": { "type": "number" },
-                    "name": { "type": "string" },
-                    "effect": { "type": "string" },
-                    "shortEffect": { "type": "string" }
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "number" },
+                          "name": { "type": "string" },
+                          "effect": { "type": "string" },
+                          "shortEffect": { "type": "string" }
+                        }
+                      }
+                    },
+                    "totalCount": { "type": "integer" },
+                    "totalPage": { "type": "integer" }
                   }
                 }
               }

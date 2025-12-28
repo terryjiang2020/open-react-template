@@ -6,16 +6,23 @@
     "version": "1.0.0"
   },
   "paths": {
-    "/move/search/{input}": {
+    "/move/search": {
       "get": {
         "summary": "Retrieve Move by ID or name",
         "tags": ["Move"],
         "parameters": [
           {
-            "name": "input",
-            "in": "path",
-            "required": true,
+            "name": "searchterm",
+            "in": "query",
+            "required": false,
             "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Page number for pagination"
           }
         ],
         "responses": {
@@ -26,12 +33,22 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": { "type": "number" },
-                    "name": { "type": "string" },
-                    "type": { "type": "string" },
-                    "power": { "type": "number" },
-                    "accuracy": { "type": "number" },
-                    "pp": { "type": "number" }
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "number" },
+                          "name": { "type": "string" },
+                          "type": { "type": "string" },
+                          "power": { "type": "number" },
+                          "accuracy": { "type": "number" },
+                          "pp": { "type": "number" }
+                        }
+                      }
+                    },
+                    "totalCount": { "type": "integer" },
+                    "totalPage": { "type": "integer" }
                   }
                 }
               }
