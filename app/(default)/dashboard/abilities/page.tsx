@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { searchAbility } from "@/services/pokemonService";
 
 const AbilityPage = () => {
-  const [abilities, setAbilities] = useState([]);
+  const [abilities, setAbilities] = useState<any>([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [lastSearch, setLastSearch] = useState(""); // Track the last search term
+  const [lastSearch, setLastSearch] = useState<string | null>(null);; // Track the last search term
 
   const handleSearch = async (e: any) => {
     e.preventDefault();
@@ -22,9 +22,9 @@ const AbilityPage = () => {
 
     try {
       const data = await searchAbility({ query: formattedSearchTerm, page: currentPage });
-      if (data.results) {
-        setAbilities(data.results);
-        setTotalPages(data.totalPage);
+      if (data.success) {
+        setAbilities(data.result.results);
+        setTotalPages(data.result.totalPage);
       } else {
         console.error("No abilities found for the given search term.");
       }
@@ -39,9 +39,11 @@ const AbilityPage = () => {
   };
 
   useEffect(() => {
-    if (search.trim() !== "") {
-      handleSearch(new Event("submit"));
-    }
+    handleSearch(new Event("submit")); // Trigger search on start without any search term
+  }, []);
+
+  useEffect(() => {
+    handleSearch(new Event("submit"));
   }, [currentPage]);
 
   return (
@@ -57,13 +59,24 @@ const AbilityPage = () => {
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
       </form>
-      <ul>
-        {abilities.map((ability, index) => (
-          <li key={index} style={{ marginBottom: "0.5rem" }}>
-            <span>{ability.name} - Effect: {ability.effect}, Short Effect: {ability.shortEffect}</span>
-          </li>
-        ))}
-      </ul>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <thead>
+          <tr>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {abilities.map((ability, index) => (
+            <tr key={index}>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{ability.identifier}</td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                <button style={{ marginRight: "8px" }}>View Detail</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
         <button
           onClick={() => handlePageChange(currentPage - 1)}

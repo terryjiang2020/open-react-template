@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { searchBerry } from "@/services/pokemonService";
 
 const BerryPage = () => {
-  const [berries, setBerries] = useState([]);
+  const [berries, setBerries] = useState<any>([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [lastSearch, setLastSearch] = useState(""); // Track the last search term
+  const [lastSearch, setLastSearch] = useState<string | null>(null);; // Track the last search term
 
   const handleSearch = async (e: any) => {
     e.preventDefault();
@@ -22,9 +22,9 @@ const BerryPage = () => {
 
     try {
       const data = await searchBerry({ query: formattedSearchTerm, page: currentPage });
-      if (data.results) {
-        setBerries(data.results);
-        setTotalPages(data.totalPage);
+      if (data.success) {
+        setBerries(data.result.results);
+        setTotalPages(data.result.totalPage);
       } else {
         console.error("No berries found for the given search term.");
       }
@@ -39,9 +39,11 @@ const BerryPage = () => {
   };
 
   useEffect(() => {
-    if (search.trim() !== "") {
-      handleSearch(new Event("submit"));
-    }
+    handleSearch(new Event("submit")); // Trigger search on start without any search term
+  }, []);
+
+  useEffect(() => {
+    handleSearch(new Event("submit"));
   }, [currentPage]);
 
   return (
@@ -57,13 +59,29 @@ const BerryPage = () => {
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
       </form>
-      <ul>
-        {berries.map((berry, index) => (
-          <li key={index} style={{ marginBottom: "0.5rem" }}>
-            <span>{berry.name} - Flavor: {berry.flavor}, Firmness: {berry.firmness}, Natural Gift Power: {berry.naturalGiftPower}</span>
-          </li>
-        ))}
-      </ul>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <thead>
+          <tr>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Image</th>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {berries.map((berry, index) => (
+            <tr key={index}>
+              <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "center" }}>
+                <img src={berry.sprite} alt={berry.name} style={{ width: "50px", height: "50px" }} />
+              </td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{berry.name}</td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                <button style={{ marginRight: "8px" }}>View Detail</button>
+                <button>{berry.isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
         <button
           onClick={() => handlePageChange(currentPage - 1)}

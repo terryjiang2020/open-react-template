@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { searchPokemon } from "@/services/pokemonService";
 
 const PokemonPage = () => {
-  const [pokemons, setPokemons] = useState([]);
+  const [pokemons, setPokemons] = useState<any>([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(0); // Updated to start at 0
   const [totalPages, setTotalPages] = useState(1);
-  const [lastSearch, setLastSearch] = useState(""); // Track the last search term
+  const [lastSearch, setLastSearch] = useState<string | null>(null);; // Track the last search term
 
   useEffect(() => {
     searchPokemon({ query: "", page: 0 })
@@ -76,18 +76,29 @@ const PokemonPage = () => {
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
       </form>
-      <ul>
-        {pokemons.map((pokemon, index) => (
-          <li key={index} style={{ marginBottom: "0.5rem", display: "flex", alignItems: "center" }}>
-            <img
-              src={pokemon.sprite}
-              alt={pokemon.identifier}
-              style={{ width: "50px", height: "50px", marginRight: "1rem" }}
-            />
-            <span>{pokemon.identifier}</span>
-          </li>
-        ))}
-      </ul>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <thead>
+          <tr>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Image</th>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pokemons.map((pokemon, index) => (
+            <tr key={index}>
+              <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "center" }}>
+                <img src={pokemon.sprite} alt={pokemon.identifier} style={{ width: "50px", height: "50px" }} />
+              </td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{pokemon.identifier}</td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                <button style={{ marginRight: "8px" }}>View Detail</button>
+                <button>{pokemon.isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
         <button
           onClick={() => handlePageChange(currentPage - 1)}

@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { searchMove } from "@/services/pokemonService";
 
 const MovePage = () => {
-  const [moves, setMoves] = useState([]);
+  const [moves, setMoves] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [lastSearch, setLastSearch] = useState(""); // Track the last search term
+  const [lastSearch, setLastSearch] = useState<string | null>(null);; // Track the last search term
 
   const handleSearch = async (e: any) => {
     e.preventDefault();
@@ -22,9 +22,9 @@ const MovePage = () => {
 
     try {
       const data = await searchMove({ query: formattedSearchTerm, page: currentPage });
-      if (data.results) {
-        setMoves(data.results);
-        setTotalPages(data.totalPage);
+      if (data.success) {
+        setMoves(data.result.results);
+        setTotalPages(data.result.totalPage);
       } else {
         console.error("No moves found for the given search term.");
       }
@@ -39,10 +39,12 @@ const MovePage = () => {
   };
 
   useEffect(() => {
-    if (search.trim() !== "") {
-      handleSearch(new Event("submit"));
-    }
+    handleSearch(new Event("submit"));
   }, [currentPage]);
+
+  useEffect(() => {
+    handleSearch(new Event("submit")); // Trigger search on start without any search term
+  }, []);
 
   return (
     <div>
@@ -57,13 +59,24 @@ const MovePage = () => {
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
       </form>
-      <ul>
-        {moves.map((move, index) => (
-          <li key={index} style={{ marginBottom: "0.5rem" }}>
-            <span>{move.name} - Type: {move.type}, Power: {move.power}, Accuracy: {move.accuracy}</span>
-          </li>
-        ))}
-      </ul>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <thead>
+          <tr>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {moves.map((move, index) => (
+            <tr key={index}>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{move.identifier}</td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                <button style={{ marginRight: "8px" }}>View Detail</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
         <button
           onClick={() => handlePageChange(currentPage - 1)}
