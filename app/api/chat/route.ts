@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { cosineSimilarity } from '@/src/utils/cosineSimilarity';
+import { dynamicApiRequest } from '@/services/apiService';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -445,6 +446,120 @@ function findTopKSimilar(queryEmbedding: number[], topK: number = 3) {
     .slice(0, topK);
 }
 
+async function clarifyAndRefineUserInput(userInput: string, apiKey: string): Promise<{ refinedQuery: string; language: string }> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an assistant that refines user queries into a clearer and more structured format. The queries are under the context of Pokémon, and you should ensure the refined query aligns with Pokémon-related concepts and wordings. Regardless of the original language of the user's input, the refined query must always be in English. Additionally, detect the language of the user's input and include it in your response. Always respond in the following format: "Refined Query: [refined query]\nLanguage: [language code]".`,
+        },
+        {
+          role: 'user',
+          content: userInput,
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 50,
+    }),
+  });
+
+  const data = await response.json();
+  const content = data.choices[0]?.message?.content || `Refined Query: ${userInput}\nLanguage: EN`;
+  const refinedQueryMatch = content.match(/Refined Query: (.+)\nLanguage:/);
+  const languageMatch = content.match(/Language: (.+)/);
+
+  const refinedQuery = refinedQueryMatch ? refinedQueryMatch[1].trim() : userInput;
+  const language = languageMatch ? languageMatch[1].trim() : 'EN';
+
+  // Store the detected language in local storage (or update if new language is found)
+  if (typeof localStorage !== 'undefined') {
+    const storedLanguage = localStorage.getItem('userLanguage');
+    if (!storedLanguage || storedLanguage !== language) {
+      localStorage.setItem('userLanguage', language);
+    }
+  }
+
+  return { refinedQuery, language };
+}
+
+async function sendToPlanner(api: any, refinedQuery: string, apiKey: string): Promise<string> {
+  // Serialize the matched API object into a readable string
+  const apiDescription = typeof api === 'object' ? JSON.stringify(api, null, 2) : String(api);
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a planner that takes a refined query and a matched API endpoint, and generates a detailed plan for how to use the API to fulfill the query. If the matched API is suitable, provide a step-by-step plan. If the API is not suitable, explain why it is not suitable. Always respond in the following format: "Plan: [detailed plan or explanation]".`,
+        },
+        {
+          role: 'user',
+          content: `Refined Query: ${refinedQuery}\nMatched API: ${apiDescription}`,
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 150,
+    }),
+  });
+
+  const data = await response.json();
+  console.log('Planner Input:', { refinedQuery, apiDescription });
+  console.log('Planner Response:', data);
+  return data.choices[0]?.message?.content || 'Plan: No plan generated';
+}
+
+async function handleApiRequest(selectedApi: any, userQuery: any) {
+  const baseUrl = process.env.API_BASE_URL || '';
+
+  try {
+    const response = await dynamicApiRequest(baseUrl, selectedApi, userQuery);
+
+    // Extract relevant data based on the schema
+    if (selectedApi.responses && selectedApi.responses['200']) {
+      const responseSchema = selectedApi.responses['200'].content['application/json'].schema;
+      if (responseSchema && responseSchema.properties) {
+        const extractedData: any = {};
+        for (const key of Object.keys(responseSchema.properties)) {
+          if (response[key] !== undefined) {
+            extractedData[key] = response[key];
+          }
+        }
+        return extractedData;
+      }
+    }
+
+    return response; // Fallback to returning the full response
+  } catch (error: any) {
+    console.error('Failed to handle API request:', error);
+
+    // Enhanced error handling
+    if (error.response) {
+      // API responded with an error status
+      throw new Error(`API Error: ${error.response.status} - ${error.response.data?.message || error.response.statusText}`);
+    } else if (error.request) {
+      // No response received
+      throw new Error('No response received from the API. Please check your network connection.');
+    } else {
+      // Other errors
+      throw new Error(`Unexpected error: ${error.message}`);
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { messages } = await request.json();
@@ -465,7 +580,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract the latest user message
-    const userMessage = messages.find((msg: Message) => msg.role === 'user');
+    const userMessage = [...messages].reverse().find((msg: Message) => msg.role === 'user');
     if (!userMessage) {
       return NextResponse.json(
         { error: 'No user message found' },
@@ -473,7 +588,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate embedding for the user message
+    // Clarify and refine user input
+    const { refinedQuery, language } = await clarifyAndRefineUserInput(userMessage.content, apiKey);
+    console.log('Refined Query:', refinedQuery);
+    console.log('Detected Language:', language);
+
+    // Generate embedding for the refined query
     const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
@@ -482,7 +602,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: 'text-embedding-ada-002',
-        input: userMessage.content,
+        input: refinedQuery,
       }),
     });
 
@@ -503,9 +623,30 @@ export async function POST(request: NextRequest) {
 
     console.log('Top-K Similar Results:', topKResults);
 
+    if (topKResults.length === 0) {
+      return NextResponse.json(
+        { error: 'No matching APIs found' },
+        { status: 404 }
+      );
+    }
+
+    // Send the top API match and refined query to the planner
+    const matchedAPI = topKResults[0];
+    const plan = await sendToPlanner(matchedAPI, refinedQuery, apiKey);
+    console.log('Generated Plan:', plan);
+
+    let responseMessage;
+    if (plan === 'As an AI assistant I am not allowed to do that.') {
+      responseMessage = language === 'ZH' ? '抱歉，我无法协助完成此请求。' : 'Sorry, I am unable to assist with this request.';
+    } else {
+      responseMessage = language === 'ZH' ? '规划步骤已完成。' : 'Planner step completed.';
+    }
+
     return NextResponse.json({
-      message: 'Vector matching completed.',
-      topKResults,
+      message: responseMessage,
+      refinedQuery,
+      matchedAPI,
+      plan,
     });
   } catch (error: any) {
     console.warn('Error in chat API:', error);

@@ -72,7 +72,7 @@
                   "sortby": {
                     "type": "integer",
                     "default": 0,
-                    "description": "Sorting option: 0 (A-Z), 1 (Z-A), 2 (Total stats high-low), 3 (Total stats low-high), 4 (HP high-low), 5 (HP low-high), ..., 15 (Speed low-high), 16 (Height high-low), 17 (Height low-high), 18 (Weight high-low), 19 (Weight low-high)"
+                    "description": "Sorting option: 0 (A-Z), 1 (Z-A), 2 (Total stats high-low), 3 (Total stats low-high), 4 (HP high-low), 5 (HP low-high), 6 (Attack high-low), 7 (Attack low-high), 8 (Defense high-low), 9 (Defense low-high), 10 (Special Attack high-low), 11 (Special Attack low-high), 12 (Special Defense high-low), 13 (Special Defense low-high), 14 (Speed high-low), 15 (Speed low-high), 16 (Height high-low), 17 (Height low-high), 18 (Weight high-low), 19 (Weight low-high)"
                   }
                 }
               }
@@ -121,7 +121,7 @@
     },
     "/pokemon/move/search": {
       "post": {
-        "summary": "Retrieve Move by ID or name",
+        "summary": "Retrieve Move by ID or name with filters and ordering",
         "tags": ["Move"],
         "requestBody": {
           "required": false,
@@ -131,7 +131,40 @@
                 "type": "object",
                 "properties": {
                   "searchterm": { "type": "string" },
-                  "page": { "type": "integer", "default": 0 }
+                  "page": { "type": "integer", "default": 0 },
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "type": { "type": "integer" },
+                      "power": {
+                        "type": "object",
+                        "properties": {
+                          "min": { "type": "integer" },
+                          "max": { "type": "integer" }
+                        }
+                      },
+                      "pp": {
+                        "type": "object",
+                        "properties": {
+                          "min": { "type": "integer" },
+                          "max": { "type": "integer" }
+                        }
+                      },
+                      "damageClass": { "type": "integer" },
+                      "priority": {
+                        "type": "object",
+                        "properties": {
+                          "min": { "type": "integer" },
+                          "max": { "type": "integer" }
+                        }
+                      }
+                    }
+                  },
+                  "order": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Ordering options: 0 (A-Z), 1 (Z-A), 2 (Power high-low), 3 (Power low-high), 4 (PP high-low), 5 (PP low-high), 6 (Accuracy high-low), 7 (Accuracy low-high)"
+                  }
                 }
               }
             }
@@ -151,11 +184,16 @@
                         "type": "object",
                         "properties": {
                           "id": { "type": "number" },
-                          "name": { "type": "string" },
-                          "type": { "type": "string" },
+                          "identifier": { "type": "string" },
+                          "type_id": { "type": "number" },
+                          "type_name": { "type": "string" },
                           "power": { "type": "integer" },
                           "pp": { "type": "integer" },
-                          "accuracy": { "type": "integer" }
+                          "accuracy": { "type": "integer" },
+                          "priority": { "type": "integer" },
+                          "damage_class_id": { "type": "number" },
+                          "damage_class_name": { "type": "string" },
+                          "localized_name": { "type": "string" }
                         }
                       }
                     },

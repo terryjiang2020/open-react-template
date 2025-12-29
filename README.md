@@ -117,3 +117,11 @@ Notes:
 - Tokens are only read on the server side in `app/api/chat/route.ts`.
 - If `NEXT_PUBLIC_ELASTICDASH_TOKEN` is missing, requests to secured endpoints will likely return 401.
 - Error responses from the external API are now logged with status and body for easier debugging.
+
+## Run RAG initialisation
+
+Make sure your OpenAPI Doc are ready in `src/doc/openapi-doc` before doing this.
+
+```
+npx ts-node src/scripts/vectorize-openapi.ts
+```
