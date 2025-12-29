@@ -22,144 +22,127 @@ export default function ChatWidget() {
     scrollToBottom();
   }, [messages]);
 
+  // Update the sendMessage function to ensure the API accepts the correct body format
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userMessage: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMessage]);
+    const userMessage: Message = { role: 'user', content: input.trim() };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      // Step 1: Planner
+      const plannerResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: await fetchPromptFile('prompt-planner.txt') },
+            ...updatedMessages,
+          ],
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to get response');
+      if (!plannerResponse.ok) {
+        const errorText = await plannerResponse.text();
+        console.warn('Planner Error:', errorText);
+        throw new Error('Planner failed to process the request');
       }
 
-      const data = await response.json();
-      const assistantMessage: Message = {
+      const plannerData = await plannerResponse.json();
+      console.log('Planner Data:', plannerData);
+      if (!plannerData.message.includes('{')) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: plannerData.message }]);
+        setIsLoading(false);
+        return;
+      }
+      const plannerMessage = JSON.parse(plannerData.message);
+
+      if (plannerMessage.needs_clarification) {
+        const clarificationMessage: Message = {
+          role: 'assistant',
+          content: plannerMessage.clarification_question || 'The Planner requires clarification to proceed.',
+        };
+        setMessages((prev) => [...prev, clarificationMessage]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (plannerMessage.status === 'rejected') {
+        const rejectionMessage: Message = {
+          role: 'assistant',
+          content: plannerMessage.reason || 'The Planner rejected the request.',
+        };
+        setMessages((prev) => [...prev, rejectionMessage]);
+        setIsLoading(false);
+        return;
+      }
+
+      const newMessages: Message[] = [...updatedMessages, { role: 'assistant', content: plannerMessage.plan_summary || 'Proceeding to execution...' }];
+      setMessages(newMessages);
+
+      // Step 2: Executor
+      const executorResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: await fetchPromptFile('prompt-executor.txt') },
+            ...newMessages,
+          ],
+        }),
+      });
+
+      if (!executorResponse.ok) {
+        const errorText = await executorResponse.text();
+        console.warn('Executor Error:', errorText);
+        throw new Error('Executor failed to process the request');
+      }
+
+      const executorData = await executorResponse.json();
+      if (executorData.blocked) {
+        const blockedMessage: Message = {
+          role: 'assistant',
+          content: executorData.block_reason || 'The Executor is blocked and cannot proceed.',
+        };
+        setMessages((prev) => [...prev, blockedMessage]);
+        console.warn('Executor Blocked:', executorData.block_reason);
+        setIsLoading(false);
+        return;
+      }
+
+      const executorMessage: Message = {
         role: 'assistant',
-        content: data.message,
+        content: executorData.content,
       };
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      // 详细的日志记录 - 显示所有迭代
-      console.log('\n' + '╔' + '═'.repeat(78) + '╗');
-      console.log('║' + ' '.repeat(25) + '🤖 AI响应详情' + ' '.repeat(36) + '║');
-      console.log('╚' + '═'.repeat(78) + '╝');
-      console.log(`\n📊 总览:`);
-      console.log(`   迭代次数: ${data.iterations}`);
-      console.log(`   工具调用次数: ${data.tool_calls?.length || 0}`);
-      console.log(`   上下文已摘要: ${data.summarized ? '是' : '否'}`);
-
-      // 显示每次迭代的详细内容
-      if (data.iteration_logs && data.iteration_logs.length > 0) {
-        console.log('\n' + '▼'.repeat(80));
-        console.log('📝 迭代详情 (按顺序):');
-        console.log('▼'.repeat(80));
-
-        data.iteration_logs.forEach((log: any) => {
-          console.log(`\n${'═'.repeat(80)}`);
-          console.log(`🔄 迭代 ${log.iteration}/${data.iterations}`);
-          console.log(`${'═'.repeat(80)}`);
-
-          // 根据类型显示不同的信息
-          switch (log.type) {
-            case 'doc_load':
-              console.log(`📚 类型: 文档加载请求`);
-              console.log(`\n📋 LLM 输出:`);
-              console.log(log.llm_output);
-              if (log.details.explanatory_text) {
-                console.log(`\n💬 说明文本: ${log.details.explanatory_text}`);
-              }
-              console.log(`\n📦 详情:`);
-              console.log(`   请求的模块:`, log.details.requested);
-              console.log(`   已加载的模块:`, log.details.loaded);
-              console.log(`   总共加载模块数: ${log.details.total_loaded || 0}`);
-              if (log.details.already_loaded) {
-                console.log(`   ⚠️  请求的模块已经加载过`);
-              }
-              break;
-
-            case 'tool_call':
-              console.log(`🔧 类型: API调用`);
-              console.log(`\n📋 LLM 输出:`);
-              console.log(log.llm_output);
-              if (log.details.explanatory_text) {
-                console.log(`\n💬 说明文本: ${log.details.explanatory_text}`);
-              }
-              console.log(`\n🛠️  工具调用详情:`);
-              log.details.tool_calls.forEach((call: any, idx: number) => {
-                console.log(`\n   [${idx + 1}/${log.details.tool_calls.length}] ${call.tool_name}`);
-                console.log(`   URL: ${call.url}`);
-                console.log(`   参数:`, call.arguments);
-                console.log(`   响应大小: ~${call.response_size} tokens`);
-                console.log(`   已压缩: ${call.compressed ? '是' : '否'}`);
-                if (call.response_data) {
-                  console.log(`   完整响应 (可展开):`);
-                  console.log(call.response_data);
-                }
-              });
-              break;
-
-            case 'clarification':
-              console.log(`❓ 类型: 需要澄清`);
-              console.log(`\n📋 LLM 输出:`);
-              console.log(log.llm_output);
-              if (log.details.explanatory_text) {
-                console.log(`\n💬 说明文本: ${log.details.explanatory_text}`);
-              }
-              console.log(`\n💬 问题:`, log.details.question);
-              break;
-
-            case 'text_response':
-              console.log(`✨ 类型: 最终文本响应`);
-              console.log(`\n📋 LLM 输出:`);
-              console.log(log.llm_output);
-              console.log(`\n📏 响应信息:`);
-              console.log(`   字符数: ${log.details.length}`);
-              console.log(`   Token估算: ~${log.details.tokens}`);
-              break;
-          }
-        });
-
-        console.log('\n' + '▲'.repeat(80));
-      }
-
-      console.log('\n╔' + '═'.repeat(78) + '╗');
-      console.log('║' + ' '.repeat(28) + '💬 最终回复' + ' '.repeat(36) + '║');
-      console.log('╚' + '═'.repeat(78) + '╝');
-      console.log(data.message);
-      console.log('═'.repeat(80) + '\n');
+      setMessages((prev) => [...prev, executorMessage]);
     } catch (error) {
-      console.error('Error sending message:', error);
-
-      // Enhanced logging for better debugging
-      if (error instanceof Response) {
-        try {
-          const errorBody = await error.text();
-          console.error('Error response body:', errorBody);
-        } catch (bodyError) {
-          console.error('Failed to read error response body:', bodyError);
-        }
-      } else {
-        console.error('Non-response error:', error);
-      }
-
       const errorMessage: Message = {
         role: 'assistant',
-        content: '抱歉，发生了错误。请稍后再试。',
+        content: 'An error occurred while processing your request. Please try again.',
       };
       setMessages((prev) => [...prev, errorMessage]);
+      console.warn('Error in sendMessage:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchPromptFile = async (fileName: string): Promise<string> => {
+    try {
+      const response = await fetch(`/api/fetch-prompt?fileName=${fileName}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch prompt file: ${fileName}`);
+      }
+      return await response.text();
+    } catch (error) {
+      throw new Error(`Error fetching prompt file: ${error.message}`);
     }
   };
 
@@ -188,7 +171,7 @@ export default function ChatWidget() {
           aria-label="打开聊天"
         >
           <svg
-            className="h-6 w-6"
+            className="h-6 w-6 inline"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"

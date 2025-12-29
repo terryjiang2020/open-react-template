@@ -43,10 +43,10 @@ const PokemonDetailPage = () => {
             })) || [];
             setPokemon(data.result);
           } else {
-            console.error("Failed to fetch Pokémon details.");
+            console.warn("Failed to fetch Pokémon details.");
           }
         })
-        .catch((error) => console.error(error));
+        .catch((error) => console.warn(error));
     }
   }, [id]);
 

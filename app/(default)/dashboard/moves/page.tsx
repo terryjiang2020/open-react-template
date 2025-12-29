@@ -21,15 +21,15 @@ const MovePage = () => {
     setLastSearch(formattedSearchTerm); // Update last search term
 
     try {
-      const data = await searchMove({ query: formattedSearchTerm, page: currentPage });
+      const data = await searchMove({ searchterm: formattedSearchTerm, page: currentPage });
       if (data.success) {
         setMoves(data.result.results);
         setTotalPages(data.result.totalPage);
       } else {
-        console.error("No moves found for the given search term.");
+        console.warn("No moves found for the given search term.");
       }
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   };
 

@@ -15,7 +15,7 @@ const PokemonPage = () => {
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    searchPokemon({ query: "", page: 0 })
+    searchPokemon({ searchterm: "", page: 0 })
       .then((data) => {
         console.log('Fetched Pokémon data:', data);
         let pokemonList = [];
@@ -27,7 +27,7 @@ const PokemonPage = () => {
         setPokemons(pokemonList);
         setTotalPages(totalPages);
     })
-      .catch((error) => console.error("Error fetching Pokémon data:", error));
+      .catch((error) => console.warn("Error fetching Pokémon data:", error));
   }, []);
 
   const updateUrl = (query: string, page: number) => {
@@ -41,20 +41,17 @@ const PokemonPage = () => {
     e.preventDefault();
     updateUrl(search, 0);
     try {
-      const response = await fetch(
-        `/api/pokemon/search?searchTerm=${search}&page=0`
-      );
-      const data = await response.json();
+      const data = await searchPokemon({ searchterm: search, page: 0 });
       let pokemonList = [];
       let totalPages = 1;
-      if (data.results) {
-        pokemonList = data.results;
-        totalPages = data.totalPage;
+      if (data.success) {
+        pokemonList = data.result.results;
+        totalPages = data.result.totalPage;
       }
       setPokemons(pokemonList);
       setTotalPages(totalPages);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   };
 
@@ -62,18 +59,15 @@ const PokemonPage = () => {
     if (newPage < 0 || newPage >= totalPages) return;
     updateUrl(search, newPage);
     try {
-      const response = await fetch(
-        `/api/pokemon/search?searchTerm=${search}&page=${newPage}`
-      );
-      const data = await response.json();
+      const data = await searchPokemon({ searchterm: search, page: newPage });
       let pokemonList = [];
-      if (data.results) {
-        pokemonList = data.results;
+      if (data.success) {
+        pokemonList = data.result.results;
       }
       setPokemons(pokemonList);
       setCurrentPage(newPage);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   };
 

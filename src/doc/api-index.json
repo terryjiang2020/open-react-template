@@ -29,14 +29,6 @@
       "endpoints_count": 2
     },
     {
-      "id": "berry",
-      "name": "Berry",
-      "file": "openapi-doc/openapi-berry.json",
-      "description": "Endpoints for retrieving Pokémon berry data",
-      "keywords": ["berry", "search", "id", "name", "flavor", "firmness"],
-      "endpoints_count": 1
-    },
-    {
       "id": "general",
       "name": "General",
       "file": "openapi-doc/openapi-general.json",
@@ -66,14 +58,6 @@
       "file": "openapi-doc/openapi-pokemon.json",
       "description": "Pokémon-related endpoints for ElasticDash platform",
       "keywords": ["pokemon", "search", "id", "name", "details"],
-      "endpoints_count": 1
-    },
-    {
-      "id": "rag",
-      "name": "RAG & AI",
-      "file": "openapi-doc/openapi-rag.json",
-      "description": "Retrieval-Augmented Generation endpoints for code/feature search",
-      "keywords": ["rag", "ai", "search", "query", "retrieval", "generation", "intelligent"],
       "endpoints_count": 1
     },
     {

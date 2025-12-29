@@ -36,14 +36,14 @@ function loadApiModule(moduleId: string): string | null {
 
     const module = index.modules.find((m: any) => m.id === moduleId);
     if (!module) {
-      console.error(`Module "${moduleId}" not found in index`);
+      console.warn(`Module "${moduleId}" not found in index`);
       return null;
     }
 
     const modulePath = path.join(process.cwd(), 'src/doc', module.file);
     return fs.readFileSync(modulePath, 'utf-8');
   } catch (error) {
-    console.error(`Error loading module "${moduleId}":`, error);
+    console.warn(`Error loading module "${moduleId}":`, error);
     return null;
   }
 }
@@ -245,14 +245,23 @@ function compressLargeJson(jsonString: string, maxTokens: number = 1500): string
   }
 }
 
-// 执行API调用
+// Enhanced executeToolCall function to log roles and ensure at least one role is applied
 async function executeToolCall(
   toolCall: ToolCall,
   index: number,
   total: number
 ): Promise<{ result: string; log: ToolCallLog }> {
   try {
-    // 确定使用哪个基础URL
+    // Ensure at least one role is applied
+    const roles = toolCall.roles || [];
+    if (roles.length === 0) {
+      throw new Error(`ToolCall must have at least one role applied. Received: ${JSON.stringify(toolCall)}`);
+    }
+
+    // Log roles being used
+    console.log(`Roles applied: ${roles.join(', ')}`);
+
+    // Determine base URL
     const isElasticDashApi = !toolCall.tool_name.startsWith('/api/v2/');
     const baseUrl = isElasticDashApi
       ? (
@@ -263,23 +272,23 @@ async function executeToolCall(
         )
       : (process.env.NEXT_PUBLIC_POKEMON_API || 'https://pokeapi.co');
 
-    // 提取模块前缀和路径
+    // Extract module prefix and path
     const [modulePrefix, ...pathParts] = toolCall.tool_name.split('/').filter(Boolean);
     const path = pathParts.join('/');
 
-    // 验证模块前缀和路径
+    // Validate module prefix and path
     if (!modulePrefix || !path) {
       throw new Error(`Invalid tool_name: "${toolCall.tool_name}" must include a module prefix and path.`);
     }
 
-    // 获取HTTP方法（从arguments中提取，默认为GET）
+    // Get HTTP method (default: GET)
     const method = (toolCall.arguments?.method || 'GET').toUpperCase();
 
-    // 从arguments中移除method字段，剩余的作为实际参数
+    // Remove method field from arguments
     const actualArguments = { ...toolCall.arguments };
     delete actualArguments.method;
 
-    // 对于GET请求，将参数作为query string附加到URL
+    // Construct URL
     let url = `${baseUrl}/${modulePrefix}/${path}`;
     if (method === 'GET' && Object.keys(actualArguments).length > 0) {
       const queryParams = new URLSearchParams();
@@ -297,15 +306,16 @@ async function executeToolCall(
     console.log('Arguments:', JSON.stringify(actualArguments, null, 2));
     console.log('API Type:', isElasticDashApi ? 'ElasticDash' : 'Pokemon');
     console.log('Constructed URL:', url);
+    console.log('Roles:', roles.join(', '));
     console.log('-'.repeat(80));
 
-    // 构建请求头
+    // Construct headers
     const headers: Record<string, string> = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
     };
 
-    // 如果是ElasticDash API，添加Bearer token（来自环境变量）
+    // Add Bearer token for ElasticDash API
     if (isElasticDashApi) {
       const token = process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN;
       if (token) {
@@ -313,7 +323,7 @@ async function executeToolCall(
       }
     }
 
-    // 构建请求配置
+    // Construct fetch options
     const fetchOptions: RequestInit = {
       method,
       headers,
@@ -324,67 +334,26 @@ async function executeToolCall(
       fetchOptions.body = JSON.stringify(actualArguments);
     }
 
+    // Execute the API call
     const response = await fetch(url, fetchOptions);
+    const result = await response.text();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
+    // Log the result
+    console.log('Response:', result);
 
-    const data = await response.json();
-    const jsonString = JSON.stringify(data, null, 2);
-
-    // 检查响应大小并智能压缩
-    const tokens = estimateTokens(jsonString);
-    console.log(`📦 Response size: ~${tokens} tokens (${jsonString.length} chars)`);
-
-    console.log('\n📥 API RESPONSE (Original):');
-    console.log('-'.repeat(80));
-    // 显示前500个字符的响应预览
-    if (jsonString.length > 500) {
-      console.log(jsonString.substring(0, 500) + '...');
-    } else {
-      console.log(jsonString);
-    }
-    console.log('-'.repeat(80));
-
-    let finalResult: string;
-    let wasCompressed = false;
-
-    if (tokens > 1500) {
-      finalResult = compressLargeJson(jsonString);
-      wasCompressed = true;
-    } else {
-      finalResult = jsonString;
-    }
-
-    const log: ToolCallLog = {
-      tool_name: toolCall.tool_name,
-      arguments: toolCall.arguments || {},
-      url,
-      response_size: tokens,
-      compressed: wasCompressed,
-      response_preview: jsonString.substring(0, 200) + (jsonString.length > 200 ? '...' : ''),
-      response_data: data,
+    // Return the result and log
+    return {
+      result,
+      log: {
+        tool_name: toolCall.tool_name,
+        arguments: actualArguments,
+        roles,
+        response: result,
+      },
     };
-
-    return { result: finalResult, log };
   } catch (error) {
-    console.error('❌ Error executing tool call:', error);
-    console.log('='.repeat(80) + '\n');
-
-    const errorMsg = `执行API调用时发生错误: ${error instanceof Error ? error.message : String(error)}`;
-    const log: ToolCallLog = {
-      tool_name: toolCall.tool_name,
-      arguments: toolCall.arguments || {},
-      url: '',
-      response_size: 0,
-      compressed: false,
-      response_preview: errorMsg,
-      response_data: null,
-    };
-
-    return { result: errorMsg, log };
+    console.error('Error executing ToolCall:', error);
+    throw error;
   }
 }
 
@@ -433,7 +402,7 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
       ];
     }
   } catch (error) {
-    console.error('Error summarizing messages:', error);
+    console.warn('Error summarizing messages:', error);
   }
 
   // 如果摘要失败，返回最近的消息
@@ -535,7 +504,7 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         const error = await response.json();
-        console.error('OpenAI API error:', error);
+        console.warn('OpenAI API error:', error);
         return NextResponse.json(
           { error: 'Failed to get response from OpenAI' },
           { status: response.status }
@@ -872,7 +841,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (iteration >= MAX_ITERATIONS) {
-      console.error('\n❌ Maximum iterations reached!');
+      console.warn('\n❌ Maximum iterations reached!');
       console.log('═'.repeat(80) + '\n');
       finalResponse = '抱歉，处理您的请求时遇到了问题。请尝试重新表述您的问题。';
     }
@@ -894,7 +863,7 @@ export async function POST(request: NextRequest) {
       iteration_logs: iterationLogs
     });
   } catch (error) {
-    console.error('Error in chat API:', error);
+    console.warn('Error in chat API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

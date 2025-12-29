@@ -17,7 +17,7 @@ export default function SignIn() {
         .then(() => {
           router.push("/dashboard");
         })
-        .catch((err) => console.error(err));
+        .catch((err) => console.warn(err));
     }
   }, [router]);
 
@@ -29,7 +29,7 @@ export default function SignIn() {
       localStorage.setItem("user", JSON.stringify(data.result.user));
       router.push("/dashboard");
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   };
 

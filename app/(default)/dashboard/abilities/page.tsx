@@ -21,15 +21,15 @@ const AbilityPage = () => {
     setLastSearch(formattedSearchTerm); // Update last search term
 
     try {
-      const data = await searchAbility({ query: formattedSearchTerm, page: currentPage });
+      const data = await searchAbility({ searchterm: formattedSearchTerm, page: currentPage });
       if (data.success) {
         setAbilities(data.result.results);
         setTotalPages(data.result.totalPage);
       } else {
-        console.error("No abilities found for the given search term.");
+        console.warn("No abilities found for the given search term.");
       }
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   };
 

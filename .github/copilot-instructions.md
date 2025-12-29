@@ -209,3 +209,4 @@ Working on step 2...
 - Keep all API calls in files under `./services/`
 - Keep the code type-safe by using TypeScript interfaces and types wherever applicable
 - When referencing functions or variables from other files, use this format: `import { functionName } from "@/services/fileName";`
+- The repo is type-sensitive. Always write code in typesafe manner
