@@ -28,7 +28,7 @@ export default function SignIn() {
       localStorage.setItem("token", data.result.token);
       localStorage.setItem("user", JSON.stringify(data.result.user));
       router.push("/dashboard");
-    } catch (error) {
+    } catch (error: any) {
       console.warn(error);
     }
   };

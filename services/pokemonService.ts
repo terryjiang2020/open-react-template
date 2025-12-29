@@ -41,7 +41,7 @@ export const searchPokemon = async ({
     }
 
     return response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.warn("Error searching Pokémon:", error);
     throw error;
   }
@@ -66,7 +66,7 @@ export const searchMove = async ({ searchterm = '', page = 0 }: { searchterm?: s
       throw new Error("Move not found");
     }
     return response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.warn("Error searching Move:", error);
     throw error;
   }
@@ -79,7 +79,7 @@ export const searchBerry = async ({ query = '', page = 0 }: { query: string; pag
       throw new Error("Berry not found");
     }
     return response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.warn("Error searching Berry:", error);
     throw error;
   }
@@ -104,7 +104,7 @@ export const searchAbility = async ({ searchterm = '', page = 0 }: { searchterm?
       throw new Error("Ability not found");
     }
     return response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.warn("Error searching Ability:", error);
     throw error;
   }
@@ -117,7 +117,7 @@ export const fetchPokemonDetails = async (id: number) => {
       throw new Error("Failed to fetch Pokémon details");
     }
     return response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.warn("Error fetching Pokémon details:", error);
     throw error;
   }

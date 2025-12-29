@@ -11,6 +11,7 @@ interface ToolCall {
   tool_name: string;
   arguments?: Record<string, any>;
   method?: string; // HTTP方法: GET, POST, PUT, DELETE等
+  roles?: string[]; // 适用的角色列表
 }
 
 // 读取配置文件
@@ -42,7 +43,7 @@ function loadApiModule(moduleId: string): string | null {
 
     const modulePath = path.join(process.cwd(), 'src/doc', module.file);
     return fs.readFileSync(modulePath, 'utf-8');
-  } catch (error) {
+  } catch (error: any) {
     console.warn(`Error loading module "${moduleId}":`, error);
     return null;
   }
@@ -250,7 +251,7 @@ async function executeToolCall(
   toolCall: ToolCall,
   index: number,
   total: number
-): Promise<{ result: string; log: ToolCallLog }> {
+): Promise<{ result: string; log: any }> {
   try {
     // Ensure at least one role is applied
     const roles = toolCall.roles || [];
@@ -351,7 +352,7 @@ async function executeToolCall(
         response: result,
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error executing ToolCall:', error);
     throw error;
   }
@@ -401,7 +402,7 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
         ...recentMessages,
       ];
     }
-  } catch (error) {
+  } catch (error: any) {
     console.warn('Error summarizing messages:', error);
   }
 
@@ -413,6 +414,8 @@ interface ToolCallLog {
   tool_name: string;
   arguments: Record<string, any>;
   url: string;
+  roles: string[];
+  response: string;
   response_size: number;
   compressed: boolean;
   response_preview: string;
@@ -862,7 +865,7 @@ export async function POST(request: NextRequest) {
       tool_calls: toolCallLogs,
       iteration_logs: iterationLogs
     });
-  } catch (error) {
+  } catch (error: any) {
     console.warn('Error in chat API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

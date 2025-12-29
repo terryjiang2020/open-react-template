@@ -29,7 +29,7 @@ const typeColors = {
 const PokemonDetailPage = () => {
   const params = useParams();
   const id = params?.id;
-  const [pokemon, setPokemon] = useState(null);
+  const [pokemon, setPokemon] = useState<any | null>(null);
   const [filter, setFilter] = useState("level-up");
 
   useEffect(() => {
@@ -92,11 +92,11 @@ const PokemonDetailPage = () => {
 
       <h2>Types</h2>
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        {pokemon.types.map((type, index) => (
+        {pokemon.types.map((type: { type: string; type_name: string }, index: number) => (
           <span
             key={index}
             style={{
-              backgroundColor: typeColors[type.type.toLowerCase()] || "#ccc",
+              backgroundColor: typeColors[type.type.toLowerCase() as keyof typeof typeColors] || "#ccc",
               color: "#fff",
               padding: "0.5rem 1rem",
               borderRadius: "12px",
@@ -110,7 +110,7 @@ const PokemonDetailPage = () => {
 
       <h2>Abilities</h2>
       <ul>
-        {pokemon.abilities.map((ability, index) => (
+        {pokemon.abilities.map((ability: { ability_name: string }, index: number) => (
           <li key={index}>{ability.ability_name}</li>
         ))}
       </ul>
@@ -172,14 +172,14 @@ const PokemonDetailPage = () => {
           </thead>
           <tbody>
             {pokemon.moves
-              ?.filter((move) => filter === "all" || move.move_method === filter)
-              .map((move, index) => (
+              ?.filter((move: any) => filter === "all" || move.move_method === filter)
+              .map((move: { name: string; type: string; power?: number; accuracy?: number; move_method?: string; level?: number }, index: number) => (
                 <tr key={index}>
                   <td style={{ border: "1px solid #424242", padding: "8px" }}>{move.name}</td>
                   <td style={{ border: "1px solid #424242", padding: "8px", textAlign: "center" }}>
                     <span
                       style={{
-                        backgroundColor: typeColors[move.type?.toLowerCase()] || "#616161",
+                        backgroundColor: typeColors[move.type?.toLowerCase() as keyof typeof typeColors] || "#616161",
                         color: "#ffffff",
                         padding: "0.3rem 0.6rem",
                         borderRadius: "8px",

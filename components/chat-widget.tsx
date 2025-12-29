@@ -122,7 +122,7 @@ export default function ChatWidget() {
         content: executorData.content,
       };
       setMessages((prev) => [...prev, executorMessage]);
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage: Message = {
         role: 'assistant',
         content: 'An error occurred while processing your request. Please try again.',
@@ -141,7 +141,7 @@ export default function ChatWidget() {
         throw new Error(`Failed to fetch prompt file: ${fileName}`);
       }
       return await response.text();
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Error fetching prompt file: ${error.message}`);
     }
   };

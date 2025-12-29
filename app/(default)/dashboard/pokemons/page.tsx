@@ -7,10 +7,10 @@ import { searchPokemon } from "@/services/pokemonService";
 const PokemonPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [pokemons, setPokemons] = useState<any>([]);
-  const [search, setSearch] = useState(searchParams.get("searchTerm") || "");
+  const [pokemons, setPokemons] = useState<any[]>([]);
+  const [search, setSearch] = useState(searchParams?.get("searchTerm") || "");
   const [currentPage, setCurrentPage] = useState(
-    parseInt(searchParams.get("page") || "0", 10)
+    parseInt(searchParams?.get("page") || "0", 10)
   );
   const [totalPages, setTotalPages] = useState(1);
 
@@ -50,7 +50,7 @@ const PokemonPage = () => {
       }
       setPokemons(pokemonList);
       setTotalPages(totalPages);
-    } catch (error) {
+    } catch (error: any) {
       console.warn(error);
     }
   };
@@ -66,14 +66,14 @@ const PokemonPage = () => {
       }
       setPokemons(pokemonList);
       setCurrentPage(newPage);
-    } catch (error) {
+    } catch (error: any) {
       console.warn(error);
     }
   };
 
   useEffect(() => {
-    const initialQuery = searchParams.get("searchTerm") || "";
-    const initialPage = parseInt(searchParams.get("page") || "0", 10);
+    const initialQuery = searchParams?.get("searchTerm") || "";
+    const initialPage = parseInt(searchParams?.get("page") || "0", 10);
     setSearch(initialQuery);
     setCurrentPage(initialPage);
     handleSearch(new Event("submit"));

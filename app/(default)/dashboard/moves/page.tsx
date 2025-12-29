@@ -28,7 +28,7 @@ const MovePage = () => {
       } else {
         console.warn("No moves found for the given search term.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn(error);
     }
   };

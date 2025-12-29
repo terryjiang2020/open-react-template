@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { searchAbility } from "@/services/pokemonService";
 
 const AbilityPage = () => {
-  const [abilities, setAbilities] = useState<any>([]);
+  const [abilities, setAbilities] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -28,7 +28,7 @@ const AbilityPage = () => {
       } else {
         console.warn("No abilities found for the given search term.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn(error);
     }
   };
