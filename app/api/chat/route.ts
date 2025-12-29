@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { cosineSimilarity } from '@/src/utils/cosineSimilarity';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -429,6 +430,21 @@ interface IterationLog {
   details?: any;
 }
 
+// Load vectorized data
+const vectorizedDataPath = path.join(process.cwd(), 'src/doc/vectorized-data/vectorized-data.json');
+const vectorizedData = JSON.parse(fs.readFileSync(vectorizedDataPath, 'utf-8'));
+
+// Function to find the top-k most similar vectors
+function findTopKSimilar(queryEmbedding: number[], topK: number = 3) {
+  return vectorizedData
+    .map((item: any) => ({
+      ...item,
+      similarity: cosineSimilarity(queryEmbedding, item.embedding),
+    }))
+    .sort((a: any, b: any) => b.similarity - a.similarity)
+    .slice(0, topK);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { messages } = await request.json();
@@ -448,422 +464,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 加载系统配置
-    const systemPrompt = loadSystemPrompt();
-    const apiIndex = loadApiIndex();
-    const fileList = loadFileList();
-
-    // 处理消息上下文（摘要如果需要）
-    const processedMessages = await summarizeMessages(messages, apiKey);
-
-    // 构建完整的消息数组，确保系统提示、文件列表和API索引始终在最前面
-    let conversationMessages = [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
-      {
-        role: 'system',
-        content: `📁 可用的文档文件列表（始终可见）：\n\n${fileList}\n\n你可以随时通过 {"load_docs": ["module_id"]} 加载这些模块的详细文档。`,
-      },
-      {
-        role: 'system',
-        content: `📋 API模块索引（api-index.json）：\n\n${apiIndex}\n\n此索引提供了模块的关键词和描述，帮助你匹配用户意图。`,
-      },
-      ...processedMessages,
-    ];
-
-    // 跟踪已加载的模块，避免重复加载
-    const loadedModules = new Set<string>();
-
-    // 工具调用循环：重复直到获得文本响应
-    const MAX_ITERATIONS = 10; // 防止无限循环
-    let iteration = 0;
-    let finalResponse = '';
-    const toolCallLogs: ToolCallLog[] = []; // 记录所有工具调用
-    const iterationLogs: IterationLog[] = []; // 记录所有迭代
-
-    console.log('\n' + '╔' + '═'.repeat(78) + '╗');
-    console.log('║' + ' '.repeat(20) + '🚀 STARTING CHAT PROCESSING' + ' '.repeat(29) + '║');
-    console.log('╚' + '═'.repeat(78) + '╝\n');
-
-    while (iteration < MAX_ITERATIONS) {
-      iteration++;
-      console.log(`\n▶️  Starting iteration ${iteration}/${MAX_ITERATIONS}...`);
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: conversationMessages,
-          temperature: 0.7,
-          max_tokens: 2000,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.warn('OpenAI API error:', error);
-        return NextResponse.json(
-          { error: 'Failed to get response from OpenAI' },
-          { status: response.status }
-        );
-      }
-
-      const data = await response.json();
-      const assistantMessage = data.choices[0]?.message?.content || '';
-
-      // 检测是否为clarification请求
-      if (isClarificationRequest(assistantMessage)) {
-        console.log('\n' + '█'.repeat(80));
-        console.log(`❓ ITERATION ${iteration}: CLARIFICATION REQUEST`);
-        console.log('█'.repeat(80));
-
-        const extracted = extractJSON(assistantMessage);
-        const clarification = JSON.parse(extracted!.json);
-        const explanatoryText = extracted!.text;
-
-        console.log('\n💬 Explanatory text:', explanatoryText || '(none)');
-        console.log('💬 Clarification needed:', clarification.clarification);
-        console.log('█'.repeat(80) + '\n');
-
-        // 记录迭代
-        iterationLogs.push({
-          iteration,
-          type: 'clarification',
-          llm_output: assistantMessage,
-          details: {
-            question: clarification.clarification,
-            explanatory_text: explanatoryText
-          }
-        });
-
-        // 将clarification作为最终响应返回给用户
-        finalResponse = clarification.clarification;
-        break;
-      }
-
-      // 检测响应是否为文档加载请求
-      if (isDocLoadRequest(assistantMessage)) {
-        console.log('\n' + '█'.repeat(80));
-        console.log(`📚 ITERATION ${iteration}: DOCUMENTATION LOAD REQUEST`);
-        console.log('█'.repeat(80));
-
-        const extracted = extractJSON(assistantMessage);
-        const loadRequest = JSON.parse(extracted!.json);
-        const explanatoryText = extracted!.text;
-        const moduleIds: string[] = loadRequest.load_docs;
-
-        if (explanatoryText) {
-          console.log('\n💬 Explanatory text:', explanatoryText);
-        }
-        console.log('\n📋 Requested modules:', moduleIds);
-        console.log('-'.repeat(80));
-
-        const loadedDocs: string[] = [];
-        const newModules: string[] = [];
-
-        for (const moduleId of moduleIds) {
-          if (loadedModules.has(moduleId)) {
-            console.log(`⏭️  Module "${moduleId}" already loaded, skipping...`);
-            continue;
-          }
-
-          console.log(`📥 Loading module: ${moduleId}`);
-          const doc = loadApiModule(moduleId);
-
-          if (doc) {
-            loadedDocs.push(`Module: ${moduleId}\n${doc}`);
-            loadedModules.add(moduleId);
-            newModules.push(moduleId);
-            console.log(`✅ Module "${moduleId}" loaded successfully`);
-          } else {
-            console.log(`❌ Failed to load module "${moduleId}"`);
-            loadedDocs.push(`Module: ${moduleId}\nError: Module not found or failed to load`);
-          }
-        }
-
-        if (newModules.length > 0) {
-          // 添加加载的文档到对话
-          conversationMessages.push({
-            role: 'assistant',
-            content: assistantMessage,
-          });
-
-          conversationMessages.push({
-            role: 'system',
-            content: `已加载以下模块的详细文档：\n\n${loadedDocs.join('\n\n---\n\n')}`,
-          });
-
-          console.log(`\n📊 Loaded ${newModules.length} new module(s)`);
-          console.log(`📝 Total modules loaded: ${loadedModules.size}`);
-
-          // 记录迭代
-          iterationLogs.push({
-            iteration,
-            type: 'doc_load',
-            llm_output: assistantMessage,
-            details: {
-              requested: moduleIds,
-              loaded: newModules,
-              total_loaded: loadedModules.size,
-              explanatory_text: explanatoryText
-            }
-          });
-        } else {
-          console.log('\n⚠️  No new modules were loaded');
-
-          // 记录迭代（即使没有加载新模块）
-          iterationLogs.push({
-            iteration,
-            type: 'doc_load',
-            llm_output: assistantMessage,
-            details: {
-              requested: moduleIds,
-              loaded: [],
-              already_loaded: true,
-              explanatory_text: explanatoryText
-            }
-          });
-        }
-
-        console.log('\n🔄 Continuing to next iteration...\n');
-
-        // 继续循环，让LLM处理加载的文档
-        continue;
-      }
-
-      // 检测是否为单个工具调用
-      if (isSingleToolCall(assistantMessage)) {
-        console.log('\n' + '█'.repeat(80));
-        console.log(`🤖 ITERATION ${iteration}: SINGLE TOOL CALL DETECTED`);
-        console.log('█'.repeat(80));
-
-        // 解析单个工具调用，转换为数组格式处理
-        const extracted = extractJSON(assistantMessage);
-        const singleCall: ToolCall = JSON.parse(extracted!.json);
-        const explanatoryText = extracted!.text;
-        const toolCalls: ToolCall[] = [singleCall];
-
-        if (explanatoryText) {
-          console.log('\n💬 Explanatory text:', explanatoryText);
-        }
-        console.log('\n📋 LLM OUTPUT (Single Tool Call):');
-        console.log('-'.repeat(80));
-        console.log(JSON.stringify(singleCall, null, 2));
-        console.log('-'.repeat(80));
-        console.log(`\n🚀 Executing tool call...`);
-
-        // 执行工具调用（复用数组处理逻辑）
-        const toolResults: string[] = [];
-
-        for (let i = 0; i < toolCalls.length; i++) {
-          const toolCall = toolCalls[i];
-          console.log(`Processing tool ${i + 1}/${toolCalls.length}: ${toolCall.tool_name}`);
-
-          const { result, log } = await executeToolCall(toolCall, i, toolCalls.length);
-          toolCallLogs.push(log);
-          toolResults.push(`[工具 ${i + 1}/${toolCalls.length}]\n路由: ${toolCall.tool_name}\n结果:\n${result}`);
-        }
-
-        console.log('\n' + '▓'.repeat(80));
-        console.log('✅ TOOL CALL COMPLETED');
-        console.log('▓'.repeat(80));
-
-        const toolResultMessage = `工具调用结果：\n\n${toolResults.join('\n\n---\n\n')}`;
-        const resultTokens = estimateTokens(toolResultMessage);
-        console.log(`\n📊 Tool result size: ~${resultTokens} tokens`);
-
-        if (resultTokens > 3000) {
-          console.log('\n⚠️  Large tool results detected (>3000 tokens), optimizing context...');
-          console.log(`📝 Messages before optimization: ${conversationMessages.length}`);
-
-          const systemMessages = conversationMessages.filter(m => m.role === 'system').slice(0, 3);
-          const recentUserMessages = conversationMessages
-            .filter(m => m.role === 'user')
-            .slice(-2);
-
-          conversationMessages = [
-            ...systemMessages,
-            { role: 'system', content: '(之前的对话已压缩以节省空间)' },
-            ...recentUserMessages,
-          ];
-
-          console.log(`✅ Messages after optimization: ${conversationMessages.length}`);
-          console.log('🔒 System prompts preserved: prompt.txt + file-list + api-index.json');
-        }
-
-        conversationMessages.push({
-          role: 'assistant',
-          content: assistantMessage,
-        });
-
-        conversationMessages.push({
-          role: 'system',
-          content: toolResultMessage,
-        });
-
-        iterationLogs.push({
-          iteration,
-          type: 'tool_call',
-          llm_output: assistantMessage,
-          details: {
-            tool_calls: toolCalls.map((tc, i) => ({
-              ...toolCallLogs[toolCallLogs.length - toolCalls.length + i]
-            })),
-            explanatory_text: explanatoryText
-          }
-        });
-
-        console.log('\n🔄 Sending tool results back to LLM for processing...\n');
-        continue;
-      }
-
-      // 检测是否为工具调用数组
-      if (isToolCallResponse(assistantMessage)) {
-        console.log('\n' + '█'.repeat(80));
-        console.log(`🤖 ITERATION ${iteration}: TOOL CALL ARRAY DETECTED`);
-        console.log('█'.repeat(80));
-
-        // 解析工具调用
-        const extracted = extractJSON(assistantMessage);
-        const toolCalls: ToolCall[] = JSON.parse(extracted!.json);
-        const explanatoryText = extracted!.text;
-
-        if (explanatoryText) {
-          console.log('\n💬 Explanatory text:', explanatoryText);
-        }
-        console.log('\n📋 LLM OUTPUT (Tool Call JSON):');
-        console.log('-'.repeat(80));
-        console.log(JSON.stringify(toolCalls, null, 2));
-        console.log('-'.repeat(80));
-        console.log(`\n🚀 Executing ${toolCalls.length} tool call(s) in sequence...`);
-
-        // 执行所有工具调用（按顺序从上到下）
-        const toolResults: string[] = [];
-
-        for (let i = 0; i < toolCalls.length; i++) {
-          const toolCall = toolCalls[i];
-          console.log(`Processing tool ${i + 1}/${toolCalls.length}: ${toolCall.tool_name}`);
-
-          const { result, log } = await executeToolCall(toolCall, i, toolCalls.length);
-          toolCallLogs.push(log); // 记录日志
-          toolResults.push(`[工具 ${i + 1}/${toolCalls.length}]\n路由: ${toolCall.tool_name}\n结果:\n${result}`);
-        }
-
-        console.log('\n' + '▓'.repeat(80));
-        console.log('✅ ALL TOOL CALLS COMPLETED');
-        console.log('▓'.repeat(80));
-
-        // 将工具结果添加到对话中
-        const toolResultMessage = `工具调用结果：\n\n${toolResults.join('\n\n---\n\n')}`;
-
-        // 检查工具结果的token大小
-        const resultTokens = estimateTokens(toolResultMessage);
-        console.log(`\n📊 Combined tool results size: ~${resultTokens} tokens`);
-
-        // 如果工具结果太大，可能需要清理旧消息以保留system prompt
-        if (resultTokens > 3000) {
-          console.log('\n⚠️  Large tool results detected (>3000 tokens), optimizing context...');
-          console.log(`📝 Messages before optimization: ${conversationMessages.length}`);
-
-          // 保留system prompts（前3条）和最近的关键消息
-          const systemMessages = conversationMessages.filter(m => m.role === 'system').slice(0, 3);
-          const recentUserMessages = conversationMessages
-            .filter(m => m.role === 'user')
-            .slice(-2);
-
-          conversationMessages = [
-            ...systemMessages,
-            { role: 'system', content: '(之前的对话已压缩以节省空间)' },
-            ...recentUserMessages,
-          ];
-
-          console.log(`✅ Messages after optimization: ${conversationMessages.length}`);
-          console.log('🔒 System prompts preserved: prompt.txt + file-list + api-index.json');
-        }
-
-        // 添加工具调用和结果到对话
-        conversationMessages.push({
-          role: 'assistant',
-          content: assistantMessage,
-        });
-
-        conversationMessages.push({
-          role: 'system',
-          content: toolResultMessage,
-        });
-
-        // 记录迭代
-        iterationLogs.push({
-          iteration,
-          type: 'tool_call',
-          llm_output: assistantMessage,
-          details: {
-            tool_calls: toolCalls.map((tc, i) => ({
-              ...toolCallLogs[toolCallLogs.length - toolCalls.length + i]
-            })),
-            explanatory_text: explanatoryText
-          }
-        });
-
-        console.log('\n🔄 Sending tool results back to LLM for processing...\n');
-
-        // 继续循环，让LLM处理工具结果
-        continue;
-      } else {
-        // 获得文本响应，结束循环
-        console.log('\n' + '█'.repeat(80));
-        console.log(`✨ ITERATION ${iteration}: FINAL TEXT RESPONSE RECEIVED`);
-        console.log('█'.repeat(80));
-        console.log('\n💬 LLM FINAL OUTPUT:');
-        console.log('-'.repeat(80));
-        console.log(assistantMessage);
-        console.log('-'.repeat(80));
-        console.log(`\n📏 Response length: ${assistantMessage.length} chars (~${estimateTokens(assistantMessage)} tokens)`);
-        console.log('█'.repeat(80) + '\n');
-
-        // 记录迭代
-        iterationLogs.push({
-          iteration,
-          type: 'text_response',
-          llm_output: assistantMessage,
-          details: {
-            length: assistantMessage.length,
-            tokens: estimateTokens(assistantMessage)
-          }
-        });
-
-        finalResponse = assistantMessage;
-        break;
-      }
+    // Extract the latest user message
+    const userMessage = messages.find((msg: Message) => msg.role === 'user');
+    if (!userMessage) {
+      return NextResponse.json(
+        { error: 'No user message found' },
+        { status: 400 }
+      );
     }
 
-    if (iteration >= MAX_ITERATIONS) {
-      console.warn('\n❌ Maximum iterations reached!');
-      console.log('═'.repeat(80) + '\n');
-      finalResponse = '抱歉，处理您的请求时遇到了问题。请尝试重新表述您的问题。';
+    // Generate embedding for the user message
+    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-ada-002',
+        input: userMessage.content,
+      }),
+    });
+
+    if (!embeddingResponse.ok) {
+      const error = await embeddingResponse.json();
+      console.warn('OpenAI API error:', error);
+      return NextResponse.json(
+        { error: 'Failed to generate embedding' },
+        { status: embeddingResponse.status }
+      );
     }
 
-    console.log('\n' + '╔' + '═'.repeat(78) + '╗');
-    console.log('║' + ' '.repeat(20) + '✅ CHAT PROCESSING COMPLETED' + ' '.repeat(28) + '║');
-    console.log('╚' + '═'.repeat(78) + '╝');
-    console.log(`\n📊 Summary:`);
-    console.log(`   • Total iterations: ${iteration}`);
-    console.log(`   • Tool calls made: ${toolCallLogs.length}`);
-    console.log(`   • Context summarized: ${processedMessages.length < messages.length ? 'Yes' : 'No'}`);
-    console.log(`   • Final response length: ${finalResponse.length} chars\n`);
+    const embeddingData = await embeddingResponse.json();
+    const queryEmbedding = embeddingData.data[0].embedding;
+
+    // Find top-k similar items
+    const topKResults = findTopKSimilar(queryEmbedding);
+
+    console.log('Top-K Similar Results:', topKResults);
 
     return NextResponse.json({
-      message: finalResponse,
-      summarized: processedMessages.length < messages.length,
-      iterations: iteration,
-      tool_calls: toolCallLogs,
-      iteration_logs: iterationLogs
+      message: 'Vector matching completed.',
+      topKResults,
     });
   } catch (error: any) {
     console.warn('Error in chat API:', error);
