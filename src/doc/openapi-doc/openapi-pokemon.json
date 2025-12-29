@@ -17,9 +17,107 @@
   ],
   "paths": {
     "/pokemon/search": {
-      "get": {
+      "post": {
         "summary": "Retrieve Pokémon by ID or name",
         "tags": ["Pokémon"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "searchterm": { "type": "string" },
+                  "filter": {
+                    "type": "object",
+                    "properties": {
+                      "heightMin": { "type": "integer", "default": 0 },
+                      "heightMax": { "type": "integer", "default": -1 },
+                      "weightMin": { "type": "integer", "default": 0 },
+                      "weightMax": { "type": "integer", "default": -1 },
+                      "mustHaveTypes": {
+                        "type": "array",
+                        "items": { "type": "integer" }
+                      },
+                      "mustNotHaveTypes": {
+                        "type": "array",
+                        "items": { "type": "integer" }
+                      },
+                      "canLearnMove": { "type": "integer" },
+                      "canLearnMoves": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "moveId": { "type": "integer" },
+                            "moveMethodId": { "type": "integer" }
+                          }
+                        }
+                      },
+                      "stats": {
+                        "type": "object",
+                        "properties": {
+                          "statId": {
+                            "type": "object",
+                            "properties": {
+                              "min": { "type": "integer" },
+                              "max": { "type": "integer" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "page": { "type": "integer", "default": 0 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pokémon details retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "number" },
+                          "name": { "type": "string" },
+                          "type": { "type": "string" },
+                          "abilities": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          },
+                          "sprite": {
+                            "type": "string",
+                            "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png"
+                          }
+                        }
+                      }
+                    },
+                    "totalCount": { "type": "integer" },
+                    "totalPage": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pokémon not found"
+          }
+        }
+      }
+    },
+    "/pokemon/move/search": {
+      "get": {
+        "summary": "Retrieve Move by ID or name",
+        "tags": ["Move"],
         "parameters": [
           {
             "name": "searchterm",
@@ -37,7 +135,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Pokémon details retrieved",
+            "description": "Move details retrieved",
             "content": {
               "application/json": {
                 "schema": {
@@ -51,8 +149,9 @@
                           "id": { "type": "number" },
                           "name": { "type": "string" },
                           "type": { "type": "string" },
-                          "abilities": { "type": "array", "items": { "type": "string" } },
-                          "sprite": { "type": "string", "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png" }
+                          "power": { "type": "integer" },
+                          "pp": { "type": "integer" },
+                          "accuracy": { "type": "integer" }
                         }
                       }
                     },
@@ -64,7 +163,58 @@
             }
           },
           "404": {
-            "description": "Pokémon not found"
+            "description": "Move not found"
+          }
+        }
+      }
+    },
+    "/pokemon/ability/search": {
+      "get": {
+        "summary": "Retrieve Ability by ID or name",
+        "tags": ["Ability"],
+        "parameters": [
+          {
+            "name": "searchterm",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Page number for pagination"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ability details retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "number" },
+                          "name": { "type": "string" },
+                          "effect": { "type": "string" }
+                        }
+                      }
+                    },
+                    "totalCount": { "type": "integer" },
+                    "totalPage": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ability not found"
           }
         }
       }

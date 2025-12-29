@@ -170,11 +170,19 @@ export default function ChatWidget() {
     }
   };
 
+  useEffect(() => {
+    const chatButton = document.getElementById('chat-widget-button');
+    if (chatButton) {
+      chatButton.style.display = 'block'; // Ensure the button is always visible
+    }
+  }, []);
+
   return (
     <>
       {/* 漂浮按钮 */}
       {!isOpen && (
         <button
+          id="chat-widget-button"
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg transition-all hover:scale-110 hover:shadow-xl"
           aria-label="打开聊天"

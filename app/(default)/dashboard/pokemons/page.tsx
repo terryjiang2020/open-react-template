@@ -1,19 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation"; // Corrected import for Next.js 13+
+import { useRouter, useSearchParams } from "next/navigation";
 import { searchPokemon } from "@/services/pokemonService";
 
 const PokemonPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pokemons, setPokemons] = useState<any>([]);
-  const [search, setSearch] = useState(searchParams.get("query") || "");
+  const [search, setSearch] = useState(searchParams.get("searchTerm") || "");
   const [currentPage, setCurrentPage] = useState(
     parseInt(searchParams.get("page") || "0", 10)
   );
   const [totalPages, setTotalPages] = useState(1);
-  const [lastSearch, setLastSearch] = useState<string | null>(null);; // Track the last search term
 
   useEffect(() => {
     searchPokemon({ query: "", page: 0 })
@@ -33,7 +32,7 @@ const PokemonPage = () => {
 
   const updateUrl = (query: string, page: number) => {
     const params = new URLSearchParams();
-    if (query) params.set("query", query);
+    if (query) params.set("searchTerm", query);
     params.set("page", page.toString());
     router.push(`/dashboard/pokemons?${params.toString()}`);
   };
@@ -42,12 +41,15 @@ const PokemonPage = () => {
     e.preventDefault();
     updateUrl(search, 0);
     try {
-      const data = await searchPokemon({ query: search, page: 0 });
+      const response = await fetch(
+        `/api/pokemon/search?searchTerm=${search}&page=0`
+      );
+      const data = await response.json();
       let pokemonList = [];
       let totalPages = 1;
-      if (data.success) {
-        pokemonList = data.result.results;
-        totalPages = data.result.totalPage;
+      if (data.results) {
+        pokemonList = data.results;
+        totalPages = data.totalPage;
       }
       setPokemons(pokemonList);
       setTotalPages(totalPages);
@@ -60,10 +62,13 @@ const PokemonPage = () => {
     if (newPage < 0 || newPage >= totalPages) return;
     updateUrl(search, newPage);
     try {
-      const data = await searchPokemon({ query: search, page: newPage });
+      const response = await fetch(
+        `/api/pokemon/search?searchTerm=${search}&page=${newPage}`
+      );
+      const data = await response.json();
       let pokemonList = [];
-      if (data.success) {
-        pokemonList = data.result.results;
+      if (data.results) {
+        pokemonList = data.results;
       }
       setPokemons(pokemonList);
       setCurrentPage(newPage);
@@ -73,7 +78,7 @@ const PokemonPage = () => {
   };
 
   useEffect(() => {
-    const initialQuery = searchParams.get("query") || "";
+    const initialQuery = searchParams.get("searchTerm") || "";
     const initialPage = parseInt(searchParams.get("page") || "0", 10);
     setSearch(initialQuery);
     setCurrentPage(initialPage);
