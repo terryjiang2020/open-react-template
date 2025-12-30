@@ -18,7 +18,7 @@
   "paths": {
     "/pokemon/search": {
       "post": {
-        "summary": "Retrieve Pokémon by ID or name",
+        "summary": "Retrieve Pokémon by ID or name with filters and sorting",
         "tags": ["Pokémon"],
         "requestBody": {
           "required": false,
@@ -31,10 +31,20 @@
                   "filter": {
                     "type": "object",
                     "properties": {
-                      "heightMin": { "type": "integer", "default": 0 },
-                      "heightMax": { "type": "integer", "default": -1 },
-                      "weightMin": { "type": "integer", "default": 0 },
-                      "weightMax": { "type": "integer", "default": -1 },
+                      "height": {
+                        "type": "object",
+                        "properties": {
+                          "min": { "type": "integer" },
+                          "max": { "type": "integer" }
+                        }
+                      },
+                      "weight": {
+                        "type": "object",
+                        "properties": {
+                          "min": { "type": "integer" },
+                          "max": { "type": "integer" }
+                        }
+                      },
                       "mustHaveTypes": {
                         "type": "array",
                         "items": { "type": "integer" }
@@ -43,7 +53,6 @@
                         "type": "array",
                         "items": { "type": "integer" }
                       },
-                      "canLearnMove": { "type": "integer" },
                       "canLearnMoves": {
                         "type": "array",
                         "items": {
@@ -55,14 +64,13 @@
                         }
                       },
                       "stats": {
-                        "type": "object",
-                        "properties": {
-                          "statId": {
-                            "type": "object",
-                            "properties": {
-                              "min": { "type": "integer" },
-                              "max": { "type": "integer" }
-                            }
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "statId": { "type": "integer" },
+                            "min": { "type": "integer" },
+                            "max": { "type": "integer" }
                           }
                         }
                       }

@@ -198,7 +198,8 @@ function compressLargeJson(jsonString: string, maxTokens: number = 1500): string
         'id', 'name', 'url',
         'height', 'weight', 'base_experience',
         'types', 'abilities', 'stats',
-        'description', 'title', 'content'
+        'description', 'title', 'content',
+        'path', 'method', 'summary', 'requestBody', 'responses'
       ];
 
       const compressed: any = {};
@@ -391,7 +392,7 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
           },
         ],
         temperature: 0.3,
-        max_tokens: 300,
+        max_tokens: 4096,
       }),
     });
 
@@ -466,7 +467,7 @@ async function clarifyAndRefineUserInput(userInput: string, apiKey: string): Pro
         },
       ],
       temperature: 0.5,
-      max_tokens: 50,
+      max_tokens: 4096,
     }),
   });
 
@@ -489,74 +490,131 @@ async function clarifyAndRefineUserInput(userInput: string, apiKey: string): Pro
   return { refinedQuery, language };
 }
 
-async function sendToPlanner(api: any, refinedQuery: string, apiKey: string): Promise<string> {
+async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string): Promise<string> {
   // Serialize the matched API object into a readable string
-  const apiDescription = typeof api === 'object' ? JSON.stringify(api, null, 2) : String(api);
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a planner that takes a refined query and a matched API endpoint, and generates a detailed plan for how to use the API to fulfill the query. If the matched API is suitable, provide a step-by-step plan. If the API is not suitable, explain why it is not suitable. Always respond in the following format: "Plan: [detailed plan or explanation]".`,
-        },
-        {
-          role: 'user',
-          content: `Refined Query: ${refinedQuery}\nMatched API: ${apiDescription}`,
-        },
-      ],
-      temperature: 0.5,
-      max_tokens: 150,
-    }),
-  });
-
-  const data = await response.json();
-  console.log('Planner Input:', { refinedQuery, apiDescription });
-  console.log('Planner Response:', data);
-  return data.choices[0]?.message?.content || 'Plan: No plan generated';
-}
-
-async function handleApiRequest(selectedApi: any, userQuery: any) {
-  const baseUrl = process.env.API_BASE_URL || '';
+  const apiDescription = apis.length > 0 ? JSON.stringify(apis, null, 2) : String(apis);
 
   try {
-    const response = await dynamicApiRequest(baseUrl, selectedApi, userQuery);
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a planner that takes a refined query and a matched API endpoint, and generates a detailed plan for how to use the API to fulfill the query. Your response must be a valid JSON object with the following structure:
+{
+  api: {
+    path: '/some/api/path',
+    method: 'post' | 'get' | 'put' | 'delete',
+    requestBody: { ... },
+  },
+  input: { 
+    searchterm: 'highest attack power'
+  },
+}
+If the matched API is not suitable, explain why it is not suitable in the "reason" field of the JSON object. Always respond in JSON format.`,
+          },
+          {
+            role: 'user',
+            content: `Refined Query: ${refinedQuery}\nMatched APIs: ${apiDescription}`,
+          },
+        ],
+        temperature: 0.5,
+        max_tokens: 4096, // Increased max_tokens to allow for larger responses
+      }),
+    });
 
-    // Extract relevant data based on the schema
-    if (selectedApi.responses && selectedApi.responses['200']) {
-      const responseSchema = selectedApi.responses['200'].content['application/json'].schema;
-      if (responseSchema && responseSchema.properties) {
-        const extractedData: any = {};
-        for (const key of Object.keys(responseSchema.properties)) {
-          if (response[key] !== undefined) {
-            extractedData[key] = response[key];
-          }
-        }
-        return extractedData;
-      }
+    if (!response.ok) {
+      console.error('Planner API request failed:', await response.text());
+      throw new Error('Failed to get a response from the planner.');
     }
 
-    return response; // Fallback to returning the full response
-  } catch (error: any) {
-    console.error('Failed to handle API request:', error);
+    const data = await response.json();
+    let content = data.choices[0]?.message?.content || '';
 
-    // Enhanced error handling
-    if (error.response) {
-      // API responded with an error status
-      throw new Error(`API Error: ${error.response.status} - ${error.response.data?.message || error.response.statusText}`);
-    } else if (error.request) {
-      // No response received
-      throw new Error('No response received from the API. Please check your network connection.');
+    // Log the raw response for debugging
+    console.log('Raw Planner Response:', content);
+
+    // Sanitize the response by removing code block markers
+    content = content.replace(/```json|```/g, '').trim();
+
+    // Detect if the response is truncated
+    if (!content.endsWith('}')) {
+      console.warn('Planner response appears to be truncated:', content);
+      content += '...'; // Append ellipsis to indicate truncation
+    }
+
+    // Attempt to extract JSON content
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      content = jsonMatch[0];
     } else {
-      // Other errors
-      throw new Error(`Unexpected error: ${error.message}`);
+      console.error('Failed to extract JSON from planner response.');
+      throw new Error('Invalid planner response format.');
     }
+
+    return content;
+  } catch (error) {
+    console.error('Error in sendToPlanner:', error);
+    throw error;
+  }
+}
+
+async function craftApiInputFromPlan(plan: string, apiKey: string): Promise<{ api: any; input: any } | null> {
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an assistant that takes a textual plan and converts it into a valid JSON object with the following structure:
+{
+  api: {
+    path: '/some/api/path',
+    method: 'post' | 'get' | 'put' | 'delete',
+    requestBody: { ... },
+  },
+  input: { ... },
+}
+Ensure the JSON object is well-formed and includes all necessary details for making an API call.`,
+          },
+          {
+            role: 'user',
+            content: `Plan: ${plan}`,
+          },
+        ],
+        temperature: 0.5,
+        max_tokens: 4096,
+      }),
+    });
+
+    const data = await response.json();
+    let content = data.choices[0]?.message?.content || '';
+
+    // Sanitize the response by removing code block markers和提取JSON内容
+    content = content.replace(/```json|```/g, '').trim();
+
+    // 提取JSON内容，如果周围有其他文本
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      content = jsonMatch[0];
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('Failed to craft API input from plan:', error);
+    return null;
   }
 }
 
@@ -619,7 +677,7 @@ export async function POST(request: NextRequest) {
     const queryEmbedding = embeddingData.data[0].embedding;
 
     // Find top-k similar items
-    const topKResults = findTopKSimilar(queryEmbedding);
+    let topKResults = findTopKSimilar(queryEmbedding);
 
     console.log('Top-K Similar Results:', topKResults);
 
@@ -630,23 +688,81 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send the top API match and refined query to the planner
-    const matchedAPI = topKResults[0];
-    const plan = await sendToPlanner(matchedAPI, refinedQuery, apiKey);
-    console.log('Generated Plan:', plan);
-
-    let responseMessage;
-    if (plan === 'As an AI assistant I am not allowed to do that.') {
-      responseMessage = language === 'ZH' ? '抱歉，我无法协助完成此请求。' : 'Sorry, I am unable to assist with this request.';
-    } else {
-      responseMessage = language === 'ZH' ? '规划步骤已完成。' : 'Planner step completed.';
+    if (topKResults.length > 0) {
+      topKResults = topKResults.map((item: any) => {
+        const compressedContent = compressLargeJson(item.content, 1500);
+        return {
+          id: item.id,
+          content: compressedContent,
+        };
+      });
     }
 
+    console.log('Compressed Top-K Results:', topKResults);
+
+    // Send the top API match and refined query to the planner
+    let plan = await sendToPlanner(topKResults, refinedQuery, apiKey);
+    console.log('Generated Plan:', plan);
+
+    let actionablePlan;
+    try {
+      if (plan.startsWith('```')) {
+        plan = plan.replace(/```json|```/g, '').trim();
+        console.log('Sanitized Plan:', plan);
+        fs.writeFileSync('temp/sanitized_plan.json', plan);
+      }
+      actionablePlan = JSON.parse(plan);
+    } catch (error) {
+      console.warn('Failed to parse planner response as JSON. Attempting to craft API input from plan.');
+      actionablePlan = await craftApiInputFromPlan(plan, apiKey);
+    }
+
+    if (!actionablePlan || !actionablePlan.api || !actionablePlan.input) {
+      return NextResponse.json(
+        { error: 'Failed to generate actionable plan' },
+        { status: 500 }
+      );
+    }
+
+    console.log('Actionable Plan:', actionablePlan);
+    
+    fs.writeFileSync('temp/actionable_plan.json', plan);
+
+    /*
+    Actionable Plan: {
+      api: {
+        id: 'openapi-pokemon.json-post-/pokemon/ability/search',
+        content: {
+          path: '/pokemon/ability/search',
+          method: 'post',
+          summary: 'Retrieve Ability by ID or name',
+          tags: [Array],
+          requestBody: [Object],
+          responses: [Object]
+        }
+      },
+      input: { 
+        searchterm: 'highest attack power' 
+      },
+    }
+    */
+
+    // Forward the extracted details to handleApiRequest
+    const apiResponse = await dynamicApiRequest(
+      process.env.NEXT_PUBLIC_ELASTICDASH_API || '', // Assuming baseUrl is part of the API object
+      {
+        path: actionablePlan.api.path || '/',
+        method: actionablePlan.api.method || 'GET',
+        requestBody: actionablePlan.api.requestBody || null,
+      }
+    );
+
     return NextResponse.json({
-      message: responseMessage,
+      message: 'Execution completed successfully.',
       refinedQuery,
-      matchedAPI,
+      matchedAPIs: topKResults,
       plan,
+      apiResponse,
     });
   } catch (error: any) {
     console.warn('Error in chat API:', error);
