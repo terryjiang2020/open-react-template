@@ -39,7 +39,10 @@ const PokemonPage = () => {
   const fetchWatchlist = async () => {
     try {
       const data = await getWatchlist();
-      setWatchlist(data);
+      console.log('Fetched Watchlist data:', data);
+      if (data.success) {
+        setWatchlist(data.result);
+      }
     } catch (error) {
       console.error("Failed to fetch watchlist:", error);
     }

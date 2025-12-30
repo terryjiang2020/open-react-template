@@ -35,6 +35,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/moves">Moves</Link></li>
                 {/* <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/berries">Berries</Link></li> */}
                 <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/abilities">Abilities</Link></li>
+                <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/watchlist">Watchlist</Link></li>
                 <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/teams">Teams</Link></li>
             </ul>
             </nav>

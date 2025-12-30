@@ -250,118 +250,6 @@ function compressLargeJson(jsonString: string, maxTokens: number = 1500): string
   }
 }
 
-// Enhanced executeToolCall function to log roles and ensure at least one role is applied
-async function executeToolCall(
-  toolCall: ToolCall,
-  index: number,
-  total: number
-): Promise<{ result: string; log: any }> {
-  try {
-    // Ensure at least one role is applied
-    const roles = toolCall.roles || [];
-    if (roles.length === 0) {
-      throw new Error(`ToolCall must have at least one role applied. Received: ${JSON.stringify(toolCall)}`);
-    }
-
-    // Log roles being used
-    console.log(`Roles applied: ${roles.join(', ')}`);
-
-    // Determine base URL
-    const isElasticDashApi = !toolCall.tool_name.startsWith('/api/v2/');
-    const baseUrl = isElasticDashApi
-      ? (
-          process.env.NEXT_PUBLIC_ELASTICDASH_API ||
-          (process.env.NODE_ENV === 'development'
-            ? 'https://devserver.elasticdash.com/api'
-            : 'https://api.elasticdash.com')
-        )
-      : (process.env.NEXT_PUBLIC_POKEMON_API || 'https://pokeapi.co');
-
-    // Extract module prefix and path
-    const [modulePrefix, ...pathParts] = toolCall.tool_name.split('/').filter(Boolean);
-    const path = pathParts.join('/');
-
-    // Validate module prefix and path
-    if (!modulePrefix || !path) {
-      throw new Error(`Invalid tool_name: "${toolCall.tool_name}" must include a module prefix and path.`);
-    }
-
-    // Get HTTP method (default: GET)
-    const method = (toolCall.arguments?.method || 'GET').toUpperCase();
-
-    // Remove method field from arguments
-    const actualArguments = { ...toolCall.arguments };
-    delete actualArguments.method;
-
-    // Construct URL
-    let url = `${baseUrl}/${modulePrefix}/${path}`;
-    if (method === 'GET' && Object.keys(actualArguments).length > 0) {
-      const queryParams = new URLSearchParams();
-      Object.entries(actualArguments).forEach(([key, value]) => {
-        queryParams.append(key, String(value));
-      });
-      url += `?${queryParams.toString()}`;
-    }
-
-    console.log('\n' + '='.repeat(80));
-    console.log(`🔧 [${index + 1}/${total}] TOOL CALL`);
-    console.log('='.repeat(80));
-    console.log('Tool Name:', toolCall.tool_name);
-    console.log('HTTP Method:', method);
-    console.log('Arguments:', JSON.stringify(actualArguments, null, 2));
-    console.log('API Type:', isElasticDashApi ? 'ElasticDash' : 'Pokemon');
-    console.log('Constructed URL:', url);
-    console.log('Roles:', roles.join(', '));
-    console.log('-'.repeat(80));
-
-    // Construct headers
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-
-    // Add Bearer token for ElasticDash API
-    if (isElasticDashApi) {
-      const token = process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN;
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
-
-    // Construct fetch options
-    const fetchOptions: RequestInit = {
-      method,
-      headers,
-    };
-
-    // 对于POST、PUT、PATCH等需要body的请求，添加请求体
-    if (['POST', 'PUT', 'PATCH'].includes(method)) {
-      fetchOptions.body = JSON.stringify(actualArguments);
-    }
-
-    // Execute the API call
-    const response = await fetch(url, fetchOptions);
-    const result = await response.text();
-
-    // Log the result
-    console.log('Response:', result);
-
-    // Return the result and log
-    return {
-      result,
-      log: {
-        tool_name: toolCall.tool_name,
-        arguments: actualArguments,
-        roles,
-        response: result,
-      },
-    };
-  } catch (error: any) {
-    console.error('Error executing ToolCall:', error);
-    throw error;
-  }
-}
-
 // 摘要用户消息以减少token使用
 async function summarizeMessages(messages: Message[], apiKey: string): Promise<Message[]> {
   // 如果消息少于10条，不需要摘要
@@ -463,7 +351,7 @@ async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string):
 
   const apiDescription = apis.length > 0 ? JSON.stringify(apis, null, 2) : String(apis);
 
-  console.log('API Description for Planner:', apis.map((api: any) => api.id).join(', '));
+  console.log('API Description for Planner:', apis.map((api: any) => api.path).join(', '));
 
   let userMessage = `Refined Query: ${refinedQuery}\nMatched APIs: ${apiDescription}`;
   let plannerResponse = '';
@@ -527,6 +415,7 @@ async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string):
       let needsIdClarification = false;
       let hasRedundantRangeFilter = false;
       let hasPlaceholderValues = false;
+      let hasParameterTypeMismatch = false;
 
       try {
         const parsed = JSON.parse(plannerResponse);
@@ -593,17 +482,30 @@ async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string):
 
         // Check if execution plan has placeholder values (null, empty arrays, etc.)
         if (parsed.execution_plan && Array.isArray(parsed.execution_plan)) {
-          // Check if the original response (before sanitization) had comments
+          // Check if the original response (before sanitization) had comments or angle bracket placeholders
           const hadComments = /\/\*[\s\S]*?\*\/|\/\//.test(plannerResponse);
+          const hadAngleBracketPlaceholders = /<[A-Z_]+>|<resolved_[^>]+>/i.test(plannerResponse);
 
           if (hadComments) {
             hasPlaceholderValues = true;
             console.warn('Planner response contains comments indicating placeholder values');
           }
 
+          if (hadAngleBracketPlaceholders) {
+            hasPlaceholderValues = true;
+            console.warn('Planner response contains angle bracket placeholders (e.g., <PLACEHOLDER_ID>)');
+          }
+
           // Also check for null values or empty arrays in critical fields
+          // BUT: Allow empty arrays if the step depends on a previous step (will be populated dynamically)
           const hasNullOrEmpty = parsed.execution_plan.some((step: any) => {
             if (step.api && step.api.requestBody) {
+              // Skip validation if this step depends on a previous step
+              if (step.depends_on_step || step.dependsOnStep) {
+                console.log(`Step ${step.step_number} depends on previous step - allowing empty arrays/placeholders`);
+                return false;
+              }
+
               const bodyStr = JSON.stringify(step.api.requestBody);
               return /:\s*null|:\s*\[\s*\]/.test(bodyStr);
             }
@@ -615,17 +517,72 @@ async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string):
             console.warn('Planner response contains null or empty values in requestBody');
           }
         }
+
+        // Check if execution plan has parameter type mismatches
+        if (parsed.execution_plan && Array.isArray(parsed.execution_plan)) {
+          hasParameterTypeMismatch = parsed.execution_plan.some((step: any) => {
+            if (step.api && step.api.parameters) {
+              const planPath = step.api.path;
+
+              // Find the matching API schema from the provided APIs
+              const matchingApi = apis.find((api: any) => {
+                const apiPath = api.path || '';
+                // Match exact path or path pattern (e.g., /pokemon/details/{id})
+                return apiPath === planPath || apiPath.replace(/\{[^}]+\}/g, '{id}') === planPath.replace(/\{[^}]+\}/g, '{id}');
+              });
+
+              if (matchingApi && matchingApi.parameters) {
+                // Check each parameter in the plan against the schema
+                for (const [paramName, paramValue] of Object.entries(step.api.parameters)) {
+                  const schemaParam = matchingApi.parameters.find((p: any) => p.name === paramName);
+
+                  if (schemaParam && schemaParam.schema && schemaParam.schema.type) {
+                    const expectedType = schemaParam.schema.type;
+                    const actualValue = paramValue;
+
+                    // Type checking logic
+                    let typeMismatch = false;
+
+                    if (expectedType === 'integer' || expectedType === 'number') {
+                      // If expecting a number but got a string that's not numeric
+                      if (typeof actualValue === 'string') {
+                        // Check if it's a non-numeric string (not a valid number string like "123")
+                        if (isNaN(Number(actualValue))) {
+                          typeMismatch = true;
+                          console.warn(`Parameter type mismatch: ${paramName} expects ${expectedType} but got string "${actualValue}"`);
+                        }
+                      }
+                    } else if (expectedType === 'string') {
+                      // Expecting string is usually fine, numbers can be coerced
+                    } else if (expectedType === 'boolean') {
+                      if (typeof actualValue !== 'boolean' && actualValue !== 'true' && actualValue !== 'false') {
+                        typeMismatch = true;
+                      }
+                    }
+
+                    if (typeMismatch) {
+                      return true;
+                    }
+                  }
+                }
+              }
+            }
+            return false;
+          });
+        }
       } catch (e) {
         // If parsing fails, we'll catch it later
       }
 
-      if (containsAssumption || needsIdClarification || hasRedundantRangeFilter || hasPlaceholderValues) {
+      if (containsAssumption || needsIdClarification || hasRedundantRangeFilter || hasPlaceholderValues || hasParameterTypeMismatch) {
         if (needsIdClarification) {
           console.warn('Planner is asking for ID clarification when it should use API lookup. Sending strong reinforcement.');
         } else if (hasRedundantRangeFilter) {
           console.warn('Planner added redundant range filter when only sorting is needed. Sending correction.');
         } else if (hasPlaceholderValues) {
           console.warn('Planner response contains placeholder values or comments. Sending correction.');
+        } else if (hasParameterTypeMismatch) {
+          console.warn('Planner passed wrong parameter type (e.g., string name instead of integer ID). Sending correction.');
         } else {
           console.warn('Planner response contains assumptions. Sending clarification.');
         }
@@ -670,6 +627,8 @@ Please regenerate the execution plan WITHOUT the redundant range filter.`;
 You MUST provide COMPLETE and VALID execution plans with actual values, NOT placeholders or comments.
 
 FORBIDDEN patterns:
+❌ Angle bracket placeholders: "mustHaveTypes": [<WATER_TYPE_ID>]
+❌ Angle bracket placeholders: "pokemonId": <resolved_id>
 ❌ Comments in JSON: "mustHaveTypes": [/* Flying type ID from previous step */]
 ❌ Placeholder comments: "statId": /* Attack stat ID */
 ❌ Null values in critical fields: "statId": null
@@ -677,12 +636,10 @@ FORBIDDEN patterns:
 
 REQUIRED approach for multi-step plans:
 If a later step needs a value from an earlier step:
-1. DO NOT use comments or placeholders
-2. DO NOT leave the value as null or empty
-3. INSTEAD: Create a TWO-STEP plan where:
-   - Step 1 fetches the required ID/value
-   - Step 2 uses a description indicating it needs the result from Step 1
-   - The EXECUTOR will handle passing values between steps
+1. DO NOT use angle brackets: <PLACEHOLDER>, <resolved_id>, etc.
+2. DO NOT use comments or null values
+3. INSTEAD: Use the depends_on_step field and leave arrays empty
+4. The EXECUTOR will automatically populate values from previous steps
 
 Example of CORRECT multi-step plan:
 {
@@ -705,7 +662,7 @@ Example of CORRECT multi-step plan:
         "method": "post",
         "requestBody": {
           "filter": {
-            "mustHaveTypes": "{{step_1_result.id}}"
+            "mustHaveTypes": []
           },
           "sortby": 7
         }
@@ -714,7 +671,35 @@ Example of CORRECT multi-step plan:
   ]
 }
 
-Please regenerate the plan with proper step dependencies and NO placeholders, comments, or null values.`;
+CRITICAL: When a step has "depends_on_step": N, leave the dependent fields as empty arrays [].
+The executor will automatically extract IDs from step N's results and populate them.
+
+Please regenerate the plan with proper step dependencies and NO angle bracket placeholders, comments, or null values.`;
+        } else if (hasParameterTypeMismatch) {
+          clarificationMessage = `CRITICAL ERROR: Parameter type mismatch detected.
+
+You passed a name/string where an ID/integer is required according to the API schema.
+
+MANDATORY RULES:
+1. When an endpoint requires an ID parameter with type "integer", you MUST pass an integer value, NOT a name or string
+2. If you only have a name/identifier, you MUST first search for that entity to get its numeric ID
+3. Create a multi-step plan: Step 1 searches by name to get the ID, Step 2 uses that ID in the actual request
+
+Example of CORRECT approach:
+❌ WRONG: GET /entity/details/{id} with parameters: {"id": "EntityName"}
+   (API expects integer but got string name)
+
+✅ CORRECT multi-step plan:
+Step 1: POST /entity/search with requestBody: {"searchterm": "EntityName"}
+        → Returns: {"results": [{"id": 123, "name": "EntityName"}]}
+Step 2: GET /entity/details/{id} with parameters: {"id": 123}
+        → Uses the ID from Step 1 result
+
+ALWAYS check the API schema:
+- If parameter schema type is "integer" or "number" → Pass numeric ID
+- If you don't have the numeric ID → Add a search step first
+
+Please regenerate the execution plan with the correct parameter types and proper multi-step approach if ID lookup is needed.`;
         } else {
           clarificationMessage = '不准给我assume任何东西，在规划里用API获取所有需要的信息';
         }
@@ -748,7 +733,11 @@ function sanitizePlannerResponse(response: string): string {
     // Replace comments with null to maintain valid JSON structure
     cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, 'null');
 
-    // Fix common issues after comment removal
+    // Replace angle bracket placeholders (e.g., <WATER_TYPE_ID>, <resolved_id>) with null
+    // These are not valid JSON and indicate the planner is using placeholders
+    cleaned = cleaned.replace(/<[^>]+>/g, 'null');
+
+    // Fix common issues after placeholder/comment removal
     // Fix multiple commas: ,, or , null,
     cleaned = cleaned.replace(/,\s*null\s*,/g, ',');
     cleaned = cleaned.replace(/,\s*,/g, ',');
@@ -772,6 +761,10 @@ function sanitizePlannerResponse(response: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Extract user token from Authorization header (optional)
+    const authHeader = request.headers.get('Authorization') || '';
+    const userToken = authHeader.startsWith('Bearer ') ? authHeader : '';
+
     const { messages } = await request.json();
 
     if (!messages || !Array.isArray(messages)) {
@@ -848,31 +841,69 @@ export async function POST(request: NextRequest) {
       // Find top-10 for this entity (we'll filter after)
       const entityResults = findTopKSimilar(entityEmbedding, 10);
 
-      // Filter out obviously irrelevant APIs based on tags and paths
+      // Extract key terms from the entity for exact matching
+      const entityTerms = entity.toLowerCase().match(/\b\w+\b/g) || [];
+
+      // Filter out irrelevant APIs based on context
       const relevantResults = entityResults.filter((item: any) => {
         const content = JSON.parse(item.content);
         const path = content.path || '';
         const tags = content.tags || [];
         const summary = (content.summary || '').toLowerCase();
 
-        // Exclude user-specific APIs that are rarely relevant to data queries
-        const irrelevantPatterns = [
-          /\/watchlist/i,
-          /\/teams/i,
-          /\/admin/i,
-          /\/user\/profile/i,
-          /\/auth/i,
-          /\/login/i,
+        // Context-aware filtering: check if the entity query is specifically about these topics
+        const entityLower = entity.toLowerCase();
+        const isQueryingWatchlist = /watchlist/i.test(entityLower);
+        const isQueryingTeams = /team/i.test(entityLower);
+        const isQueryingAdmin = /admin/i.test(entityLower);
+        const isQueryingAuth = /auth|login|register|sign/i.test(entityLower);
+
+        // Define patterns that are irrelevant UNLESS specifically queried
+        const conditionallyIrrelevantPatterns = [
+          { pattern: /\/watchlist/i, isRelevant: isQueryingWatchlist },
+          { pattern: /\/teams/i, isRelevant: isQueryingTeams },
+          { pattern: /\/admin/i, isRelevant: isQueryingAdmin },
+          { pattern: /\/auth|\/login|\/register/i, isRelevant: isQueryingAuth },
         ];
 
-        const isIrrelevant = irrelevantPatterns.some(pattern => pattern.test(path));
+        // Check if path matches any conditionally irrelevant pattern
+        for (const { pattern, isRelevant } of conditionallyIrrelevantPatterns) {
+          if (pattern.test(path)) {
+            // If the pattern matches but the query is NOT about this topic, filter it out
+            if (!isRelevant) {
+              return false;
+            }
+          }
+        }
 
-        // Also check if tags suggest it's user management (not data retrieval)
-        const hasIrrelevantTags = tags.some((tag: string) =>
-          ['Watchlist', 'Teams', 'Admin', 'Auth', 'User'].includes(tag)
-        );
+        // Always filter out user profile endpoints (rarely needed)
+        if (/\/user\/profile|\/me/i.test(path)) {
+          return false;
+        }
 
-        return !isIrrelevant && !hasIrrelevantTags;
+        // Check for typos/mismatches: if entity contains a specific term,
+        // prefer exact matches and filter out near-misses
+        const pathAndSummary = (path + ' ' + summary).toLowerCase();
+
+        // Common typo pairs to check
+        const typoChecks = [
+          { correct: 'watchlist', typo: 'waitlist' },
+          { correct: 'pokemon', typo: 'pokedex' },
+          { correct: 'ability', typo: 'abilities' }, // This is fine, just plural
+        ];
+
+        for (const { correct, typo } of typoChecks) {
+          // If entity specifically asks for the correct term
+          if (entityTerms.includes(correct)) {
+            // But the API path/summary contains the typo instead
+            if (pathAndSummary.includes(typo) && !pathAndSummary.includes(correct)) {
+              console.log(`  ⚠️  Filtering out ${path}: has "${typo}" but entity wants "${correct}"`);
+              return false;
+            }
+          }
+        }
+
+        return true;
       }).slice(0, 5); // Take top 5 after filtering
 
       console.log(`Found ${entityResults.length} APIs for entity "${entity}", ${relevantResults.length} after filtering:`,
@@ -922,6 +953,7 @@ export async function POST(request: NextRequest) {
     try {
       // Remove comments and sanitize the JSON string
       const sanitizedPlanResponse = sanitizePlannerResponse(planResponse);
+      console.log('Sanitized Planner Response:', sanitizedPlanResponse);
       actionablePlan = JSON.parse(sanitizedPlanResponse);
     } catch (error) {
       console.warn('Failed to parse planner response as JSON:', error);
@@ -955,6 +987,7 @@ export async function POST(request: NextRequest) {
         topKResults,
         planResponse,
         apiKey,
+        userToken, // Pass user token for API authentication
         5 // max iterations
       );
 
@@ -1017,37 +1050,136 @@ async function validateNeedMoreActions(
         messages: [
           {
             role: 'system',
-            content: `You are a validator that determines if enough information has been gathered to answer the user's question.
+            content: `You are the VALIDATOR.
 
-Analyze the original query, the steps executed, and the results accumulated.
+Your ONLY responsibility is to determine whether
+the ORIGINAL USER GOAL has been fully satisfied.
 
-CRITICAL LOGICAL CHECKS - Verify ALL prerequisites are met:
+You do NOT care whether:
+- an API call succeeded
+- a step executed without error
+- the current execution plan has no remaining steps
 
-For queries about "X that Y can do/learn/has":
-1. Do we have a list of ALL items that Y can do/learn/has? (Not just items matching X)
-2. Have we filtered that list to find items matching X?
-3. Can we definitively say these are the ONLY items Y can do/learn/has?
+You ONLY care about:
+→ whether the user's original intent is fulfilled in the current world state.
 
-For example: "most powerful steel move that Magnemite can learn"
-- ❌ WRONG: Found steel moves → assume Magnemite can learn them
-- ✅ CORRECT: Get Magnemite's move list → filter for steel type → find most powerful
+────────────────────────────────────────
+CORE PRINCIPLE (NON-NEGOTIABLE)
+────────────────────────────────────────
 
-EVALUATION CRITERIA:
-1. Have we verified ALL prerequisites/constraints in the query?
-2. Are we making assumptions about relationships without verification?
-3. Does the data explicitly contain what the query asks for?
+A successful API call ≠ task completion.
 
-Respond with a JSON object: { "needsMoreActions": boolean, "reason": string }
+An empty execution plan ≠ task completion.
 
-Return needsMoreActions: false ONLY if:
-- ALL required data is present and verified
-- NO assumptions are being made about unverified relationships
-- The answer can be definitively stated from the data
+Only the satisfaction of the ORIGINAL USER GOAL
+determines completion.
 
-Return needsMoreActions: true if:
-- We're missing prerequisite data (e.g., entity's attribute list)
-- We're making assumptions without verification
-- There's a clear next API call to get the missing data`,
+────────────────────────────────────────
+INPUTS YOU WILL RECEIVE
+────────────────────────────────────────
+
+You are given:
+
+1. original_user_query (immutable)
+2. canonical_user_goal (normalized form, if available)
+3. execution_history (all executed API calls + responses)
+4. world_state (accumulated facts inferred from execution)
+5. last_execution_plan (may be incomplete or incorrect)
+
+You MUST evaluate completion ONLY against (1) or (2).
+
+────────────────────────────────────────
+ABSOLUTE RULES
+────────────────────────────────────────
+
+1. You MUST NOT infer or invent a new goal.
+2. You MUST NOT replace the user goal with a planner step description.
+3. You MUST NOT assume the planner plan was complete or correct.
+4. You MUST NOT conclude completion solely because:
+   - an API returned success
+   - data was retrieved
+   - no remaining steps exist
+
+If the user goal implies a state change,
+you MUST verify that the state change has occurred.
+
+────────────────────────────────────────
+GOAL SATISFACTION CHECK (MANDATORY)
+────────────────────────────────────────
+
+You MUST answer the following questions IN ORDER:
+
+1. What is the user's original intent?
+2. What observable state change or final answer would satisfy it?
+3. Does the current world_state conclusively show that state?
+
+If the answer to (3) is NO or UNCERTAIN:
+→ the task is NOT complete.
+
+Uncertainty MUST be treated as NOT COMPLETE.
+
+────────────────────────────────────────
+COMMON GOAL PATTERNS (GUIDELINES)
+────────────────────────────────────────
+
+A) Information retrieval goals
+   (e.g. "Which Pokémon has the highest Attack?")
+   → Completion requires:
+     - a final answer derived from data
+     - not just raw data retrieval
+
+B) State-changing goals
+   (e.g. "Add Aggron to my watchlist")
+   → Completion requires:
+     - confirmation that the state changed
+     - e.g. POST success AND/OR watchlist contains the ID
+
+C) Multi-step goals
+   → Completion requires:
+     - ALL required sub-actions completed
+     - Partial progress is NOT sufficient
+
+────────────────────────────────────────
+FORBIDDEN HEURISTICS
+────────────────────────────────────────
+
+❌ "The API call succeeded, so we're done"
+❌ "There are no remaining steps"
+❌ "The planner didn't include more actions"
+❌ "The data exists, so the goal must be satisfied"
+
+────────────────────────────────────────
+OUTPUT FORMAT (JSON ONLY)
+────────────────────────────────────────
+
+If the goal IS satisfied:
+
+{
+  "needsMoreActions": false,
+  "reason": "Clear explanation of how the original user goal has been fully satisfied based on world state"
+}
+
+If the goal is NOT satisfied:
+
+{
+  "needsMoreActions": true,
+  "reason": "What part of the original user goal is still unmet",
+  "missing_requirements": [
+    "Explicit unmet condition 1",
+    "Explicit unmet condition 2"
+  ],
+  "suggested_next_action": "High-level description of what must happen next (NOT a full plan)"
+}
+
+────────────────────────────────────────
+FINAL OVERRIDE RULE
+────────────────────────────────────────
+
+If you are unsure whether the user goal has been met,
+you MUST respond with needsMoreActions = true.
+
+False negatives are acceptable.
+False positives are NOT.`,
           },
           {
             role: 'user',
@@ -1169,6 +1301,7 @@ async function executeIterativePlanner(
   matchedApis: any[],
   initialPlanResponse: string,
   apiKey: string,
+  userToken: string,
   maxIterations: number = 20
 ): Promise<any> {
   let currentPlanResponse = initialPlanResponse;
@@ -1212,16 +1345,109 @@ async function executeIterativePlanner(
       console.log('Executing step:', JSON.stringify(step, null, 2));
 
       if (step.api) {
+        // If this step depends on a previous step, populate empty fields with data from that step
+        let requestBodyToUse = step.api.requestBody;
+
+        if ((step.depends_on_step || step.dependsOnStep) && accumulatedResults.length > 0) {
+          const dependsOnStepNum = step.depends_on_step || step.dependsOnStep;
+          const previousStepResult = accumulatedResults.find(r => r.step === dependsOnStepNum);
+
+          if (previousStepResult && previousStepResult.response) {
+            console.log(`Step ${step.step_number} depends on step ${dependsOnStepNum} - populating data from previous results`);
+
+            // Deep clone the requestBody to avoid mutation
+            requestBodyToUse = JSON.parse(JSON.stringify(step.api.requestBody));
+
+            // If the previous step returned a results array, extract IDs
+            if (previousStepResult.response.result?.results || previousStepResult.response.results) {
+              const results = previousStepResult.response.result?.results || previousStepResult.response.results;
+
+              // Look for empty arrays in requestBody and populate them with IDs
+              if (Array.isArray(results) && results.length > 0) {
+                // Helper function to recursively populate empty arrays
+                const populateEmptyArrays = (obj: any, path: string = '') => {
+                  for (const key in obj) {
+                    const fullPath = path ? `${path}.${key}` : key;
+
+                    if (Array.isArray(obj[key]) && obj[key].length === 0) {
+                      // Determine how many IDs to use based on the field name
+                      let numIds = 1; // Default to 1 ID
+
+                      // For team/collection fields, use multiple IDs (typically 3)
+                      if (key.toLowerCase().includes('pokemon') && key.toLowerCase().includes('id')) {
+                        numIds = 3;
+                      }
+
+                      // Extract the appropriate field from results
+                      let extractedIds: any[];
+
+                      // For type-related fields, extract type IDs
+                      if (key.toLowerCase().includes('type')) {
+                        extractedIds = results.slice(0, numIds).map((item: any) =>
+                          item.type_id || item.id
+                        );
+                      } else {
+                        // For other ID fields, extract the main ID
+                        extractedIds = results.slice(0, numIds).map((item: any) =>
+                          item.id || item.pokemon_id
+                        );
+                      }
+
+                      obj[key] = extractedIds;
+                      console.log(`Populated ${fullPath} with: ${JSON.stringify(extractedIds)}`);
+                    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+                      // Recursively process nested objects
+                      populateEmptyArrays(obj[key], fullPath);
+                    }
+                  }
+                };
+
+                // Also handle single ID fields (not arrays)
+                const populateSingleIds = (obj: any, path: string = '') => {
+                  for (const key in obj) {
+                    const fullPath = path ? `${path}.${key}` : key;
+
+                    // If field is null and key suggests it needs an ID
+                    if (obj[key] === null && key.toLowerCase().includes('id')) {
+                      obj[key] = results[0]?.id || results[0]?.pokemon_id;
+                      console.log(`Populated ${fullPath} with single ID: ${obj[key]}`);
+                    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+                      populateSingleIds(obj[key], fullPath);
+                    }
+                  }
+                };
+
+                populateEmptyArrays(requestBodyToUse);
+                populateSingleIds(requestBodyToUse);
+              }
+            }
+          }
+        }
+
+        // Merge step.input into step.api for path parameter replacement
+        const apiSchema = {
+          ...step.api,
+          requestBody: requestBodyToUse,
+          // Merge input/parameters into the schema (planner might use either field)
+          parameters: step.api.parameters || step.input || {},
+        };
+
         // Perform the API call for the current step
         const apiResponse = await dynamicApiRequest(
           process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
-          step.api
+          apiSchema,
+          userToken // Pass user token for authentication
         );
 
         console.log('API Response:', apiResponse);
 
         // Store the executed step and result
         executedSteps.push(step);
+
+        // CRITICAL: Remove the executed step from the execution plan
+        // so the next iteration picks up the next step, not the same one
+        actionablePlan.execution_plan.shift();
+        console.log(`Step ${step.step_number || executedSteps.length} completed. Remaining steps: ${actionablePlan.execution_plan.length}`);
 
         // Process the response to ensure arrays are properly included
         let processedResponse = apiResponse;
@@ -1247,7 +1473,20 @@ async function executeIterativePlanner(
           response: processedResponse,
         });
 
-        // Validate if more actions are needed
+        // Check if there are more steps in the current execution plan
+        const remainingSteps = actionablePlan.execution_plan.length - executedSteps.length;
+        console.log(`Remaining steps in current plan: ${remainingSteps}`);
+
+        // If there are still steps in the plan, continue executing them
+        // Only call validator when we've exhausted the current plan
+        if (remainingSteps > 0) {
+          console.log('More steps in the current plan - continuing execution without validation');
+          // Continue to next iteration to execute the next step
+          continue;
+        }
+
+        // Only validate if we've completed all steps in the current plan
+        console.log('All steps in current plan executed - checking if more actions needed');
         const validationResult = await validateNeedMoreActions(
           originalQuery,
           executedSteps,

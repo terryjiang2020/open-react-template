@@ -1,18 +1,31 @@
 import axios from 'axios';
 
-const API_BASE_URL = '/api/pokemon';
+const API_BASE_URL = `${process.env.NEXT_PUBLIC_ELASTICDASH_API}/pokemon`;
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 export const getWatchlist = async () => {
-  const response = await axios.get(`${API_BASE_URL}/watchlist`);
+  const response = await axios.get(`${API_BASE_URL}/watchlist`, {
+    headers: getAuthHeaders(),
+  });
   return response.data;
 };
 
 export const addToWatchlist = async (pokemonId: number) => {
-  await axios.post(`${API_BASE_URL}/watchlist`, { pokemonId });
+  await axios.post(
+    `${API_BASE_URL}/watchlist`,
+    { pokemonId },
+    { headers: getAuthHeaders() }
+  );
 };
 
 export const removeFromWatchlist = async (pokemonId: number) => {
-  await axios.delete(`${API_BASE_URL}/watchlist`, { data: { pokemonId } });
+  await axios.delete(`${API_BASE_URL}/watchlist/${pokemonId}`, {
+    headers: getAuthHeaders()
+  });
 };
 
 export const searchPokemon = async ({
