@@ -2,12 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { searchPokemon } from "@/services/pokemonService";
+import {
+  searchPokemon,
+  getWatchlist,
+  addToWatchlist,
+  removeFromWatchlist,
+} from "@/services/pokemonService";
 
 const PokemonPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pokemons, setPokemons] = useState<any[]>([]);
+  const [watchlist, setWatchlist] = useState<any[]>([]);
   const [search, setSearch] = useState(searchParams?.get("searchTerm") || "");
   const [currentPage, setCurrentPage] = useState(
     parseInt(searchParams?.get("page") || "0", 10)
@@ -17,17 +23,30 @@ const PokemonPage = () => {
   useEffect(() => {
     searchPokemon({ searchterm: "", page: 0 })
       .then((data) => {
-        console.log('Fetched Pokémon data:', data);
+        console.log("Fetched Pokémon data:", data);
         let pokemonList = [];
         let totalPages = 1;
         if (data.success) {
-            pokemonList = data.result.results;
-            totalPages = data.result.totalPage;
+          pokemonList = data.result.results;
+          totalPages = data.result.totalPage;
         }
         setPokemons(pokemonList);
         setTotalPages(totalPages);
-    })
+      })
       .catch((error) => console.warn("Error fetching Pokémon data:", error));
+  }, []);
+
+  const fetchWatchlist = async () => {
+    try {
+      const data = await getWatchlist();
+      setWatchlist(data);
+    } catch (error) {
+      console.error("Failed to fetch watchlist:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchWatchlist();
   }, []);
 
   const updateUrl = (query: string, page: number) => {
@@ -83,6 +102,19 @@ const PokemonPage = () => {
     router.push(`/dashboard/pokemons/${pokemon.id}`);
   };
 
+  const toggleWatchlist = async (pokemonId: number) => {
+    try {
+      if (watchlist.some((item) => item.pokemonId === pokemonId)) {
+        await removeFromWatchlist(pokemonId);
+      } else {
+        await addToWatchlist(pokemonId);
+      }
+      fetchWatchlist();
+    } catch (error) {
+      console.error("Failed to update watchlist:", error);
+    }
+  };
+
   return (
     <div>
       <h1>Pokémons</h1>
@@ -92,11 +124,23 @@ const PokemonPage = () => {
           placeholder="Search Pokémon by name or ID"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "black" }} // Set text color to black
+          style={{
+            padding: "0.5rem",
+            marginRight: "0.5rem",
+            color: "black",
+          }} // Set text color to black
         />
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
+        <button type="submit" style={{ padding: "0.5rem 1rem" }}>
+          Search
+        </button>
       </form>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          marginTop: "1rem",
+        }}
+      >
         <thead>
           <tr>
             <th style={{ border: "1px solid #ddd", padding: "8px" }}>Image</th>
@@ -107,19 +151,60 @@ const PokemonPage = () => {
         <tbody>
           {pokemons.map((pokemon: any, index: number) => (
             <tr key={index}>
-              <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "center" }}>
-                <img src={pokemon.sprite} alt={pokemon.identifier} style={{ width: "50px", height: "50px" }} />
+              <td
+                style={{
+                  border: "1px solid #ddd",
+                  padding: "8px",
+                  textAlign: "center",
+                }}
+              >
+                <img
+                  src={pokemon.sprite}
+                  alt={pokemon.identifier}
+                  style={{ width: "50px", height: "50px" }}
+                />
               </td>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{pokemon.identifier}</td>
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                <button style={{ marginRight: "8px" }} onClick={() => handleViewDetail(pokemon)}>View Detail</button>
-                <button>{pokemon.isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}</button>
+                {pokemon.identifier}
+              </td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                <button
+                  style={{ marginRight: "8px" }}
+                  onClick={() => handleViewDetail(pokemon)}
+                >
+                  View Detail
+                </button>
+                <button
+                  onClick={() => toggleWatchlist(pokemon.id)}
+                  style={{
+                    backgroundColor: watchlist.some(
+                      (item) => item.pokemonId === pokemon.id
+                    )
+                      ? "red"
+                      : "green",
+                    color: "white",
+                    padding: "0.5rem 1rem",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {watchlist.some((item) => item.pokemonId === pokemon.id)
+                    ? "Remove from Watchlist"
+                    : "Add to Watchlist"}
+                </button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: "1rem",
+        }}
+      >
         <button
           onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage === 0} // Adjusted for 0-based index
@@ -127,7 +212,10 @@ const PokemonPage = () => {
         >
           Previous
         </button>
-        <span>Page {currentPage + 1} of {totalPages}</span> {/* Adjusted display for 1-based UI */}
+        <span>
+          Page {currentPage + 1} of {totalPages}{" "}
+        </span>{" "}
+        {/* Adjusted display for 1-based UI */}
         <button
           onClick={() => handlePageChange(currentPage + 1)}
           disabled={currentPage + 1 === totalPages} // Adjusted for 0-based index

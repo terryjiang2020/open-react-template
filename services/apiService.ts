@@ -17,6 +17,10 @@ export async function dynamicApiRequest(baseUrl: string, schema: any): Promise<a
       method: method.toLowerCase(),
       url: `${baseUrl}${path}`,
       data: requestBody ? requestBody : undefined,
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Authorization': process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN ? `Bearer ${process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN}` : ''
+      },
     };
 
     console.log('Dynamic API Request Config:', JSON.stringify(config, null, 2))

@@ -36,14 +36,16 @@
                         "properties": {
                           "min": { "type": "integer" },
                           "max": { "type": "integer" }
-                        }
+                        },
+                        "description": "Height is measured in decimeters (10 cm)."
                       },
                       "weight": {
                         "type": "object",
                         "properties": {
                           "min": { "type": "integer" },
                           "max": { "type": "integer" }
-                        }
+                        },
+                        "description": "Weight is measured in hectograms (100 g)."
                       },
                       "mustHaveTypes": {
                         "type": "array",
@@ -503,6 +505,194 @@
           },
           "404": {
             "description": "Type not found"
+          }
+        }
+      }
+    },
+    "/pokemon/details/{id}": {
+      "get": {
+        "summary": "Retrieve detailed information about a specific Pokémon",
+        "tags": ["Pokémon"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the Pokémon to retrieve details for."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pokémon details retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer" },
+                    "name": { "type": "string" },
+                    "identifier": { "type": "string" },
+                    "order": { "type": "integer" },
+                    "height": {
+                      "type": "integer",
+                      "description": "Height of the Pokémon in decimeters (10 cm)."
+                    },
+                    "weight": {
+                      "type": "integer",
+                      "description": "Weight of the Pokémon in hectograms (100 g)."
+                    },
+                    "baseExperience": { "type": "integer" },
+                    "flavorText": { "type": "string" },
+                    "speciesId": { "type": "integer" },
+                    "speciesName": { "type": "string" },
+                    "isDefault": { "type": "boolean" },
+                    "totalStats": { "type": "string" },
+                    "hp": { "type": "integer" },
+                    "attack": { "type": "integer" },
+                    "defense": { "type": "integer" },
+                    "speed": { "type": "integer" },
+                    "specialAttack": { "type": "integer" },
+                    "specialDefense": { "type": "integer" },
+                    "types": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string" },
+                          "type_name": { "type": "string" }
+                        }
+                      }
+                    },
+                    "pokemonTypeNames": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "abilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ability": { "type": "string" },
+                          "ability_name": { "type": "string" }
+                        }
+                      }
+                    },
+                    "moves": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "move": { "type": "string" },
+                          "type_id": { "type": "integer" },
+                          "power": { "type": "integer" },
+                          "accuracy": { "type": "integer" },
+                          "pp": { "type": "integer" },
+                          "priority": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "move_method": { "type": "string" },
+                          "level": { "type": "integer" },
+                          "type": { "type": "string" }
+                        }
+                      }
+                    },
+                    "sprite": {
+                      "type": "string",
+                      "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pokémon not found"
+          }
+        }
+      }
+    },
+    "/pokemon/moves": {
+      "post": {
+        "summary": "Retrieve moves that a Pokémon can learn",
+        "tags": ["Moves"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pokemonId": {
+                    "type": "integer",
+                    "description": "The ID of the Pokémon to retrieve moves for."
+                  },
+                  "typeId": {
+                    "type": "integer",
+                    "description": "Filter by move type ID (default: null).",
+                    "default": null
+                  },
+                  "learnMethodId": {
+                    "type": "integer",
+                    "description": "Filter by learn method ID (default: level-up).",
+                    "default": 1
+                  },
+                  "sortBy": {
+                    "type": "integer",
+                    "description": "Sorting option: 0 (Level low-high, default), 1 (Level high-low), 2 (Power low-high), 3 (Power high-low), 4 (PP low-high), 5 (PP high-low), 6 (Name A-Z), 7 (Name Z-A).",
+                    "default": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "description": "Page number for pagination (default: 0).",
+                    "default": 0
+                  }
+                },
+                "required": ["pokemonId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moves retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "move": { "type": "string" },
+                          "type_id": { "type": "integer" },
+                          "type_name": { "type": "string" },
+                          "power": { "type": "integer" },
+                          "accuracy": { "type": "integer" },
+                          "pp": { "type": "integer" },
+                          "priority": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "move_method": { "type": "string" },
+                          "level": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "page": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "totalPages": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters"
+          },
+          "404": {
+            "description": "Pokémon or moves not found"
           }
         }
       }

@@ -1,3 +1,20 @@
+import axios from 'axios';
+
+const API_BASE_URL = '/api/pokemon';
+
+export const getWatchlist = async () => {
+  const response = await axios.get(`${API_BASE_URL}/watchlist`);
+  return response.data;
+};
+
+export const addToWatchlist = async (pokemonId: number) => {
+  await axios.post(`${API_BASE_URL}/watchlist`, { pokemonId });
+};
+
+export const removeFromWatchlist = async (pokemonId: number) => {
+  await axios.delete(`${API_BASE_URL}/watchlist`, { data: { pokemonId } });
+};
+
 export const searchPokemon = async ({
   searchterm = "",
   page = 0,

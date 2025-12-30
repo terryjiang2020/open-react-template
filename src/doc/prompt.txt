@@ -220,7 +220,7 @@ EXAMPLES
 ========================
 
 Example 1: General Question (No API)
-User: "What is ElasticDash?"
+User: "What is [Platform Name]?"
 → Direct LLM response explaining the platform
 
 Example 2: Need Documentation First

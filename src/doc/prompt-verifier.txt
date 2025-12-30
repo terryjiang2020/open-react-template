@@ -56,7 +56,7 @@ Sample output:
 
 {
   "status": "rejected",
-  "reason": "Returned data is an intermediate result (move list) and does not satisfy the final deliverable (Pokémon list).",
+  "reason": "Returned data is an intermediate result (category list) and does not satisfy the final deliverable (item list filtered by category).",
   "violated_rules": ["R4", "R5"],
   "next_action": "continue_execution"
 }

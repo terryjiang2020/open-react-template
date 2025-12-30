@@ -96,7 +96,7 @@ const PokemonDetailPage = () => {
           <span
             key={index}
             style={{
-              backgroundColor: typeColors[type.type.toLowerCase() as keyof typeof typeColors] || "#ccc",
+              backgroundColor: typeColors[type?.type?.toLowerCase() as keyof typeof typeColors] || "#ccc",
               color: "#fff",
               padding: "0.5rem 1rem",
               borderRadius: "12px",

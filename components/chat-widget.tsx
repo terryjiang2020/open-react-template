@@ -19,6 +19,7 @@ export default function ChatWidget() {
   };
 
   useEffect(() => {
+    console.log('Messages updated:', messages);
     scrollToBottom();
   }, [messages]);
 
@@ -33,6 +34,22 @@ export default function ChatWidget() {
     setIsLoading(true);
 
     try {
+      // Check if the input requires an API call
+      const trivialResponses: { [key: string]: string } = {
+        hello: 'Hi there! How can I assist you today?',
+        hi: 'Hello! How can I help you?',
+        thanks: 'You’re welcome!',
+        bye: 'Goodbye! Have a great day!',
+      };
+
+      const lowerCaseInput = input.trim().toLowerCase();
+      if (trivialResponses[lowerCaseInput]) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: trivialResponses[lowerCaseInput] }]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Proceed with the API call if necessary
       // Step 1: Planner
       const plannerResponse = await fetch('/api/chat', {
         method: 'POST',
@@ -55,35 +72,28 @@ export default function ChatWidget() {
 
       const plannerData = await plannerResponse.json();
       console.log('Planner Data:', plannerData);
+      // Ensure only the LLM response is added to the messages
       if (!plannerData.message.includes('{')) {
         setMessages((prev) => [...prev, { role: 'assistant', content: plannerData.message }]);
         setIsLoading(false);
         return;
       }
-      const plannerMessage = JSON.parse(plannerData.message);
-
-      if (plannerMessage.needs_clarification) {
-        const clarificationMessage: Message = {
-          role: 'assistant',
-          content: plannerMessage.clarification_question || 'The Planner requires clarification to proceed.',
-        };
-        setMessages((prev) => [...prev, clarificationMessage]);
+      
+      let plannerMessage;
+      try {
+        plannerMessage = JSON.parse(plannerData.message);
+      } catch (error) {
+        console.error('Failed to parse plannerData.message:', error);
+        setMessages((prev) => [...prev, { role: 'assistant', content: 'An error occurred while processing the planner response.' }]);
         setIsLoading(false);
         return;
       }
 
-      if (plannerMessage.status === 'rejected') {
-        const rejectionMessage: Message = {
-          role: 'assistant',
-          content: plannerMessage.reason || 'The Planner rejected the request.',
-        };
-        setMessages((prev) => [...prev, rejectionMessage]);
-        setIsLoading(false);
-        return;
+      if (plannerMessage.plan_summary) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: plannerMessage.plan_summary }]);
+      } else {
+        console.warn('Planner response does not contain a plan summary.');
       }
-
-      const newMessages: Message[] = [...updatedMessages, { role: 'assistant', content: plannerMessage.plan_summary || 'Proceeding to execution...' }];
-      setMessages(newMessages);
 
       // Step 2: Executor
       const executorResponse = await fetch('/api/chat', {
@@ -94,7 +104,7 @@ export default function ChatWidget() {
         body: JSON.stringify({
           messages: [
             { role: 'system', content: await fetchPromptFile('prompt-executor.txt') },
-            ...newMessages,
+            ...updatedMessages,
           ],
         }),
       });
@@ -236,7 +246,9 @@ export default function ChatWidget() {
                       : 'bg-gray-800 text-gray-100'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                  <p className="whitespace-pre-wrap text-sm">
+                    {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
+                  </p>
                 </div>
               </div>
             ))}
