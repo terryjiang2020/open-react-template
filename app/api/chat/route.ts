@@ -517,7 +517,7 @@ async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string):
     searchterm: 'highest attack power'
   },
 }
-If the matched API is not suitable, explain why it is not suitable in the "reason" field of the JSON object. Always respond in JSON format.`,
+If the user does not provide a name or part of the name, ensure the "searchterm" field in the "input" object remains empty. If the matched API is not suitable, explain why it is not suitable in the "reason" field of the JSON object. Always respond in JSON format.`,
           },
           {
             role: 'user',
@@ -677,7 +677,7 @@ export async function POST(request: NextRequest) {
     const queryEmbedding = embeddingData.data[0].embedding;
 
     // Find top-k similar items
-    let topKResults = findTopKSimilar(queryEmbedding);
+    const topKResults = findTopKSimilar(queryEmbedding);
 
     console.log('Top-K Similar Results:', topKResults);
 
@@ -688,20 +688,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (topKResults.length > 0) {
-      topKResults = topKResults.map((item: any) => {
-        const compressedContent = compressLargeJson(item.content, 1500);
-        return {
-          id: item.id,
-          content: compressedContent,
-        };
-      });
-    }
-
-    console.log('Compressed Top-K Results:', topKResults);
-
     // Send the top API match and refined query to the planner
-    let plan = await sendToPlanner(topKResults, refinedQuery, apiKey);
+    const matchedAPI = topKResults[0];
+    let plan = await sendToPlanner(matchedAPI, refinedQuery, apiKey);
     console.log('Generated Plan:', plan);
 
     let actionablePlan;
@@ -725,44 +714,81 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Actionable Plan:', actionablePlan);
-    
+
     fs.writeFileSync('temp/actionable_plan.json', plan);
 
-    /*
-    Actionable Plan: {
-      api: {
-        id: 'openapi-pokemon.json-post-/pokemon/ability/search',
-        content: {
-          path: '/pokemon/ability/search',
-          method: 'post',
-          summary: 'Retrieve Ability by ID or name',
-          tags: [Array],
-          requestBody: [Object],
-          responses: [Object]
-        }
-      },
-      input: { 
-        searchterm: 'highest attack power' 
-      },
+    // Ensure searchterm remains empty if the user does not provide a name or part of the name
+    if (!actionablePlan.input?.searchterm || actionablePlan.input.searchterm.trim() === '') {
+      actionablePlan.input.searchterm = '';
     }
-    */
+
+    // Merge input data into the requestBody of the API schema
+    if (actionablePlan.input) {
+      actionablePlan.api.requestBody = {
+        ...actionablePlan.api.requestBody,
+        ...actionablePlan.input,
+      };
+    }
 
     // Forward the extracted details to handleApiRequest
     const apiResponse = await dynamicApiRequest(
-      process.env.NEXT_PUBLIC_ELASTICDASH_API || '', // Assuming baseUrl is part of the API object
-      {
-        path: actionablePlan.api.path || '/',
-        method: actionablePlan.api.method || 'GET',
-        requestBody: actionablePlan.api.requestBody || null,
-      }
+      actionablePlan.api.baseUrl, // Assuming baseUrl is part of the API object
+      actionablePlan.api // Pass the updated API schema
     );
 
+    console.log('API Response:', apiResponse);
+
+    // Verify the result
+    const verificationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a verifier that checks if the API response matches the user's request. Respond with "true" if it matches, otherwise "false".`,
+          },
+          {
+            role: 'user',
+            content: `User Request: ${userMessage.content}\nAPI Response: ${JSON.stringify(apiResponse)}`,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 10,
+      }),
+    });
+
+    const verificationData = await verificationResponse.json();
+    const verificationResult = verificationData.choices[0]?.message?.content?.trim();
+
+    if (verificationResult === 'true') {
+      return NextResponse.json({
+        message: 'Execution completed successfully.',
+        refinedQuery,
+        matchedAPI,
+        plan,
+        apiResponse,
+      });
+    }
+
+    console.warn('Verification failed. Re-running the process with history.');
+
+    // Summarize history if too long
+    const summarizedMessages = await summarizeMessages(messages, apiKey);
+
+    // Re-run the process with history
+    const newPlan = await sendToPlanner(matchedAPI, refinedQuery, apiKey);
+    console.log('New Plan:', newPlan);
+
     return NextResponse.json({
-      message: 'Execution completed successfully.',
+      message: summarizedMessages,
       refinedQuery,
-      matchedAPIs: topKResults,
-      plan,
-      apiResponse,
+      matchedAPI,
+      newPlan,
     });
   } catch (error: any) {
     console.warn('Error in chat API:', error);
