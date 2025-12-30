@@ -492,7 +492,11 @@ async function clarifyAndRefineUserInput(userInput: string, apiKey: string): Pro
 
 async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string): Promise<string> {
   // Serialize the matched API object into a readable string
+  console.log('apis:', apis);
+
   const apiDescription = apis.length > 0 ? JSON.stringify(apis, null, 2) : String(apis);
+
+  console.log('API Description for Planner:', apiDescription);
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -677,7 +681,7 @@ export async function POST(request: NextRequest) {
     const queryEmbedding = embeddingData.data[0].embedding;
 
     // Find top-k similar items
-    const topKResults = findTopKSimilar(queryEmbedding);
+    let topKResults = findTopKSimilar(queryEmbedding);
 
     console.log('Top-K Similar Results:', topKResults);
 
@@ -688,9 +692,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    topKResults = topKResults.map((item: any) => {
+      const content = JSON.parse(item.content);
+      
+      return content;
+    });
+
     // Send the top API match and refined query to the planner
-    const matchedAPI = topKResults[0];
-    let plan = await sendToPlanner(matchedAPI, refinedQuery, apiKey);
+    let plan = await sendToPlanner(topKResults, refinedQuery, apiKey);
     console.log('Generated Plan:', plan);
 
     let actionablePlan;
@@ -732,7 +741,7 @@ export async function POST(request: NextRequest) {
 
     // Forward the extracted details to handleApiRequest
     const apiResponse = await dynamicApiRequest(
-      actionablePlan.api.baseUrl, // Assuming baseUrl is part of the API object
+      process.env.NEXT_PUBLIC_ELASTICDASH_API || '', // Assuming baseUrl is part of the API object
       actionablePlan.api // Pass the updated API schema
     );
 
@@ -769,7 +778,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         message: 'Execution completed successfully.',
         refinedQuery,
-        matchedAPI,
+        topKResults,
         plan,
         apiResponse,
       });
@@ -781,13 +790,13 @@ export async function POST(request: NextRequest) {
     const summarizedMessages = await summarizeMessages(messages, apiKey);
 
     // Re-run the process with history
-    const newPlan = await sendToPlanner(matchedAPI, refinedQuery, apiKey);
+    const newPlan = await sendToPlanner(topKResults, refinedQuery, apiKey);
     console.log('New Plan:', newPlan);
 
     return NextResponse.json({
       message: summarizedMessages,
       refinedQuery,
-      matchedAPI,
+      topKResults,
       newPlan,
     });
   } catch (error: any) {
