@@ -27,6 +27,14 @@ Focus on:
 - Relationships/capabilities (e.g., "moves a pokemon can learn", "pokemon in a region")
 - Detail/attribute queries (e.g., "pokemon details", "move power", "ability effects")
 
+CRITICAL: Counting/Aggregation Queries
+When the query asks "how many", "count", "number of", etc., you MUST identify the data retrieval needed:
+- "How many members in team X" → Need to GET/RETRIEVE team members (not just count)
+- "How many fire pokemon" → Need to GET/RETRIEVE fire pokemon list
+- "Count of X" → Need to GET/RETRIEVE all X
+
+The investigatory entity should describe the data retrieval, not the counting operation.
+
 Examples:
 
 Query: "most powerful steel move that Magnemite can learn"
@@ -37,6 +45,9 @@ Investigatory Entities: ["fire type pokemon", "Kanto region pokemon", "pokemon b
 
 Query: "abilities of Pikachu"
 Investigatory Entities: ["Pikachu details", "pokemon abilities"]
+
+Query: "How many members are in New teams?"
+Investigatory Entities: ["team members for New teams", "team details and member list", "get all team members"]
 
 Always respond in the following format:
 

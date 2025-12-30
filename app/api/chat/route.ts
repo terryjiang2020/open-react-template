@@ -10,48 +10,6 @@ interface Message {
   content: string;
 }
 
-interface ToolCall {
-  tool_name: string;
-  arguments?: Record<string, any>;
-  method?: string; // HTTP方法: GET, POST, PUT, DELETE等
-  roles?: string[]; // 适用的角色列表
-}
-
-// 读取配置文件
-function loadSystemPrompt(): string {
-  const promptPath = path.join(process.cwd(), 'src/doc/prompt.txt');
-  return fs.readFileSync(promptPath, 'utf-8');
-}
-
-function loadApiIndex(): string {
-  const indexPath = path.join(process.cwd(), 'src/doc/api-index.json');
-  return fs.readFileSync(indexPath, 'utf-8');
-}
-
-function loadFileList(): string {
-  const fileListPath = path.join(process.cwd(), 'src/doc/openapi-doc/openapi.json');
-  return fs.readFileSync(fileListPath, 'utf-8');
-}
-
-function loadApiModule(moduleId: string): string | null {
-  try {
-    const indexPath = path.join(process.cwd(), 'src/doc/api-index.json');
-    const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
-
-    const module = index.modules.find((m: any) => m.id === moduleId);
-    if (!module) {
-      console.warn(`Module "${moduleId}" not found in index`);
-      return null;
-    }
-
-    const modulePath = path.join(process.cwd(), 'src/doc', module.file);
-    return fs.readFileSync(modulePath, 'utf-8');
-  } catch (error: any) {
-    console.warn(`Error loading module "${moduleId}":`, error);
-    return null;
-  }
-}
-
 // 从混合响应中提取JSON部分
 function extractJSON(content: string): { json: string; text: string } | null {
   try {
@@ -112,142 +70,9 @@ function extractJSON(content: string): { json: string; text: string } | null {
   }
 }
 
-// 检测响应是否为文档加载请求
-function isDocLoadRequest(content: string): boolean {
-  try {
-    const extracted = extractJSON(content);
-    if (!extracted) return false;
-
-    const parsed = JSON.parse(extracted.json);
-    return parsed.load_docs && Array.isArray(parsed.load_docs);
-  } catch {
-    return false;
-  }
-}
-
-// 检测响应是否为clarification请求
-function isClarificationRequest(content: string): boolean {
-  try {
-    const extracted = extractJSON(content);
-    if (!extracted) return false;
-
-    const parsed = JSON.parse(extracted.json);
-    return parsed.clarification && typeof parsed.clarification === 'string';
-  } catch {
-    return false;
-  }
-}
-
-// 检测响应是否为单个工具调用JSON
-function isSingleToolCall(content: string): boolean {
-  try {
-    const extracted = extractJSON(content);
-    if (!extracted) return false;
-
-    const parsed = JSON.parse(extracted.json);
-    return parsed.tool_name && typeof parsed.tool_name === 'string';
-  } catch {
-    return false;
-  }
-}
-
-// 检测响应是否为工具调用数组JSON
-function isToolCallResponse(content: string): boolean {
-  try {
-    const extracted = extractJSON(content);
-    if (!extracted) return false;
-
-    const parsed = JSON.parse(extracted.json);
-    return Array.isArray(parsed) && parsed.length > 0 &&
-           parsed.every(item => item.tool_name);
-  } catch {
-    return false;
-  }
-}
-
 // 估算JSON的token数量（粗略估计：1 token ≈ 4 字符）
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
-}
-
-// 智能压缩大型JSON响应
-function compressLargeJson(jsonString: string, maxTokens: number = 1500): string {
-  const tokens = estimateTokens(jsonString);
-
-  if (tokens <= maxTokens) {
-    return jsonString;
-  }
-
-  try {
-    const data = JSON.parse(jsonString);
-
-    // 如果是数组，截取前几项
-    if (Array.isArray(data)) {
-      const itemCount = Math.min(5, data.length);
-      const compressed = {
-        total_count: data.length,
-        showing: itemCount,
-        items: data.slice(0, itemCount),
-        note: `显示前${itemCount}项，共${data.length}项`
-      };
-      return JSON.stringify(compressed, null, 2);
-    }
-
-    // 如果是对象，提取关键字段
-    if (typeof data === 'object' && data !== null) {
-      const keyFields = [
-        'id', 'name', 'url',
-        'height', 'weight', 'base_experience',
-        'types', 'abilities', 'stats',
-        'description', 'title', 'content',
-        'path', 'method', 'summary', 'requestBody', 'responses'
-      ];
-
-      const compressed: any = {};
-      let currentTokens = 0;
-
-      // 优先保留关键字段
-      for (const key of keyFields) {
-        if (key in data) {
-          const fieldString = JSON.stringify(data[key]);
-          const fieldTokens = estimateTokens(fieldString);
-
-          if (currentTokens + fieldTokens > maxTokens) {
-            compressed['_truncated'] = true;
-            compressed['_message'] = '响应过大，已截断部分字段';
-            break;
-          }
-
-          compressed[key] = data[key];
-          currentTokens += fieldTokens;
-        }
-      }
-
-      // 如果还有空间，添加其他字段（截断值）
-      if (currentTokens < maxTokens * 0.8) {
-        for (const [key, value] of Object.entries(data)) {
-          if (!(key in compressed) && currentTokens < maxTokens * 0.8) {
-            if (typeof value === 'string' && value.length > 100) {
-              compressed[key] = value.substring(0, 100) + '...';
-            } else if (Array.isArray(value) && value.length > 3) {
-              compressed[key] = [...value.slice(0, 3), `...(${value.length - 3} more)`];
-            } else {
-              compressed[key] = value;
-            }
-            currentTokens = estimateTokens(JSON.stringify(compressed));
-          }
-        }
-      }
-
-      return JSON.stringify(compressed, null, 2);
-    }
-
-    // 如果是其他类型，直接截断
-    return jsonString.substring(0, maxTokens * 4) + '\n...(响应已截断)';
-  } catch {
-    // 如果JSON解析失败，直接截断字符串
-    return jsonString.substring(0, maxTokens * 4) + '\n...(响应已截断)';
-  }
 }
 
 // 摘要用户消息以减少token使用
@@ -300,25 +125,6 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
 
   // 如果摘要失败，返回最近的消息
   return recentMessages;
-}
-
-interface ToolCallLog {
-  tool_name: string;
-  arguments: Record<string, any>;
-  url: string;
-  roles: string[];
-  response: string;
-  response_size: number;
-  compressed: boolean;
-  response_preview: string;
-  response_data: any; // 完整的JSON响应对象
-}
-
-interface IterationLog {
-  iteration: number;
-  type: 'doc_load' | 'tool_call' | 'clarification' | 'text_response';
-  llm_output: string;
-  details?: any;
 }
 
 // Load vectorized data
@@ -842,7 +648,7 @@ export async function POST(request: NextRequest) {
       const entityResults = findTopKSimilar(entityEmbedding, 10);
 
       // Extract key terms from the entity for exact matching
-      const entityTerms = entity.toLowerCase().match(/\b\w+\b/g) || [];
+      const entityTerms: string[] = entity.toLowerCase().match(/\b\w+\b/g) || [];
 
       // Filter out irrelevant APIs based on context
       const relevantResults = entityResults.filter((item: any) => {

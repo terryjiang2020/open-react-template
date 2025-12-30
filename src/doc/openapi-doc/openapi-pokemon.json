@@ -734,6 +734,31 @@
           }
         }
       }
+    },
+    "/pokemon/teams/members/{memberId}": {
+      "delete": {
+        "summary": "Remove a member from a Pokémon team",
+        "tags": ["Teams"],
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the team member to remove."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team member removed successfully"
+          },
+          "404": {
+            "description": "Team member not found"
+          }
+        }
+      }
     }
   }
 }
