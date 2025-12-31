@@ -50,90 +50,33 @@ export default function ChatWidget() {
       }
 
       // Proceed with the API call if necessary
-      // Step 1: Planner
-      const plannerResponse = await fetch('/api/chat', {
+      // The backend handles planning and execution in one call
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
         },
         body: JSON.stringify({
-          messages: [
-            { role: 'system', content: await fetchPromptFile('prompt-planner.txt') },
-            ...updatedMessages,
-          ],
+          messages: updatedMessages, // Send full conversation history
         }),
       });
 
-      if (!plannerResponse.ok) {
-        const errorText = await plannerResponse.text();
-        console.warn('Planner Error:', errorText);
-        throw new Error('Planner failed to process the request');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn('API Error:', errorText);
+        throw new Error('Failed to process the request');
       }
 
-      const plannerData = await plannerResponse.json();
-      console.log('Planner Data:', plannerData);
-      // Ensure only the LLM response is added to the messages
-      if (!plannerData.message.includes('{')) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: plannerData.message }]);
-        setIsLoading(false);
-        return;
-      }
-      
-      let plannerMessage;
-      try {
-        plannerMessage = JSON.parse(plannerData.message);
-      } catch (error) {
-        console.error('Failed to parse plannerData.message:', error);
-        setMessages((prev) => [...prev, { role: 'assistant', content: 'An error occurred while processing the planner response.' }]);
-        setIsLoading(false);
-        return;
-      }
+      const data = await response.json();
+      console.log('API Response:', data);
 
-      if (plannerMessage.plan_summary) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: plannerMessage.plan_summary }]);
-      } else {
-        console.warn('Planner response does not contain a plan summary.');
-      }
-
-      // Step 2: Executor
-      const executorResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
-        },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: await fetchPromptFile('prompt-executor.txt') },
-            ...updatedMessages,
-          ],
-        }),
-      });
-
-      if (!executorResponse.ok) {
-        const errorText = await executorResponse.text();
-        console.warn('Executor Error:', errorText);
-        throw new Error('Executor failed to process the request');
-      }
-
-      const executorData = await executorResponse.json();
-      if (executorData.blocked) {
-        const blockedMessage: Message = {
-          role: 'assistant',
-          content: executorData.block_reason || 'The Executor is blocked and cannot proceed.',
-        };
-        setMessages((prev) => [...prev, blockedMessage]);
-        console.warn('Executor Blocked:', executorData.block_reason);
-        setIsLoading(false);
-        return;
-      }
-
-      const executorMessage: Message = {
+      // Add assistant response to messages
+      const assistantMessage: Message = {
         role: 'assistant',
-        content: executorData.content,
+        content: data.message || 'I apologize, but I was unable to process your request.',
       };
-      setMessages((prev) => [...prev, executorMessage]);
+      setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
       const errorMessage: Message = {
         role: 'assistant',
@@ -143,18 +86,6 @@ export default function ChatWidget() {
       console.warn('Error in sendMessage:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchPromptFile = async (fileName: string): Promise<string> => {
-    try {
-      const response = await fetch(`/api/fetch-prompt?fileName=${fileName}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch prompt file: ${fileName}`);
-      }
-      return await response.text();
-    } catch (error: any) {
-      throw new Error(`Error fetching prompt file: ${error.message}`);
     }
   };
 

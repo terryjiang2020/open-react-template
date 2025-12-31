@@ -152,14 +152,21 @@ async function fetchPromptFile(fileName: string): Promise<string> {
   }
 };
 
-async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string): Promise<string> {
+async function sendToPlanner(apis: any[], refinedQuery: string, apiKey: string, conversationContext?: string): Promise<string> {
   console.log('apis:', apis);
 
   const apiDescription = apis.length > 0 ? JSON.stringify(apis, null, 2) : String(apis);
 
   console.log('API Description for Planner:', apis.map((api: any) => api.path).join(', '));
 
-  let userMessage = `Refined Query: ${refinedQuery}\nMatched APIs: ${apiDescription}`;
+  // Include conversation context if available
+  let userMessage = '';
+  if (conversationContext) {
+    userMessage = `Conversation Context:\n${conversationContext}\n\nRefined Query: ${refinedQuery}\nMatched APIs: ${apiDescription}`;
+  } else {
+    userMessage = `Refined Query: ${refinedQuery}\nMatched APIs: ${apiDescription}`;
+  }
+
   let plannerResponse = '';
   let containsAssumption = true;
   let retryCount = 0;
@@ -597,8 +604,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clarify and refine user input
-    const { refinedQuery, language, concepts, apiNeeds, entities } = await clarifyAndRefineUserInput(userMessage.content, apiKey);
+    // Summarize conversation history for context (if messages > 10)
+    const summarizedMessages = await summarizeMessages(messages, apiKey);
+
+    // Build conversation context for query refinement
+    let conversationContext = '';
+    if (summarizedMessages.length > 1) {
+      // Include previous messages for context (exclude the latest user message)
+      const previousMessages = summarizedMessages.slice(0, -1);
+      conversationContext = previousMessages
+        .map(msg => `${msg.role}: ${msg.content}`)
+        .join('\n');
+    }
+
+    // Clarify and refine user input WITH conversation context
+    const queryWithContext = conversationContext
+      ? `Previous context:\n${conversationContext}\n\nCurrent query: ${userMessage.content}`
+      : userMessage.content;
+
+    const { refinedQuery, language, concepts, apiNeeds, entities } = await clarifyAndRefineUserInput(queryWithContext, apiKey);
     console.log('\n📝 QUERY REFINEMENT RESULTS:');
     console.log('  Original:', userMessage.content);
     console.log('  Refined Query:', refinedQuery);
@@ -612,9 +636,6 @@ export async function POST(request: NextRequest) {
     const { requiredApis, skippedApis } = handleQueryConceptsAndNeeds(concepts, apiNeeds);
     console.log('Required APIs:', requiredApis);
     console.log('Skipped APIs:', skippedApis);
-
-    // Include the full conversation context until summarization is necessary
-    const summarizedMessages = messages.length > 10 ? await summarizeMessages(messages, apiKey) : messages;
 
     // Multi-entity RAG: Generate embeddings for each entity and combine results
     console.log(`\n🔍 Performing multi-entity RAG search for ${entities.length} entities`);
@@ -652,9 +673,20 @@ export async function POST(request: NextRequest) {
 
       // Filter out irrelevant APIs based on context
       const relevantResults = entityResults.filter((item: any) => {
-        const content = JSON.parse(item.content);
+        console.log(`item: ${item.id} (similarity: ${item.similarity.toFixed(3)})`);
+        // 拆分item.content，前面为tags，后面为json
+        let tags: string[] = [];
+        let jsonStr = item.content;
+        const jsonStartIdx = item.content.indexOf('{');
+        if (jsonStartIdx > 0) {
+          const tagText = item.content.slice(0, jsonStartIdx).trim();
+          tags = tagText.split(/\s+/).filter(Boolean);
+          jsonStr = item.content.slice(jsonStartIdx);
+        }
+        const content = JSON.parse(jsonStr);
+        content.tags = tags.length > 0 ? tags : (content.tags || []);
         const path = content.path || '';
-        const tags = content.tags || [];
+        tags = content.tags || tags;
         const summary = (content.summary || '').toLowerCase();
 
         // Context-aware filtering: check if the entity query is specifically about these topics
@@ -747,12 +779,22 @@ export async function POST(request: NextRequest) {
     }
 
     topKResults = topKResults.map((item: any) => {
-      const content = JSON.parse(item.content);
+      // 拆分item.content，前面为tags，后面为json
+      let tags: string[] = [];
+      let jsonStr = item.content;
+      const jsonStartIdx = item.content.indexOf('{');
+      if (jsonStartIdx > 0) {
+        const tagText = item.content.slice(0, jsonStartIdx).trim();
+        tags = tagText.split(/\s+/).filter(Boolean);
+        jsonStr = item.content.slice(jsonStartIdx);
+      }
+      const content = JSON.parse(jsonStr);
+      content.tags = tags.length > 0 ? tags : (content.tags || []);
       return content;
     });
 
-    // Send the top API match and refined query to the planner
-    const planResponse = await sendToPlanner(topKResults, refinedQuery, apiKey);
+    // Send the top API match and refined query to the planner WITH conversation context
+    const planResponse = await sendToPlanner(topKResults, refinedQuery, apiKey, conversationContext);
     console.log('Generated Plan:', planResponse);
 
     let actionablePlan;
@@ -794,7 +836,7 @@ export async function POST(request: NextRequest) {
         planResponse,
         apiKey,
         userToken, // Pass user token for API authentication
-        5 // max iterations
+        20 // max iterations
       );
 
       // Check if there was an error during execution
