@@ -121,6 +121,35 @@ STEP 6: EXECUTION PLAN GENERATION
 
 Only AFTER Steps 1–5 fully pass, you may produce an execution plan.
 
+CRITICAL RULES FOR EXECUTION PLANS:
+
+1. **EVERY step MUST be an actual API call**
+   - Each step MUST have a valid "path" and "method"
+   - DO NOT create computation/logic steps
+   - DO NOT create steps with path: null or method: null
+
+2. **For aggregation/comparison queries** (count, most, least, etc.):
+   - Generate API calls to fetch ALL required data
+   - DO NOT add a "computation step" to compare/aggregate
+   - The final answer generator will handle computation
+
+   Example for "Which team has the most members?":
+   ✅ CORRECT:
+   - Step 1: GET /teams (get all team IDs)
+   - Step 2: GET /teams/{id}/members for team 1
+   - Step 3: GET /teams/{id}/members for team 2
+   - Step 4: GET /teams/{id}/members for team 3
+   (Final answer generator will compare counts)
+
+   ❌ WRONG:
+   - Step 1: GET /teams
+   - Step 2: "Compute which has most members" (NOT an API call!)
+
+3. **For multi-entity queries**, use "depends_on_step":
+   - If you need to call an API for each item from a previous result
+   - Use depends_on_step to indicate the dependency
+   - Leave parameters/arrays empty - they will be populated automatically
+
 When planning:
 - Do NOT introduce new metrics, filters, or constraints
   that were not explicitly stated by the user
@@ -171,15 +200,40 @@ If planning is allowed:
   "required_modules": ["module_id"],
   "execution_plan": [
     {
+      "step_number": 1,
+      "description": "Brief description of what this step does",
+      "depends_on_step": <number or null>,
       "api": {
         "path": "/some/api/path",
         "method": "get | post | put | delete",
-        "requestBody": { ... }
+        "requestBody": { ... },
+        "parameters": { ... }
       },
       "input": { ... }
     }
+  ],
+  "selected_tools_spec": [
+    {
+      "endpoint": "GET /some/api/path",
+      "purpose": "Brief description of what this endpoint does",
+      "returns": "What data structure it returns (e.g., array, object)",
+      "derivations": ["What can be derived from the response, e.g., 'count = array.length'"]
+    }
   ]
 }
+
+CRITICAL: You MUST include the "selected_tools_spec" field that lists ALL endpoints used in the execution_plan.
+For each endpoint, include:
+- endpoint: The full HTTP method and path
+- purpose: What it's used for in this plan
+- returns: The data structure returned
+- derivations: List any derived values (especially for count/aggregation queries)
+
+Example for count queries:
+If using GET /teams/{id}/members that returns an array, include:
+"derivations": ["member_count = members.length"]
+
+This helps downstream validators understand that counts can be derived without separate count endpoints.
 
 ────────────────────────────────────────
 FORBIDDEN BEHAVIOR (ABSOLUTE)

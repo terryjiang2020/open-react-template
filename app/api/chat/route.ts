@@ -134,10 +134,37 @@ const vectorizedData = JSON.parse(fs.readFileSync(vectorizedDataPath, 'utf-8'));
 // Function to find the top-k most similar vectors
 function findTopKSimilar(queryEmbedding: number[], topK: number = 3) {
   return vectorizedData
-    .map((item: any) => ({
-      ...item,
-      similarity: cosineSimilarity(queryEmbedding, item.embedding),
-    }))
+    .map((item: any) => {
+      // 拆分item.content，前面为tags，后面为json
+      let tags: string[] = [];
+      let jsonStr = item.content;
+      const jsonStartIdx = item.content.indexOf('{');
+      if (jsonStartIdx > 0) {
+        const tagText = item.content.slice(0, jsonStartIdx).trim();
+        tags = tagText.split(/\s+/).filter(Boolean);
+        jsonStr = item.content.slice(jsonStartIdx);
+      }
+      let summary = '';
+      try {
+        const content = JSON.parse(jsonStr);
+        summary = (content.summary || '').toLowerCase();
+      } catch {}
+
+      // 计算embedding相似度
+      let similarity = cosineSimilarity(queryEmbedding, item.embedding);
+
+      // 加强tag和summary权重
+      const entityText = (globalThis.__rag_entity || '').toLowerCase();
+      const tagHit = tags.some(t => entityText.includes(t.toLowerCase()) || t.toLowerCase().includes(entityText));
+      const summaryHit = summary && (entityText.includes(summary) || summary.includes(entityText));
+      if (tagHit) similarity += 0.15;
+      if (summaryHit) similarity += 0.10;
+
+      return {
+        ...item,
+        similarity,
+      };
+    })
     .sort((a: any, b: any) => b.similarity - a.similarity)
     .slice(0, topK);
 }
@@ -580,6 +607,8 @@ export async function POST(request: NextRequest) {
 
     const { messages } = await request.json();
 
+    console.log('\n💬 Received messages:', messages);
+
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'Invalid messages format' },
@@ -884,8 +913,9 @@ async function validateNeedMoreActions(
   originalQuery: string,
   executedSteps: any[],
   accumulatedResults: any[],
-  apiKey: string
-): Promise<{ needsMoreActions: boolean; reason: string }> {
+  apiKey: string,
+  lastExecutionPlan?: any
+): Promise<{ needsMoreActions: boolean; reason: string, missing_requirements?: string[]; suggested_next_action?: string }> {
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -997,6 +1027,27 @@ FORBIDDEN HEURISTICS
 ❌ "The data exists, so the goal must be satisfied"
 
 ────────────────────────────────────────
+CRITICAL: COUNT DERIVATION RULE
+────────────────────────────────────────
+
+If the goal asks for "count", "how many", "number of", etc.,
+and an API endpoint returns a full list/array:
+
+→ Counts MUST be derived by array.length
+→ DO NOT request a dedicated count endpoint
+→ DO NOT say "we need a count API"
+
+Example:
+- Goal: "How many members in each team?"
+- Available: GET /teams/{id}/members returns array
+→ Count = members.length (NO separate count API needed)
+
+If the last execution plan included fetching lists for multiple IDs
+(e.g., for_each team, get members), check coverage:
+- Did we fetch ALL required IDs?
+- Or are there missing IDs that still need fetching?
+
+────────────────────────────────────────
 OUTPUT FORMAT (JSON ONLY)
 ────────────────────────────────────────
 
@@ -1032,8 +1083,27 @@ False positives are NOT.`,
           {
             role: 'user',
             content: `Original Query: ${originalQuery}
-Executed Steps: ${JSON.stringify(executedSteps, null, 2)}
+
+Last Execution Plan: ${lastExecutionPlan ? JSON.stringify(lastExecutionPlan.execution_plan || lastExecutionPlan, null, 2) : 'No plan available'}
+
+${lastExecutionPlan?.selected_tools_spec ? `
+Available Tools (used in plan):
+${JSON.stringify(lastExecutionPlan.selected_tools_spec, null, 2)}
+
+These tools show what capabilities are available. If a tool returns an array,
+counts can be derived via array.length. DO NOT request count endpoints.
+` : ''}
+
+Executed Steps (with responses): ${JSON.stringify(executedSteps, null, 2)}
+
 Accumulated Results: ${JSON.stringify(accumulatedResults, null, 2)}
+
+IMPORTANT:
+1. Check if the last execution plan had multiple steps (e.g., fetching data for multiple IDs)
+2. Verify if ALL required IDs/entities have been fetched
+3. Review the "Available Tools" to see what derivations are possible (e.g., counts from array.length)
+4. Only request more actions if there are genuinely missing IDs or the goal is incomplete
+5. DO NOT request count/aggregation endpoints if arrays are already available
 
 Can we answer the original query with the information we have? Or do we need more API calls?`,
           },
@@ -1188,184 +1258,277 @@ async function executeIterativePlanner(
         break;
       }
 
-      // Execute the first step in the current plan
-      const step = actionablePlan.execution_plan[0];
-      console.log('Executing step:', JSON.stringify(step, null, 2));
+      // Store progress before executing steps (for stuck detection)
+      const progressBeforeExecution = accumulatedResults.length;
 
-      if (step.api) {
-        // If this step depends on a previous step, populate empty fields with data from that step
-        let requestBodyToUse = step.api.requestBody;
+      // CRITICAL: Execute ALL steps in the current plan before validating
+      // This prevents premature validation and ensures complete plan execution
+      console.log(`\n📋 Executing complete plan with ${actionablePlan.execution_plan.length} steps`);
 
-        if ((step.depends_on_step || step.dependsOnStep) && accumulatedResults.length > 0) {
-          const dependsOnStepNum = step.depends_on_step || step.dependsOnStep;
-          const previousStepResult = accumulatedResults.find(r => r.step === dependsOnStepNum);
+      while (actionablePlan.execution_plan.length > 0) {
+        const step = actionablePlan.execution_plan.shift(); // Remove first step
+        console.log(`\nExecuting step ${step.step_number || executedSteps.length + 1}:`, JSON.stringify(step, null, 2));
 
-          if (previousStepResult && previousStepResult.response) {
-            console.log(`Step ${step.step_number} depends on step ${dependsOnStepNum} - populating data from previous results`);
+        // Check if this is a valid API call step (not a computation step)
+        if (step.api && step.api.path && step.api.method) {
+          // CRITICAL: Check if this step needs to be executed multiple times
+          // This happens when:
+          // 1. Step depends on a previous step
+          // 2. Previous step returned multiple results
+          // 3. Current step has path parameters (like {id})
+          let stepsToExecute = [step];
 
-            // Deep clone the requestBody to avoid mutation
-            requestBodyToUse = JSON.parse(JSON.stringify(step.api.requestBody));
+          if ((step.depends_on_step || step.dependsOnStep) && accumulatedResults.length > 0) {
+            const dependsOnStepNum = step.depends_on_step || step.dependsOnStep;
+            const previousStepResult = accumulatedResults.find(r => r.step === dependsOnStepNum);
 
-            // If the previous step returned a results array, extract IDs
-            if (previousStepResult.response.result?.results || previousStepResult.response.results) {
+            if (previousStepResult && previousStepResult.response) {
               const results = previousStepResult.response.result?.results || previousStepResult.response.results;
 
-              // Look for empty arrays in requestBody and populate them with IDs
-              if (Array.isArray(results) && results.length > 0) {
-                // Helper function to recursively populate empty arrays
-                const populateEmptyArrays = (obj: any, path: string = '') => {
-                  for (const key in obj) {
-                    const fullPath = path ? `${path}.${key}` : key;
+              // Check if step has path parameters and previous step returned multiple results
+              if (Array.isArray(results) && results.length > 1) {
+                const pathParamMatches = step.api.path.match(/\{(\w+)\}/g);
 
-                    if (Array.isArray(obj[key]) && obj[key].length === 0) {
-                      // Determine how many IDs to use based on the field name
-                      let numIds = 1; // Default to 1 ID
+                if (pathParamMatches && pathParamMatches.length > 0) {
+                  console.log(`\n🔄 Step ${step.step_number} will be executed ${results.length} times (once for each result from step ${dependsOnStepNum})`);
 
-                      // For team/collection fields, use multiple IDs (typically 3)
-                      if (key.toLowerCase().includes('pokemon') && key.toLowerCase().includes('id')) {
-                        numIds = 3;
-                      }
-
-                      // Extract the appropriate field from results
-                      let extractedIds: any[];
-
-                      // For type-related fields, extract type IDs
-                      if (key.toLowerCase().includes('type')) {
-                        extractedIds = results.slice(0, numIds).map((item: any) =>
-                          item.type_id || item.id
-                        );
-                      } else {
-                        // For other ID fields, extract the main ID
-                        extractedIds = results.slice(0, numIds).map((item: any) =>
-                          item.id || item.pokemon_id
-                        );
-                      }
-
-                      obj[key] = extractedIds;
-                      console.log(`Populated ${fullPath} with: ${JSON.stringify(extractedIds)}`);
-                    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                      // Recursively process nested objects
-                      populateEmptyArrays(obj[key], fullPath);
-                    }
-                  }
-                };
-
-                // Also handle single ID fields (not arrays)
-                const populateSingleIds = (obj: any, path: string = '') => {
-                  for (const key in obj) {
-                    const fullPath = path ? `${path}.${key}` : key;
-
-                    // If field is null and key suggests it needs an ID
-                    if (obj[key] === null && key.toLowerCase().includes('id')) {
-                      obj[key] = results[0]?.id || results[0]?.pokemon_id;
-                      console.log(`Populated ${fullPath} with single ID: ${obj[key]}`);
-                    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                      populateSingleIds(obj[key], fullPath);
-                    }
-                  }
-                };
-
-                populateEmptyArrays(requestBodyToUse);
-                populateSingleIds(requestBodyToUse);
+                  // Create a separate step execution for each result
+                  stepsToExecute = results.map((result: any, index: number) => {
+                    const clonedStep = JSON.parse(JSON.stringify(step));
+                    clonedStep._executionIndex = index;
+                    clonedStep._sourceData = result;
+                    return clonedStep;
+                  });
+                }
               }
             }
           }
+
+          // Execute each step (could be 1 or multiple)
+          for (const stepToExecute of stepsToExecute) {
+            // If this step depends on a previous step, populate empty fields with data from that step
+            let requestBodyToUse = stepToExecute.api.requestBody;
+            let parametersToUse = stepToExecute.api.parameters || stepToExecute.input || {};
+
+            if ((stepToExecute.depends_on_step || stepToExecute.dependsOnStep) && accumulatedResults.length > 0) {
+              const dependsOnStepNum = stepToExecute.depends_on_step || stepToExecute.dependsOnStep;
+              const previousStepResult = accumulatedResults.find(r => r.step === dependsOnStepNum);
+
+              if (previousStepResult && previousStepResult.response) {
+                console.log(`Step ${stepToExecute.step_number} depends on step ${dependsOnStepNum} - populating data from previous results`);
+
+                // Deep clone the requestBody to avoid mutation
+                requestBodyToUse = JSON.parse(JSON.stringify(stepToExecute.api.requestBody));
+
+                // If this step is being executed for a specific source data item, use that
+                // Otherwise, use all results from the previous step
+                let results;
+                if (stepToExecute._sourceData) {
+                  results = [stepToExecute._sourceData]; // Single item execution
+                  console.log(`  Using specific source data for execution index ${stepToExecute._executionIndex}`);
+                } else if (previousStepResult.response.result?.results || previousStepResult.response.results) {
+                  results = previousStepResult.response.result?.results || previousStepResult.response.results;
+                }
+
+                // If the previous step returned a results array, extract IDs
+                if (results && Array.isArray(results)) {
+
+                  // Look for empty arrays in requestBody and populate them with IDs
+                  if (Array.isArray(results) && results.length > 0) {
+                    // Helper function to recursively populate empty arrays
+                    const populateEmptyArrays = (obj: any, path: string = '') => {
+                      for (const key in obj) {
+                        const fullPath = path ? `${path}.${key}` : key;
+
+                        if (Array.isArray(obj[key]) && obj[key].length === 0) {
+                          // Determine how many IDs to use based on the field name
+                          let numIds = 1; // Default to 1 ID
+
+                          // For team/collection fields, use multiple IDs (typically 3)
+                          if (key.toLowerCase().includes('pokemon') && key.toLowerCase().includes('id')) {
+                            numIds = 3;
+                          }
+
+                          // Extract the appropriate field from results
+                          let extractedIds: any[];
+
+                          // For type-related fields, extract type IDs
+                          if (key.toLowerCase().includes('type')) {
+                            extractedIds = results.slice(0, numIds).map((item: any) =>
+                              item.type_id || item.id
+                            );
+                          } else {
+                            // For other ID fields, extract the main ID
+                            extractedIds = results.slice(0, numIds).map((item: any) =>
+                              item.id || item.pokemon_id
+                            );
+                          }
+
+                          obj[key] = extractedIds;
+                          console.log(`Populated ${fullPath} with: ${JSON.stringify(extractedIds)}`);
+                        } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+                          // Recursively process nested objects
+                          populateEmptyArrays(obj[key], fullPath);
+                        }
+                      }
+                    };
+
+                    // Also handle single ID fields (not arrays)
+                    const populateSingleIds = (obj: any, path: string = '') => {
+                      for (const key in obj) {
+                        const fullPath = path ? `${path}.${key}` : key;
+
+                        // If field is null and key suggests it needs an ID
+                        if (obj[key] === null && key.toLowerCase().includes('id')) {
+                          obj[key] = results[0]?.id || results[0]?.pokemon_id;
+                          console.log(`Populated ${fullPath} with single ID: ${obj[key]}`);
+                        } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+                          populateSingleIds(obj[key], fullPath);
+                        }
+                      }
+                    };
+
+                    populateEmptyArrays(requestBodyToUse);
+                    populateSingleIds(requestBodyToUse);
+
+                    // CRITICAL: Also populate path parameters if the URL contains placeholders like {id}
+                    const apiPath = stepToExecute.api.path;
+                    const pathParamMatches = apiPath.match(/\{(\w+)\}/g);
+
+                    if (pathParamMatches && pathParamMatches.length > 0) {
+                      console.log(`Detected path parameters in URL: ${apiPath}`);
+                      console.log(`Path parameter placeholders: ${JSON.stringify(pathParamMatches)}`);
+
+                      // Clone parameters object if it exists, or create new one
+                      parametersToUse = { ...(stepToExecute.api.parameters || stepToExecute.input || {}) };
+
+                      // For each placeholder, check if we need to populate it
+                      pathParamMatches.forEach((placeholder: string) => {
+                        // Extract the parameter name (e.g., "{id}" -> "id")
+                        const paramName = placeholder.replace(/[{}]/g, '');
+
+                        // If this parameter is not already set or is empty
+                        if (!parametersToUse[paramName] || parametersToUse[paramName] === '') {
+                          // Extract the ID from the first result
+                          const extractedId = results[0]?.id || results[0]?.pokemon_id || results[0]?.teamId;
+
+                          if (extractedId) {
+                            parametersToUse[paramName] = extractedId;
+                            console.log(`✅ Auto-populated path parameter {${paramName}} with value: ${extractedId}`);
+                          } else {
+                            console.warn(`⚠️  Could not extract ID for path parameter {${paramName}} from previous step results`);
+                          }
+                        } else {
+                          console.log(`Path parameter {${paramName}} already has value: ${parametersToUse[paramName]}`);
+                        }
+                      });
+                    }
+                  }
+                }
+              }
+            }
+
+            // Merge step.input into step.api for path parameter replacement
+            const apiSchema = {
+              ...stepToExecute.api,
+              requestBody: requestBodyToUse,
+              // Merge input/parameters into the schema (planner might use either field)
+              parameters: parametersToUse,
+            };
+
+            // Perform the API call for the current step
+            const apiResponse = await dynamicApiRequest(
+              process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
+              apiSchema,
+              userToken // Pass user token for authentication
+            );
+
+            console.log('API Response:', apiResponse);
+
+            // Process the response to ensure arrays are properly included
+            let processedResponse = apiResponse;
+            try {
+              // If response is a JSON string, parse it
+              if (typeof apiResponse === 'string') {
+                processedResponse = JSON.parse(apiResponse);
+              }
+
+              // For large arrays (like moves), ensure they're not truncated
+              if (processedResponse && typeof processedResponse === 'object') {
+                // Deep clone to ensure all nested data is accessible
+                processedResponse = JSON.parse(JSON.stringify(processedResponse));
+              }
+            } catch (e) {
+              // If parsing fails, use original response
+              console.warn('Could not process API response:', e);
+            }
+
+            // CRITICAL: Store both step and response together
+            // This allows Validator to see the complete execution history
+            executedSteps.push({
+              step: stepToExecute,
+              response: processedResponse,
+            });
+
+            accumulatedResults.push({
+              step: stepToExecute.step_number || executedSteps.length,
+              description: stepToExecute.description || 'API call',
+              response: processedResponse,
+              executionIndex: stepToExecute._executionIndex, // Track which item this execution was for
+            });
+
+            console.log(`✅ Step ${stepToExecute.step_number || executedSteps.length} completed. Remaining steps in plan: ${actionablePlan.execution_plan.length}`);
+          } // End of for loop (for each stepToExecute)
+        } else {
+          console.warn(`⚠️  Step ${step.step_number} is not a valid API call (path: ${step.api?.path}, method: ${step.api?.method})`);
+          console.warn('This appears to be a computation/logic step. The planner should only generate API call steps.');
+          console.warn('Skipping this step and will let validator determine if more API calls are needed.');
+
+          // Don't add invalid steps to executedSteps since no API was actually called
+          // The validator will detect that the goal is not met and request proper API steps
         }
+      }
 
-        // Merge step.input into step.api for path parameter replacement
-        const apiSchema = {
-          ...step.api,
-          requestBody: requestBodyToUse,
-          // Merge input/parameters into the schema (planner might use either field)
-          parameters: step.api.parameters || step.input || {},
-        };
+      // All steps in the current plan have been executed
+      console.log(`\n✅ Completed all ${executedSteps.length - progressBeforeExecution} steps in current plan`);
 
-        // Perform the API call for the current step
-        const apiResponse = await dynamicApiRequest(
-          process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
-          apiSchema,
-          userToken // Pass user token for authentication
-        );
+      // Check if we made progress (executed any new steps)
+      const progressMade = accumulatedResults.length > progressBeforeExecution;
 
-        console.log('API Response:', apiResponse);
+      if (!progressMade) {
+        stuckCount++;
+        console.warn(`⚠️  No progress made in this iteration (stuck count: ${stuckCount})`);
 
-        // Store the executed step and result
-        executedSteps.push(step);
-
-        // CRITICAL: Remove the executed step from the execution plan
-        // so the next iteration picks up the next step, not the same one
-        actionablePlan.execution_plan.shift();
-        console.log(`Step ${step.step_number || executedSteps.length} completed. Remaining steps: ${actionablePlan.execution_plan.length}`);
-
-        // Process the response to ensure arrays are properly included
-        let processedResponse = apiResponse;
-        try {
-          // If response is a JSON string, parse it
-          if (typeof apiResponse === 'string') {
-            processedResponse = JSON.parse(apiResponse);
-          }
-
-          // For large arrays (like moves), ensure they're not truncated
-          if (processedResponse && typeof processedResponse === 'object') {
-            // Deep clone to ensure all nested data is accessible
-            processedResponse = JSON.parse(JSON.stringify(processedResponse));
-          }
-        } catch (e) {
-          // If parsing fails, use original response
-          console.warn('Could not process API response:', e);
-        }
-
-        accumulatedResults.push({
-          step: step.step_number || executedSteps.length,
-          description: step.description || 'API call',
-          response: processedResponse,
-        });
-
-        // Check if there are more steps in the current execution plan
-        const remainingSteps = actionablePlan.execution_plan.length - executedSteps.length;
-        console.log(`Remaining steps in current plan: ${remainingSteps}`);
-
-        // If there are still steps in the plan, continue executing them
-        // Only call validator when we've exhausted the current plan
-        if (remainingSteps > 0) {
-          console.log('More steps in the current plan - continuing execution without validation');
-          // Continue to next iteration to execute the next step
-          continue;
-        }
-
-        // Only validate if we've completed all steps in the current plan
-        console.log('All steps in current plan executed - checking if more actions needed');
-        const validationResult = await validateNeedMoreActions(
-          originalQuery,
-          executedSteps,
-          accumulatedResults,
-          apiKey
-        );
-
-        console.log('Validation result:', validationResult);
-
-        if (!validationResult.needsMoreActions) {
-          console.log('Validator confirmed: sufficient information gathered');
+        if (stuckCount >= 2) {
+          console.warn('Detected stuck state: no new API calls in 2 consecutive iterations');
+          console.log('Generating answer with available information.');
           break;
         }
+      } else {
+        stuckCount = 0; // Reset stuck count if we made progress
+      }
 
-        // Check if we're stuck (same validation reason multiple times)
-        if (validationResult.reason === previousValidationReason) {
-          stuckCount++;
-          console.warn(`Stuck count: ${stuckCount} (same validation reason repeated)`);
+      // Now validate if we have sufficient information
+      console.log('\n🔍 Validating if more actions are needed...');
+      const validationResult = await validateNeedMoreActions(
+        originalQuery,
+        executedSteps,
+        accumulatedResults,
+        apiKey,
+        actionablePlan // Pass the last execution plan
+      );
 
-          if (stuckCount >= 2) {
-            console.warn('Detected stuck state: validator requesting same information repeatedly');
-            console.log('Available APIs may not support the required data. Generating answer with available information.');
-            break;
-          }
-        } else {
-          stuckCount = 0; // Reset if we get a different reason
-          previousValidationReason = validationResult.reason;
-        }
+      console.log('Validation result:', validationResult);
 
-        // Send the accumulated context back to the planner for next step
-        const plannerContext = `
+      if (!validationResult.needsMoreActions) {
+        console.log('✅ Validator confirmed: sufficient information gathered');
+        break;
+      }
+
+      console.log(`⚠️  Validator says more actions needed: ${validationResult.reason}`);
+
+      // Send the accumulated context back to the planner for next step
+      const plannerContext = `
 Original Query: ${originalQuery}
 
 Matched APIs Available: ${JSON.stringify(matchedApis, null, 2)}
@@ -1376,7 +1539,7 @@ Accumulated Results: ${JSON.stringify(accumulatedResults, null, 2)}
 
 Previous Plan: ${JSON.stringify(actionablePlan, null, 2)}
 
-The validator says more actions are needed: ${validationResult.reason}
+The validator says more actions are needed: ${validationResult.suggested_next_action ? validationResult.suggested_next_action : validationResult.reason}
 
 IMPORTANT: If the available APIs do not include an endpoint that can provide the required information:
 1. Check if any of the accumulated results contain the information in a different format
@@ -1385,11 +1548,7 @@ IMPORTANT: If the available APIs do not include an endpoint that can provide the
 
 Please generate the next step in the plan, or indicate that no more steps are needed.`;
 
-        currentPlanResponse = await sendToPlanner(matchedApis, plannerContext, apiKey);
-      } else {
-        console.warn('Step does not contain an API call, skipping');
-        break;
-      }
+      currentPlanResponse = await sendToPlanner(matchedApis, plannerContext, apiKey);
     } catch (error: any) {
       console.error('Error during iterative planner execution:', error);
       return {

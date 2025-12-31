@@ -478,7 +478,7 @@
       },
       "get": {
         "summary": "Retrieve all Pokémon members of a specified team, including their details.",
-        "tags": ["pokemon", "teams", "team", "member", "get", "user"],
+        "tags": ["pokemon", "teams", "team", "member", "get", "user", "all", "count"],
         "parameters": [
           {
             "name": "teamId",

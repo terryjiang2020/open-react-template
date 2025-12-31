@@ -28,15 +28,23 @@ export async function dynamicApiRequest(baseUrl: string, schema: any, userToken?
     const pathParams = parameters || input || {};
     let finalPath = path;
 
+    console.log('Path parameter replacement:');
+    console.log('  - Original path:', path);
+    console.log('  - parameters:', JSON.stringify(parameters));
+    console.log('  - input:', JSON.stringify(input));
+    console.log('  - pathParams:', JSON.stringify(pathParams));
+
     if (pathParams && typeof pathParams === 'object') {
       Object.entries(pathParams).forEach(([key, value]) => {
         const placeholder = `{${key}}`;
         if (finalPath.includes(placeholder)) {
           finalPath = finalPath.replace(placeholder, String(value));
-          console.log(`Replaced ${placeholder} with ${value} in path`);
+          console.log(`  ✅ Replaced ${placeholder} with ${value} in path`);
         }
       });
     }
+
+    console.log('  - Final path:', finalPath);
 
     // Configure the request
     const config: AxiosRequestConfig = {
