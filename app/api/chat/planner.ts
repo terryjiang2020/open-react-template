@@ -1,4 +1,5 @@
-import { fetchPromptFile, getAllMatchedApis, getTopKResults } from "./route";
+import { getAllMatchedApis, getTopKResults } from "./embeddingSearch";
+import { fetchPromptFile } from "./promptUtils";
 
 /**
  * sendToPlanner: 自主工作流程 - 始终使用 LLM 意图分析 + RAG API 检索 + 单步计划生成

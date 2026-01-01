@@ -22,8 +22,8 @@ export const addToWatchlist = async (pokemonId: number) => {
   );
 };
 
-export const removeFromWatchlist = async (pokemonId: number) => {
-  await axios.delete(`${API_BASE_URL}/watchlist/${pokemonId}`, {
+export const removeFromWatchlist = async (itemId: number) => {
+  await axios.delete(`${API_BASE_URL}/watchlist/${itemId}`, {
     headers: getAuthHeaders()
   });
 };

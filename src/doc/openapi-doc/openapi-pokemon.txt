@@ -93,13 +93,13 @@ Returns:
 
 -- API: /pokemon/watchlist/{id} (DELETE)
 API Purpose:
-Remove a Pokémon from the user’s watchlist by Pokémon ID.
+Remove a Pokémon from the user’s watchlist by Watchlist Item ID.
 
 Auth:
 User token required.
 
 Inputs:
-- id (integer): The Pokémon ID to remove
+- id (integer): The Watchlist Item ID to remove
 
 Returns:
 - 200 OK if removed

@@ -108,7 +108,10 @@ const PokemonPage = () => {
   const toggleWatchlist = async (pokemonId: number) => {
     try {
       if (watchlist.some((item) => item.pokemonId === pokemonId)) {
-        await removeFromWatchlist(pokemonId);
+        const watchlistId = watchlist.find((item) => item.pokemonId === pokemonId)?.id;
+        if (watchlistId) {
+          await removeFromWatchlist(watchlistId);
+        }
       } else {
         await addToWatchlist(pokemonId);
       }
