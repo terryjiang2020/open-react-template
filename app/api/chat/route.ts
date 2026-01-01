@@ -101,6 +101,16 @@ export async function POST(request: NextRequest) {
     // Convert Map to array and sort by similarity
     let topKResults = await getTopKResults(allMatchedApis, 10);
 
+    // Check if RAG search returned no results
+    if (topKResults.length === 0) {
+      console.warn('⚠️  RAG search returned 0 results - no relevant APIs found');
+      return NextResponse.json({
+        message: 'Sorry, I am not allowed to do that.',
+        refinedQuery,
+        topKResults: [],
+      });
+    }
+
     const obj = Object.fromEntries(usefulData);
     const str = JSON.stringify(obj, null, 2);
 
