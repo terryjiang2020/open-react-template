@@ -1164,17 +1164,52 @@ async function executeIterativePlanner(
               Object.assign(apiResponse, mergedResponse);
             }
 
+
             console.log('API Response:', apiResponse);
+
+            // 清理和精简 usefulData，去除多余转义和嵌套
+            function cleanUsefulData(raw: string): string {
+              let obj;
+              try {
+                obj = JSON.parse(raw);
+              } catch {
+                obj = raw;
+              }
+              if (typeof obj === 'object') {
+                return JSON.stringify(flattenObject(obj), null, 2);
+              }
+              return raw.replace(/\\/g, '\\').replace(/\"/g, '"');
+            }
+
+            function flattenObject(obj: any): any {
+              if (typeof obj !== 'object' || obj === null) return obj;
+              const result: any = {};
+              for (const key in obj) {
+                if (typeof obj[key] === 'object') {
+                  const flat = flattenObject(obj[key]);
+                  if (typeof flat === 'object' && flat !== null) {
+                    Object.assign(result, flat);
+                  } else {
+                    result[key] = flat;
+                  }
+                } else {
+                  result[key] = obj[key];
+                }
+              }
+              return result;
+            }
 
             const obj = Object.fromEntries(usefulData);
             const str = JSON.stringify(obj, null, 2);
 
-            usefulData.set(apiSchema.method + ' ' + apiSchema.path, await extractUsefulDataFromApiResponses(
+            const extracted = await extractUsefulDataFromApiResponses(
               refinedQuery,
               finalDeliverable,
               str,
               JSON.stringify(apiResponse)
-            ));
+            );
+            const cleaned = cleanUsefulData(extracted);
+            usefulData.set(apiSchema.method + ' ' + apiSchema.path, cleaned);
 
             console.log('Updated Useful Data:', usefulData);
 

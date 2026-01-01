@@ -1,0 +1,216 @@
+-- API: /admin/allrealusers (GET)
+API Purpose:
+Get all real users.
+
+Auth:
+Admin token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if users retrieved
+
+-- API: /admin/user (POST)
+API Purpose:
+Create user (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- email (string): User email
+- fullName (string, optional): Full name
+
+Returns:
+- 200 OK if user created
+
+-- API: /admin/user/password (PUT)
+API Purpose:
+Update user password (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- password (string): New password
+- userId (number): User ID
+
+Returns:
+- status (number): HTTP status code
+- message (string): Status message
+
+-- API: /admin/user/email (PUT)
+API Purpose:
+Update user email (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- userId (number): User ID
+- newEmail (string): New email
+
+Returns:
+- 200 OK if updated
+
+-- API: /admin/user/delete/{userId} (DELETE)
+API Purpose:
+Delete user by ID (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- userId (number): User ID (in path)
+
+Returns:
+- 200 OK if deleted
+
+-- API: /admin/user/testrequest/bystatus (GET)
+API Purpose:
+Get test requests by status (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if requests retrieved
+
+-- API: /admin/user/testrequest/list (POST)
+API Purpose:
+Get test requests list (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- status (string, optional): Request status
+- page (number, optional): Page number
+
+Returns:
+- 200 OK if requests retrieved
+
+-- API: /admin/user/testrequest/status (PUT)
+API Purpose:
+Update test request status (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- requestId (number): Request ID
+- status (string): New status
+
+Returns:
+- 200 OK if status updated
+
+-- API: /admin/test (GET)
+API Purpose:
+Get tests (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if tests retrieved
+
+-- API: /admin/test (POST)
+API Purpose:
+Create test (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- name (string): Test name
+- type (string, optional): Test type
+
+Returns:
+- 200 OK if test created
+
+-- API: /admin/test (PUT)
+API Purpose:
+Update test (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- testId (number): Test ID
+
+Returns:
+- 200 OK if test updated
+
+-- API: /admin/test (DELETE)
+API Purpose:
+Delete test (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- testId (number): Test ID
+
+Returns:
+- 200 OK if test deleted
+
+-- API: /admin/socket (POST)
+API Purpose:
+Socket test (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if socket test successful
+
+-- API: /admin/project/ai-only/{projectId} (GET)
+API Purpose:
+Get AI-only project configuration (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- projectId (number): Project ID (in path)
+
+Returns:
+- 200 OK if configuration retrieved
+
+-- API: /admin/project/ai-only (PUT)
+API Purpose:
+Update AI-only project configuration (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- projectId (number): Project ID
+- aiOnly (boolean, optional): AI-only flag
+
+Returns:
+- 200 OK if configuration updated
+
+-- API: /admin/user/search (GET)
+API Purpose:
+Search users by email or name (admin).
+
+Auth:
+Admin token required.
+
+Inputs:
+- q (string): Query string (in query)
+
+Returns:
+- status (number): HTTP status code
+- data (array): User info (id, email, fullName)

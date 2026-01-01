@@ -125,3 +125,72 @@ Make sure your OpenAPI Doc are ready in `src/doc/openapi-doc` before doing this.
 ```
 npx ts-node src/scripts/vectorize-openapi.ts
 ```
+
+## SQL Schema Semantic Chunking for RAG
+
+Before SQL schemas are used for retrieval-augmented generation (RAG), they are preprocessed into semantic chunked text files. This improves search and embedding quality.
+
+**Processing Workflow:**
+
+1. For each SQL schema file, run the conversion prompt in `prompt-sql-to-semantic.txt`.
+2. Each table is extracted as a separate chunk, with a semantic header including:
+   - Table name
+   - Table purpose
+   - Primary key(s)
+   - Foreign key relationships
+3. The full CREATE TABLE statement is preserved for each chunk.
+4. The output is a `.txt` file (e.g., `pokemon.txt`, `pokemon_team.txt`) with one chunk per table.
+5. These semantic files are then used for embedding and retrieval in RAG pipelines.
+
+**Prompt Reference:**
+See [`src/doc/sql/sql-to-semantic-prompt.txt`](src/doc/sql/sql-to-semantic-prompt.txt) for the exact conversion instructions.
+
+**Example Chunk:**
+```
+-- Table: pokemon
+[Table Purpose]
+Stores individual Pokémon forms (e.g., mega evolutions, regional variants).
+[Primary Key]
+id
+[Foreign Keys]
+species_id → pokemon_species.id
+
+CREATE TABLE pokemon (
+    id INTEGER PRIMARY KEY,
+    ...
+);
+```
+
+## OpenAPI Schema to LLM-friendly API Card
+
+Before OpenAPI schemas are used for retrieval-augmented generation (RAG), they are preprocessed into LLM-friendly API card text files. This ensures better semantic search and embedding.
+
+**Processing Workflow:**
+
+1. For each OpenAPI JSON file, run the conversion prompt in `prompt-openapi-to-card.txt`.
+2. Each endpoint (path+method) is extracted as a separate API card chunk, with:
+   - API Purpose
+   - Auth
+   - Inputs (parameters and request body fields)
+   - Returns (major response fields)
+3. The output is a `.txt` file (e.g., `openapi-pokemon.txt`, `openapi-user.txt`) with one chunk per endpoint.
+4. These API card files are then used for embedding and retrieval in RAG pipelines.
+
+**Prompt Reference:**
+See [`prompt-openapi-to-card.txt`](prompt-openapi-to-card.txt) for the exact conversion instructions.
+
+**Example Card:**
+```
+-- API: /user/{id} (GET)
+API Purpose:
+Get a user profile by user ID.
+
+Auth:
+User token required.
+
+Inputs:
+- id (number): user identifier
+
+Returns:
+User profile object
+```

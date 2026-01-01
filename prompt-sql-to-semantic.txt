@@ -1,0 +1,38 @@
+# SQL Schema Semantic Chunking Prompt
+
+You are an expert data engineer. Your task is to convert raw SQL schema files into semantic chunked text files for retrieval-augmented generation (RAG). For each table in the SQL file:
+
+1. Extract the column list from the CREATE TABLE statement.
+2. Add a semantic header before each table chunk, including:
+   - Table name
+   - [Table Purpose]: A concise description of what the table stores or represents.
+   - [Primary Key]: List the primary key(s).
+   - [Foreign Keys]: List all foreign key relationships in the format: column → referenced_table.referenced_column
+3. Preserve all column definitions and constraints.
+4. Output each table as a separate chunk, with its semantic header and SQL statement.
+5. Do not include data manipulation statements (INSERT, UPDATE, DELETE).
+6. The output should be a plain text file, one chunk per table, in the following format:
+
+-- Table: <table_name>
+[Table Purpose]
+<description>
+[Primary Key]
+<primary_key(s)>
+[Foreign Keys]
+<foreign_key(s)>
+
+<list of columns of the table>
+
+# Example
+-- Table: pokemon
+[Table Purpose]
+Stores individual Pokémon forms (e.g., mega evolutions, regional variants).
+[Primary Key]
+id
+[Foreign Keys]
+species_id → pokemon_species.id
+
+id INTEGER PRIMARY KEY,
+...
+
+# End of Prompt

@@ -1,0 +1,393 @@
+-- API: /user/register (POST)
+API Purpose:
+Register new user.
+
+Auth:
+No token required.
+
+Inputs:
+- email (string): User email
+- username (string): Username
+- password (string): Password
+
+Returns:
+- status (number): HTTP status code
+- message (string): Registration status
+- userId (number): New user ID
+
+-- API: /user/register/verify (POST)
+API Purpose:
+Verify registration email.
+
+Auth:
+No token required.
+
+Inputs:
+- email (string): User email
+- verificationCode (string): Verification code
+
+Returns:
+- status (number): HTTP status code
+- message (string): Verification status
+- token (string): Auth token
+- user (object): User info
+
+-- API: /user/register/verify/resend (POST)
+API Purpose:
+Resend verification email.
+
+Auth:
+No token required.
+
+Inputs:
+- email (string): User email
+
+Returns:
+- 200 OK if resent
+
+-- API: /user/account (GET)
+API Purpose:
+Get user account information.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- status (number): HTTP status code
+- data (object): Account info (userId, email, firstName, lastName, createdAt)
+
+-- API: /user/account (PUT)
+API Purpose:
+Update user account information.
+
+Auth:
+User token required.
+
+Inputs:
+- email (string, optional): New email
+- firstName (string, optional): First name
+- lastName (string, optional): Last name
+
+Returns:
+- 200 OK if updated
+
+-- API: /user/account/email (PUT)
+API Purpose:
+Update user email.
+
+Auth:
+User token required.
+
+Inputs:
+- email (string): New email
+
+Returns:
+- 200 OK if updated
+
+-- API: /user/account/email/verify/{url} (GET)
+API Purpose:
+Verify email change.
+
+Auth:
+No token required.
+
+Inputs:
+- url (string): Verification URL (in path)
+
+Returns:
+- 200 OK if verified
+
+-- API: /user/account/photo (PUT)
+API Purpose:
+Update user profile photo.
+
+Auth:
+User token required.
+
+Inputs:
+- photo (binary): Profile photo file
+
+Returns:
+- 200 OK if updated
+
+-- API: /user/profile/my (GET)
+API Purpose:
+Get my profile.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if retrieved
+
+-- API: /user/profile/other/{id} (GET)
+API Purpose:
+Get other user profile by ID.
+
+Auth:
+User token required.
+
+Inputs:
+- id (number): User ID (in path)
+
+Returns:
+- 200 OK if retrieved
+
+-- API: /user/profile (PUT)
+API Purpose:
+Update profile.
+
+Auth:
+User token required.
+
+Inputs:
+- firstName (string, optional): First name
+- lastName (string, optional): Last name
+
+Returns:
+- 200 OK if updated
+
+-- API: /user/profile/resume (PUT)
+API Purpose:
+Update user resume.
+
+Auth:
+User token required.
+
+Inputs:
+- resume (binary): Resume file
+
+Returns:
+- 200 OK if updated
+
+-- API: /user/notification (GET)
+API Purpose:
+Get user notifications.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if retrieved
+
+-- API: /user/notification/read/{id} (GET)
+API Purpose:
+Mark notification as read.
+
+Auth:
+User token required.
+
+Inputs:
+- id (number): Notification ID (in path)
+
+Returns:
+- 200 OK if marked as read
+
+-- API: /user/notification/delete/{id} (DELETE)
+API Purpose:
+Delete notification.
+
+Auth:
+User token required.
+
+Inputs:
+- id (number): Notification ID (in path)
+
+Returns:
+- 200 OK if deleted
+
+-- API: /user/testrequest (POST)
+API Purpose:
+Create test request.
+
+Auth:
+User token required.
+
+Inputs:
+- testType (string): Test type
+- requestDate (string): Request date (ISO)
+
+Returns:
+- 200 OK if created
+
+-- API: /user/testrequest/page/{page} (GET)
+API Purpose:
+Get test requests by page.
+
+Auth:
+User token required.
+
+Inputs:
+- page (number): Page number (in path)
+
+Returns:
+- 200 OK if retrieved
+
+-- API: /user/testrequest/delete/{id} (DELETE)
+API Purpose:
+Delete test request.
+
+Auth:
+User token required.
+
+Inputs:
+- id (number): Test request ID (in path)
+
+Returns:
+- 200 OK if deleted
+
+-- API: /user/checkpassword (GET)
+API Purpose:
+Check password validity.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if checked
+
+-- API: /user/confirmpassword (PUT)
+API Purpose:
+Confirm password.
+
+Auth:
+User token required.
+
+Inputs:
+- password (string): Password
+
+Returns:
+- 200 OK if confirmed
+
+-- API: /user/updatepassword (PUT)
+API Purpose:
+Update password.
+
+Auth:
+User token required.
+
+Inputs:
+- currentPassword (string): Current password
+- newPassword (string): New password
+
+Returns:
+- 200 OK if updated
+
+-- API: /user/forgotpassword (POST)
+API Purpose:
+Request password reset.
+
+Auth:
+No token required.
+
+Inputs:
+- email (string): User email
+
+Returns:
+- 200 OK if email sent
+
+-- API: /user/resetpassword (POST)
+API Purpose:
+Reset password with token.
+
+Auth:
+No token required.
+
+Inputs:
+- token (string): Reset token
+- newPassword (string): New password
+
+Returns:
+- 200 OK if reset
+
+-- API: /user/google/auth (POST)
+API Purpose:
+Google OAuth authentication.
+
+Auth:
+No token required.
+
+Inputs:
+- token (string): Google OAuth token
+
+Returns:
+- 200 OK if authenticated
+
+-- API: /user/microsoft/auth (POST)
+API Purpose:
+Microsoft OAuth authentication.
+
+Auth:
+No token required.
+
+Inputs:
+- token (string): Microsoft OAuth token
+
+Returns:
+- 200 OK if authenticated
+
+-- API: /user/onboarding/process (GET)
+API Purpose:
+Get onboarding process status.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if retrieved
+
+-- API: /user/onboarding/process (POST)
+API Purpose:
+Update onboarding process.
+
+Auth:
+User token required.
+
+Inputs:
+- step (number): Onboarding step
+- completed (boolean): Step completed
+
+Returns:
+- 200 OK if updated
+
+-- API: /user/unsubscribe/{url} (GET)
+API Purpose:
+Unsubscribe from emails.
+
+Auth:
+No token required.
+
+Inputs:
+- url (string): Unsubscribe URL (in path)
+
+Returns:
+- 200 OK if unsubscribed
+
+-- API: /user/unsubscribe/{url} (PUT)
+API Purpose:
+Update unsubscribe preferences.
+
+Auth:
+No token required.
+
+Inputs:
+- url (string): Unsubscribe URL (in path)
+- unsubscribeAll (boolean): Unsubscribe from all
+
+Returns:
+- 200 OK if updated

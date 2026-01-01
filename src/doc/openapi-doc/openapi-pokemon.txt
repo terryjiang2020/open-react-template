@@ -1,0 +1,224 @@
+-- API: /pokemon/search (POST)
+API Purpose:
+Search for Pokémon by ID or name, with optional filters (height, weight, types, stats) and sorting options.
+
+Auth:
+User token required.
+
+Inputs:
+- searchterm (string): Search keyword for Pokémon name or ID
+- filter (object, optional):
+  - height (object, optional): min (integer), max (integer)
+  - weight (object, optional): min (integer), max (integer)
+  - mustHaveTypes (array of integer): Type IDs Pokémon must have
+  - mustNotHaveTypes (array of integer): Type IDs Pokémon must NOT have
+  - canLearnMoves (array of object): moveId (integer), moveMethodId (integer)
+  - stats (array of object): statId (integer), min (integer), max (integer)
+- page (integer, default 0): Page number for paginated results
+- sortby (integer, default 0): Sorting option (see doc for mapping)
+
+Returns:
+- results (array): List of Pokémon matching the search criteria
+- totalCount (integer): Total number of Pokémon found
+- totalPage (integer): Total number of pages
+
+-- API: /pokemon/move/search (POST)
+API Purpose:
+Search for Pokémon moves by ID or name, with optional filters (type, power, pp, damage class, priority) and ordering.
+
+Auth:
+User token required.
+
+Inputs:
+- searchterm (string): Search keyword for move name or ID
+- page (integer, default 0): Page number for paginated results
+- filters (object, optional):
+  - type (integer): Move type ID
+  - power (object): min (integer), max (integer)
+  - pp (object): min (integer), max (integer)
+  - damageClass (integer): Damage class ID
+  - priority (object): min (integer), max (integer)
+- order (integer, default 0): Ordering option (see doc for mapping)
+
+Returns:
+- results (array): List of moves matching the search criteria
+- totalCount (integer): Total number of moves found
+- totalPage (integer): Total number of pages
+
+-- API: /pokemon/ability/search (POST)
+API Purpose:
+Search for Pokémon abilities by ID or name.
+
+Auth:
+User token required.
+
+Inputs:
+- searchterm (string): Search keyword for ability name or ID
+- page (integer, default 0): Page number for paginated results
+
+Returns:
+- results (array): List of Pokémon abilities matching the search criteria
+- totalCount (integer): Total number of abilities found
+- totalPage (integer): Total number of pages
+
+-- API: /pokemon/watchlist (POST)
+API Purpose:
+Add a Pokémon to the user's watchlist by Pokémon ID.
+
+Auth:
+User token required.
+
+Inputs:
+- pokemonId (number): The ID of the Pokémon to add
+
+Returns:
+- id (integer): Unique watchlist entry ID
+- user_id (integer): ID of the user
+- pokemon_id (integer): ID of the Pokémon
+- created_at (string): Timestamp
+- deleted (boolean): Soft delete flag
+
+-- API: /pokemon/watchlist (GET)
+API Purpose:
+Retrieve the current user's Pokémon watchlist.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- array of Pokémon in the user's watchlist (see doc for fields)
+
+-- API: /pokemon/watchlist/{id} (DELETE)
+API Purpose:
+Remove a Pokémon from the user’s watchlist by Pokémon ID.
+
+Auth:
+User token required.
+
+Inputs:
+- id (integer): The Pokémon ID to remove
+
+Returns:
+- 200 OK if removed
+
+-- API: /pokemon/teams (POST)
+API Purpose:
+Create a new Pokémon team for the user by specifying a team name.
+
+Auth:
+User token required.
+
+Inputs:
+- teamName (string): The name for the new Pokémon team
+
+Returns:
+- 201 Created if successful
+
+-- API: /pokemon/teams (GET)
+API Purpose:
+Retrieve all Pokémon teams created by the user.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- array of all teams created by the user (teamId, teamName, createdAt)
+
+-- API: /pokemon/teams/{teamId}/members (POST)
+API Purpose:
+Add a Pokémon as a member to a specified team, with nickname, level, moves, and shiny status.
+
+Auth:
+User token required.
+
+Inputs:
+- teamId (number): The ID of the team
+- pokemonId (number): The ID of the Pokémon
+- nickname (string, optional): Custom nickname
+- level (number): Level (1-100)
+- moves (array of number): Move IDs (up to 4)
+- shiny (boolean): Shiny status
+
+Returns:
+- 201 Created if successful
+
+-- API: /pokemon/teams/{teamId}/members (GET)
+API Purpose:
+Retrieve all Pokémon members of a specified team, including their details.
+
+Auth:
+User token required.
+
+Inputs:
+- teamId (number): The ID of the team
+
+Returns:
+- array of Pokémon members in the team (see doc for fields)
+
+-- API: /pokemon/type/search (POST)
+API Purpose:
+Search for Pokémon types by ID or name.
+
+Auth:
+User token required.
+
+Inputs:
+- searchterm (string): Search keyword for type name or ID
+- page (integer, default 0): Page number for paginated results
+
+Returns:
+- results (array): List of Pokémon types matching the search criteria
+- totalCount (integer): Total number of types found
+- totalPage (integer): Total number of pages
+
+-- API: /pokemon/details/{id} (GET)
+API Purpose:
+Get detailed information for a specific Pokémon by its ID, including stats, types, abilities, and moves.
+
+Auth:
+User token required.
+
+Inputs:
+- id (integer): The ID of the Pokémon
+
+Returns:
+- Pokémon details object (see doc for fields)
+
+-- API: /pokemon/moves (POST)
+API Purpose:
+Get all moves that a specific Pokémon can learn, with optional filters for type, learn method, and sorting.
+
+Auth:
+User token required.
+
+Inputs:
+- pokemonId (integer): The ID of the Pokémon
+- typeId (integer, optional): Filter by move type ID
+- learnMethodId (integer, optional): Filter by learn method ID
+- sortBy (integer, optional): Sorting option
+- page (integer, optional): Page number
+
+Returns:
+- results (array): List of moves the Pokémon can learn
+- page (integer): Current page
+- limit (integer): Results per page
+- totalPages (integer): Total number of pages
+
+-- API: /pokemon/teams/members/{memberId} (DELETE)
+API Purpose:
+Remove a Pokémon member from a specified team by member ID.
+
+Auth:
+User token required.
+
+Inputs:
+- memberId (integer): The ID of the team member
+
+Returns:
+- 200 OK if removed

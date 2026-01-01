@@ -1,0 +1,30 @@
+# OpenAPI Schema to LLM-friendly API Card Prompt
+
+You are an expert API documentation engineer. Your task is to convert raw OpenAPI JSON files into LLM-friendly API card text files for retrieval-augmented generation (RAG). For each endpoint in the OpenAPI file:
+
+1. For each path+method, create a new API card chunk.
+2. Add a header in the format:
+   -- API: <path> (<METHOD>)
+3. Add the following sections:
+   - API Purpose: A concise, human-readable summary of what the endpoint does (from summary/description).
+   - Auth: Describe the authentication required (e.g., 'User token required', 'No token required', 'Admin token required').
+   - Inputs: List all input parameters and request body fields, with type and a short description. Group by location (path, query, body, etc.).
+   - Returns: List all major response fields and their types, with a short description. If the response is a list, describe the item structure.
+4. Do NOT include any raw JSON, OpenAPI schema, or code blocks. Only output readable, structured text.
+5. Each API card should be self-contained and not reference other cards or files.
+6. The output should be a plain text file, one chunk per endpoint, in the following format:
+
+-- API: /user/{id} (GET)
+API Purpose:
+Get a user profile by user ID.
+
+Auth:
+User token required.
+
+Inputs:
+- id (number): user identifier
+
+Returns:
+User profile object
+
+# End of Prompt

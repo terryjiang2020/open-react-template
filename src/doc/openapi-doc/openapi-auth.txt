@@ -1,0 +1,32 @@
+-- API: /auth/login (POST)
+API Purpose:
+User login. Authenticate user with credentials.
+
+Auth:
+No token required.
+
+Inputs:
+- username (string): Username
+- password (string): Password
+- rememberme (boolean, optional): Remember session
+- sessionId (string, optional): Session ID
+
+Returns:
+- status (number): HTTP status code
+- message (string): Login status message
+- token (string): Auth token
+- user (object): User info (id, username, email)
+
+-- API: /auth/session/{sessionId} (GET)
+API Purpose:
+Retrieve session details by session ID.
+
+Auth:
+No token required.
+
+Inputs:
+- sessionId (string): Session ID (in path)
+
+Returns:
+- status (number): HTTP status code
+- data (object): Session info (sessionId, userId, expiresAt)

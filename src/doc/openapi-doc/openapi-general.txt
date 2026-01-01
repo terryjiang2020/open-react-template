@@ -1,0 +1,125 @@
+-- API: /general/files/{key} (GET)
+API Purpose:
+Get file by key.
+
+Auth:
+No token required.
+
+Inputs:
+- key (string): File key (in path)
+
+Returns:
+- 200 OK: File (binary)
+- 404: File not found
+
+-- API: /general/secret/list (GET)
+API Purpose:
+Get secrets list.
+
+Auth:
+User token required.
+
+Inputs:
+(none)
+
+Returns:
+- 200 OK if secrets retrieved
+
+-- API: /general/secret/get/{secretName} (GET)
+API Purpose:
+Get secret by name.
+
+Auth:
+User token required.
+
+Inputs:
+- secretName (string): Secret name (in path)
+
+Returns:
+- 200 OK if secret retrieved
+
+-- API: /general/secret/create (POST)
+API Purpose:
+Create secret.
+
+Auth:
+User token required.
+
+Inputs:
+- name (string): Secret name
+- value (string): Secret value
+
+Returns:
+- 200 OK if secret created
+
+-- API: /general/secret/delete/{secretName} (DELETE)
+API Purpose:
+Delete secret by name.
+
+Auth:
+User token required.
+
+Inputs:
+- secretName (string): Secret name (in path)
+
+Returns:
+- 200 OK if secret deleted
+
+-- API: /general/aiservice/xai (POST)
+API Purpose:
+Call XAI service.
+
+Auth:
+User token required.
+
+Inputs:
+- prompt (string): Prompt text
+- model (string, optional): Model name
+- temperature (number, optional): Sampling temperature
+
+Returns:
+- status (number): HTTP status code
+- data (object): { response (string) }
+
+-- API: /general/aiservice/claude (POST)
+API Purpose:
+Call Claude AI service.
+
+Auth:
+User token required.
+
+Inputs:
+- prompt (string): Prompt text
+- model (string, optional): Model name
+- temperature (number, optional): Sampling temperature
+
+Returns:
+- status (number): HTTP status code
+- data (object): { response (string) }
+
+-- API: /general/waitlist (POST)
+API Purpose:
+Add to waitlist.
+
+Auth:
+No token required.
+
+Inputs:
+- email (string): User email
+
+Returns:
+- 200 OK if added
+
+-- API: /general/waitlist/{id} (PUT)
+API Purpose:
+Update waitlist entry.
+
+Auth:
+User token required.
+
+Inputs:
+- id (number): Waitlist entry ID (in path)
+- status (string, optional): New status
+
+Returns:
+- 200 OK if updated

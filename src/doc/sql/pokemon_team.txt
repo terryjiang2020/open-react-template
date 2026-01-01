@@ -1,0 +1,116 @@
+-- Table: UserPokemonWatchlist
+[Table Purpose]
+Stores user's Pokémon watchlist entries.
+[Primary Key]
+id
+[Foreign Keys]
+pokemon_id → Pokémon.id
+user_id → Users.id
+
+	id SERIAL PRIMARY KEY,
+	pokemon_id INT NOT NULL,
+user_id INT NOT NULL,
+	deleted BOOLEAN DEFAULT FALSE,
+	created_at TIMESTAMP DEFAULT NOW(),
+	created_by INT DEFAULT 0,
+	updated_at TIMESTAMP DEFAULT NOW(),
+	updated_by INT DEFAULT 0
+
+-- Table: UserPokemonTeams
+[Table Purpose]
+Stores user's Pokémon teams.
+[Primary Key]
+id
+[Foreign Keys]
+user_id → Users.id
+
+id SERIAL PRIMARY KEY,
+user_id INT NOT NULL,
+team_name VARCHAR(100) NOT NULL,
+deleted BOOLEAN DEFAULT FALSE,
+created_at TIMESTAMP DEFAULT NOW(),
+created_by INT DEFAULT 0,
+updated_at TIMESTAMP DEFAULT NOW(),
+updated_by INT DEFAULT 0
+
+-- Table: UserPokemonTeamMembers
+[Table Purpose]
+Stores Pokémon team members for each team.
+[Primary Key]
+id
+[Foreign Keys]
+team_id → UserPokemonTeams.id
+pokemon_id → Pokémon.id
+
+id SERIAL PRIMARY KEY,
+team_id INT NOT NULL,
+pokemon_id INT NOT NULL,
+nickname VARCHAR(100),
+level INT DEFAULT 50,
+order_index INT NOT NULL,
+moves INT[],
+shiny BOOLEAN DEFAULT FALSE,
+deleted BOOLEAN DEFAULT FALSE,
+created_at TIMESTAMP DEFAULT NOW(),
+created_by INT DEFAULT 0,
+updated_at TIMESTAMP DEFAULT NOW(),
+updated_by INT DEFAULT 0
+
+-- Table: items
+[Table Purpose]
+Stores item definitions.
+[Primary Key]
+id
+[Foreign Keys]
+category_id → item_categories.id
+fling_effect_id → item_fling_effects.id
+
+id INT PRIMARY KEY,
+identifier VARCHAR(100) NOT NULL,
+category_id INT NOT NULL,
+cost INT,
+fling_power INT,
+fling_effect_id INT
+
+-- Table: item_names
+[Table Purpose]
+Stores localized item names.
+[Primary Key]
+id
+[Foreign Keys]
+item_id → items.id
+local_language_id → languages.id
+
+id SERIAL PRIMARY KEY,
+item_id INT NOT NULL,
+local_language_id INT NOT NULL,
+name VARCHAR(100) NOT NULL
+
+-- Table: languages
+[Table Purpose]
+Stores supported languages.
+[Primary Key]
+id
+[Foreign Keys]
+None
+
+id INT PRIMARY KEY,
+iso639 VARCHAR(10),
+iso3166 VARCHAR(10),
+identifier VARCHAR(50) NOT NULL,
+official BOOLEAN NOT NULL DEFAULT FALSE,
+"order" INT NOT NULL
+
+-- Table: language_names
+[Table Purpose]
+Stores localized language names.
+[Primary Key]
+id
+[Foreign Keys]
+language_id → languages.id
+local_language_id → languages.id
+
+id SERIAL PRIMARY KEY,
+language_id INT NOT NULL,
+local_language_id INT NOT NULL,
+name VARCHAR(100) NOT NULL
