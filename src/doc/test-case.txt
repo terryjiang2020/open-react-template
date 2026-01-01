@@ -1,0 +1,8 @@
+- Add metapod to my watchlist
+- Find me the pokemon in fire type that has highest special attack
+- Find me the strongest pokemon that is fire type
+- Create a team called 'Aqua Team'
+- Add pikachu to aqua team
+- remove all pokemon from watchlist
+- Clear watchlist 
+- Rename 'Aqua team' to 'delta team'

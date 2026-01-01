@@ -1,4 +1,3 @@
--- Table: Users
 [Table Purpose]
 Stores user account and profile information.
 [Primary Key]
@@ -36,6 +35,44 @@ created_at TIMESTAMP DEFAULT NOW(),
 created_by INT,
 updated_at TIMESTAMP DEFAULT NOW(),
 updated_by INT
+{
+	"table_name": "Users",
+	"description": "Stores user account and profile information.",
+	"primary_key": ["id"],
+	"foreign_keys": [],
+	"columns": [
+		{ "name": "id", "type": "SERIAL PRIMARY KEY" },
+		{ "name": "role_id", "type": "INT", "desc": "1: Admin, 2: User" },
+		{ "name": "username", "type": "VARCHAR(100)" },
+		{ "name": "email", "type": "VARCHAR(200)" },
+		{ "name": "email_verified", "type": "BOOLEAN", "default": "FALSE" },
+		{ "name": "validating_code", "type": "VARCHAR(6)" },
+		{ "name": "phone_number", "type": "VARCHAR(20)" },
+		{ "name": "password", "type": "TEXT" },
+		{ "name": "business_name", "type": "VARCHAR(100)" },
+		{ "name": "gst_number", "type": "VARCHAR(20)" },
+		{ "name": "nzbn", "type": "VARCHAR(20)" },
+		{ "name": "company_address_line_1", "type": "VARCHAR(200)" },
+		{ "name": "company_address_line_2", "type": "VARCHAR(200)" },
+		{ "name": "company_city", "type": "VARCHAR(100)" },
+		{ "name": "company_state", "type": "VARCHAR(100)" },
+		{ "name": "company_zip_code", "type": "VARCHAR(20)" },
+		{ "name": "company_country_id", "type": "INT" },
+		{ "name": "agent_number", "type": "INT", "default": "1" },
+		{ "name": "full_name", "type": "VARCHAR(100)" },
+		{ "name": "photo_url", "type": "VARCHAR(200)" },
+		{ "name": "country", "type": "VARCHAR(100)" },
+		{ "name": "logged_in", "type": "BOOLEAN", "default": "FALSE" },
+		{ "name": "last_active", "type": "TIMESTAMP", "default": "NOW()" },
+		{ "name": "last_login_time", "type": "TIMESTAMP", "default": "NOW()" },
+		{ "name": "active", "type": "BOOLEAN", "default": "TRUE" },
+		{ "name": "deleted", "type": "BOOLEAN", "default": "FALSE" },
+		{ "name": "created_at", "type": "TIMESTAMP", "default": "NOW()" },
+		{ "name": "created_by", "type": "INT" },
+		{ "name": "updated_at", "type": "TIMESTAMP", "default": "NOW()" },
+		{ "name": "updated_by", "type": "INT" }
+	]
+}
 
 -- Table: BillingAddresses
 [Table Purpose]

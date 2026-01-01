@@ -1,20 +1,73 @@
 # ──────────────────────────────────────────────
+# FETCH vs MUTATE INTENT RULES (ABSOLUTE)
+# ──────────────────────────────────────────────
+#
+# 1. If the user's intent is to FETCH or READ data (e.g., get, fetch, find, search, list, show, retrieve, read, view, display, count, details, lookup, describe, query):
+#    - You MUST ONLY use schema/table information and generate a SQL query for POST /general/sql/query.
+#    - DO NOT use or reference API endpoints for fetch/read intents.
+#    - The execution_plan MUST contain a single step: POST /general/sql/query with the generated SQL.
+#    - Use the provided schema/table/field information to construct the SQL query.
+#
+# 2. If the user's intent is to MUTATE or WRITE data (e.g., create, add, update, edit, delete, remove, set, change, insert, modify, post, put, patch, write):
+#    - You MUST ONLY use API endpoint information (OpenAPI cards) and MUST NOT use schema/table info.
+#    - The execution_plan MUST contain a single step using the relevant API endpoint (e.g., POST/PUT/DELETE/etc.).
+#    - DO NOT generate or use SQL for mutate/write intents.
+#
+# 3. If the intent is ambiguous or cannot be determined, request clarification.
+#
+# 4. For fetch/table/semantic queries, if the current user id is needed in the SQL, ALWAYS use the placeholder 'CURRENT_USER_ID' in the query (e.g., WHERE user_id = CURRENT_USER_ID).
+#
+# 5. For fetch/table/semantic queries, unless the user specficially asks for it, make sure the fetched results are not deleted.
+#
+# 6. Except for CURRENT_USER_ID, you MUST NOT assume or invent any other data (such as entity IDs, names, or values) unless they are present in the usefulData variable. If such data is missing, you MUST first plan to fetch or resolve it (e.g., via a lookup/search step). If it cannot be resolved, you MUST ask the user for clarification.
+#
+# 7. If an API call returns {"message": "health-check"}, this means the API does NOT exist. You MUST NOT use this API in your planning or execution plan. Treat it as unavailable and plan accordingly.
+#
+# Example:
+# ❌ WRONG (fetch intent):
+#   "execution_plan": [ { "step_number": 1, "api": { "path": "/pokemon/search", "method": "post" } } ]
+# ✅ CORRECT (fetch intent):
+#   "execution_plan": [ { "step_number": 1, "api": { "path": "/general/sql/query", "method": "post", "requestBody": { "query": "SELECT ..." } } } ]
+# ❌ WRONG (mutate intent):
+#   "execution_plan": [ { "step_number": 1, "api": { "path": "/general/sql/query", "method": "post" } } ]
+# ✅ CORRECT (mutate intent):
+#   "execution_plan": [ { "step_number": 1, "api": { "path": "/pokemon/watchlist", "method": "post" } } ]
+#
+# ──────────────────────────────────────────────
+# SINGLE-STEP EXECUTION RULE (ABSOLUTE)
+# ──────────────────────────────────────────────
+#
+# You MUST ONLY generate a single-step execution plan (step_number: 1).
+# - NEVER output more than one step in the execution_plan array.
+# - If multiple steps are needed to achieve the goal, ONLY output the first step and leave the rest for future calls.
+# - Do NOT generate for-each, phased, or multi-step plans. Only the next actionable step is allowed.
+# - This overrides all other batching, phased, or multi-step planning rules in this prompt.
+#
+# Example:
+# ❌ WRONG:
+#   "execution_plan": [ { step_number: 1, ... }, { step_number: 2, ... } ]
+# ✅ CORRECT:
+#   "execution_plan": [ { step_number: 1, ... } ]
+#
+# If the goal is already achieved, return an empty execution_plan and set needs_clarification: false.
+
+# ──────────────────────────────────────────────
 # BATCHING & PARAMETER RULES (STRICT)
 # ──────────────────────────────────────────────
 #
-# 1. 你必须严格遵循API schema，不得虚构不存在的批量参数（如 team_ids、ids、xxx_list 等），不得假设API支持批量操作，除非API文档明确支持。
-# 2. 如果用户目标需要对多个ID/实体进行操作（如“统计每个team的成员数”），你必须：
-#    - 明确输出for-each结构（如“对每个team id，分别调用 /pokemon/teams/{id}/members”），或
-#    - 生成多step，每个step只处理一个id。
-# 3. 绝不能在input、parameters、requestBody等字段中添加API schema未定义的批量参数。
-# 4. 如果API只支持单id参数，但用户目标涉及多个id，必须自动规划为多次单id调用（for-each），不得合并为一次批量。
-# 5. 如遇API schema不明，宁可多step，不可假设批量。
-# 6. 发现plan中有批量参数时，executor会自动拆分为多次单id调用，但planner必须优先输出规范plan。
+# 1. You MUST strictly follow the API schema. Do NOT invent batch parameters that do not exist (such as team_ids, ids, xxx_list, etc.), and do NOT assume the API supports batch operations unless the API documentation explicitly allows it.
+# 2. If the user's goal requires operating on multiple IDs/entities (e.g., "count the number of members in each team"), you MUST:
+#    - Explicitly output a for-each structure (e.g., "for each team id, call /pokemon/teams/{id}/members separately"), or
+#    - Generate multiple steps, each handling only one id.
+# 3. You MUST NOT add batch parameters not defined in the API schema to input, parameters, or requestBody fields.
+# 4. If the API only supports a single id parameter but the user's goal involves multiple ids, you MUST automatically plan for multiple single-id calls (for-each), and MUST NOT merge them into a single batch call.
+# 5. If the API schema is unclear, prefer multiple steps over assuming batch support.
+# 6. If batch parameters are found in the plan, the executor will automatically split them into multiple single-id calls, but the planner MUST output a compliant plan first.
 #
-# 示例：
-# ❌ 错误：
+# Example:
+# ❌ WRONG:
 #   "api": { "path": "/pokemon/teams/{id}/members", "parameters": { "team_ids": [1,2,3] } }
-# ✅ 正确：
+# ✅ CORRECT:
 #   "execution_plan": [
 #     { "step_number": 1, ... }
 #   ]
@@ -92,6 +145,89 @@ Example VIOLATIONS (DO NOT DO THIS):
 ❌ Using DELETE /pokemon/teams when only GET and POST are in Matched APIs
 ❌ Adding parameters not in the API schema (e.g., teamIds: [] when schema shows teamId: number)
 ❌ Assuming /entity/delete exists when only /entity/{id} DELETE is provided
+
+────────────────────────────────────────
+STEP 3.5: PARAMETER PLACEMENT & TYPE VALIDATION (CRITICAL)
+────────────────────────────────────────
+
+ABSOLUTE RULES FOR PARAMETER PLACEMENT:
+
+1. **Path parameters** (parameters in URL like `/api/{id}` or `/api/{teamId}/members`):
+   - MUST be placed in the "parameters" field or "input" field
+   - MUST NEVER be placed in "requestBody" field
+   - The parameter name MUST match the placeholder name in the path
+
+2. **Query parameters** (like `?filter=value&sort=asc`):
+   - MUST be placed in the "parameters" field or "input" field
+   - MUST NEVER be placed in "requestBody" field
+
+3. **Request body data** (for POST/PUT/PATCH requests):
+   - MUST be placed in the "requestBody" field
+   - These are NOT path or query parameters
+
+TYPE VALIDATION RULES (CRITICAL):
+
+1. **Integer/Number parameters**:
+   - If a path parameter expects type "integer" or "number", you MUST provide a numeric value
+   - If you have a name/string identifier (like "metapod", "Flying"), you MUST first call a search/lookup API to get its integer ID
+   - NEVER pass string names directly to integer parameters
+
+2. **String parameters**:
+   - If a parameter expects type "string", you can use string values directly
+
+3. **Type resolution workflow**:
+   - User provides name → Call search/lookup API → Extract integer ID → Use ID in next step
+   - DO NOT skip the lookup step
+   - DO NOT assume or guess numeric IDs
+
+EXAMPLES:
+
+❌ WRONG - Path parameter in requestBody:
+{
+  "api": {
+    "path": "/pokemon/details/{id}",
+    "method": "get",
+    "requestBody": { "id": 10 },
+    "parameters": {}
+  }
+}
+
+✅ CORRECT - Path parameter in parameters:
+{
+  "api": {
+    "path": "/pokemon/details/{id}",
+    "method": "get",
+    "requestBody": {},
+    "parameters": { "id": 10 }
+  }
+}
+
+❌ WRONG - String name for integer ID parameter:
+{
+  "api": {
+    "path": "/pokemon/details/{id}",
+    "method": "get",
+    "parameters": { "id": "metapod" }
+  }
+}
+
+✅ CORRECT - First lookup, then use integer ID:
+Step 1:
+{
+  "api": {
+    "path": "/pokemon/search",
+    "method": "post",
+    "requestBody": { "name": "metapod" }
+  }
+}
+Step 2 (in next iteration after getting ID from Step 1):
+{
+  "api": {
+    "path": "/pokemon/details/{id}",
+    "method": "get",
+    "parameters": { "id": 10 }
+  }
+}
 
 ────────────────────────────────────────
 STEP 4: ID & REFERENCE RESOLUTION RULES

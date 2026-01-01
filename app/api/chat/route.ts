@@ -1,25 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clarifyAndRefineUserInput, handleQueryConceptsAndNeeds } from '@/utils/queryRefinement';
 import { summarizeMessages, Message } from './messageUtils';
-import { getAllMatchedApis, getTopKResults } from './embeddingSearch';
 import { runPlannerWithInputs, sanitizePlannerResponse } from './plannerExecution';
 import { validateNeedMoreActions } from './validationUtils';
 import { extractUsefulDataFromApiResponses } from './dataExtraction';
 import { generateFinalAnswer } from './answerSynthesis';
-import { sendToPlanner } from './planner';
+import { fetchRagApisForIntent, sendToPlanner } from './planner';
 import { dynamicApiRequest, FanOutRequest } from '@/services/apiService';
 import { findApiParameters } from '@/services/apiSchemaLoader';
-import path from 'path';
-import fs from 'fs';
 
 declare global {
   // Augment the globalThis type to include __rag_entity
   var __rag_entity: string | undefined;
 }
-
-// Load vectorized data
-const vectorizedDataPath = path.join(process.cwd(), 'src/doc/vectorized-data/vectorized-data.json');
-const vectorizedData = JSON.parse(fs.readFileSync(vectorizedDataPath, 'utf-8'));
 
 export async function POST(request: NextRequest) {
   let usefulData = new Map();
@@ -76,7 +69,7 @@ export async function POST(request: NextRequest) {
       ? `Previous context:\n${conversationContext}\n\nCurrent query: ${userMessage.content}`
       : userMessage.content;
 
-    const { refinedQuery, language, concepts, apiNeeds, entities } = await clarifyAndRefineUserInput(queryWithContext, apiKey);
+    const { refinedQuery, language, concepts, apiNeeds, entities } = await clarifyAndRefineUserInput(queryWithContext);
     console.log('\n📝 QUERY REFINEMENT RESULTS:');
     console.log('  Original:', userMessage.content);
     console.log('  Refined Query:', refinedQuery);
@@ -94,12 +87,17 @@ export async function POST(request: NextRequest) {
     // Multi-entity RAG: Generate embeddings for each entity and combine results
     console.log(`\n🔍 Performing multi-entity RAG search for ${entities.length} entities`);
 
-
-    // 获取所有实体的匹配API（embedding检索+过滤）
-    const allMatchedApis = await getAllMatchedApis({ entities, apiKey });
-
     // Convert Map to array and sort by similarity
-    let topKResults = await getTopKResults(allMatchedApis, 10);
+    let topKResults: any[] = [];
+    
+    for (const entity of entities) {
+      const results = await fetchRagApisForIntent(entity);
+      for (const res of results) {
+        if (!topKResults.find(r => r.id === res.id)) {
+          topKResults.push(res);
+        }
+      }
+    }
 
     // Check if RAG search returned no results
     if (topKResults.length === 0) {
@@ -116,7 +114,6 @@ export async function POST(request: NextRequest) {
 
     // 调用独立planner函数
     const { actionablePlan, planResponse: plannerRawResponse } = await runPlannerWithInputs({
-      topKResults,
       refinedQuery,
       apiKey,
       usefulData: str,
@@ -224,14 +221,79 @@ async function executeIterativePlanner(
   // Sanitize and parse the current plan response
   let sanitizedPlanResponse = sanitizePlannerResponse(currentPlanResponse);
   let actionablePlan = JSON.parse(sanitizedPlanResponse);
+  let completed = false;
 
-  while (iteration < maxIterations) {
+
+  while (iteration < maxIterations && !completed) {
     iteration++;
     console.log(`\n--- Iteration ${iteration} ---`);
 
     try {
 
       console.log('Current Actionable Plan:', JSON.stringify(actionablePlan, null, 2));
+
+      // --- Parameter Type Validation Layer ---
+      // If any step uses a parameter with the wrong type (e.g., string for integer), re-invoke the planner with explicit feedback.
+      let typeMismatchFound = false;
+      let typeMismatchMessage = '';
+      if (actionablePlan.execution_plan && actionablePlan.execution_plan.length > 0) {
+        for (const step of actionablePlan.execution_plan) {
+          if (step.api) {
+            // Get parameter schema to check required types
+            const parametersSchema = findApiParameters(step.api.path, step.api.method);
+
+            // Check all locations where parameters might be: parameters, input, and requestBody
+            const allParams = {
+              ...(step.api.parameters || {}),
+              ...(step.api.input || {}),
+              ...(step.api.requestBody || {})
+            };
+
+            // Validate each parameter against its schema
+            if (parametersSchema && parametersSchema.length > 0) {
+              for (const paramDef of parametersSchema) {
+                const paramName = paramDef.name;
+                const paramValue = allParams[paramName];
+
+                if (paramValue !== undefined && paramValue !== null) {
+                  const expectedType = paramDef.schema?.type;
+
+                  // Type validation for integer/number parameters
+                  if ((expectedType === 'integer' || expectedType === 'number') && paramDef.in === 'path') {
+                    if (typeof paramValue === 'string' && isNaN(Number(paramValue))) {
+                      typeMismatchFound = true;
+                      typeMismatchMessage = `ERROR: The API path parameter '${paramName}' requires type '${expectedType}', but a non-numeric string ('${paramValue}') was provided.
+
+CRITICAL RULES:
+1. Path parameters like {${paramName}} in '${step.api.path}' MUST be placed in "parameters" or "input", NOT in "requestBody"
+2. If you have a name/identifier (like '${paramValue}'), you MUST first call a search/lookup API to find its numeric ID
+3. NEVER pass string names directly to ID parameters that expect integers
+
+Required fix: Plan a lookup step BEFORE this step to convert '${paramValue}' to its integer ID.`;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (typeMismatchFound) break;
+            }
+          }
+        }
+      }
+      if (typeMismatchFound) {
+        // Compose a new planner context with explicit error feedback
+        const plannerContext = `SYSTEM MESSAGE: ${typeMismatchMessage}\n\nOriginal Query: ${refinedQuery}\n\nPrevious Plan: ${JSON.stringify(actionablePlan, null, 2)}\n\nExecuted Steps So Far: ${JSON.stringify(executedSteps, null, 2)}\n\nAccumulated Results: ${JSON.stringify(accumulatedResults, null, 2)}\n`;
+        const obj = Object.fromEntries(usefulData);
+        const str = JSON.stringify(obj, null, 2);
+        // Re-invoke the planner with the error context
+        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str);
+        // Re-parse the new plan
+        sanitizedPlanResponse = sanitizePlannerResponse(currentPlanResponse);
+        actionablePlan = JSON.parse(sanitizedPlanResponse);
+        // Continue to next iteration with the new plan
+        continue;
+      }
 
       // Check if the plan requires clarification
       if (actionablePlan.needs_clarification) {
@@ -433,11 +495,56 @@ async function executeIterativePlanner(
             };
 
             // Perform the API call for the current step
-            const apiResponse = await dynamicApiRequest(
-              process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
-              apiSchema,
-              userToken // Pass user token for authentication
-            );
+            let apiResponse;
+            try {
+              apiResponse = await dynamicApiRequest(
+                process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
+                apiSchema,
+                userToken // Pass user token for authentication
+              );
+            } catch (apiError: any) {
+              // Check if this is a parameter validation error
+              if (apiError.message && apiError.message.includes('Parameter validation failed')) {
+                console.error('❌ Parameter validation error during API call:', apiError.message);
+
+                // Extract the detailed error message
+                const validationError = apiError.message.replace('Parameter validation failed: ', '');
+
+                // Re-invoke planner with validation error feedback
+                const plannerContext = `SYSTEM ERROR: API call failed due to parameter type mismatch.
+
+${validationError}
+
+CRITICAL RULES:
+1. Path parameters MUST be placed in "parameters" or "input", NOT in "requestBody"
+2. If a parameter expects an integer ID but you have a name/string, you MUST first call a search/lookup API
+3. NEVER pass string names directly to integer ID parameters
+
+Original Query: ${refinedQuery}
+
+Previous Plan: ${JSON.stringify(actionablePlan, null, 2)}
+
+Executed Steps So Far: ${JSON.stringify(executedSteps, null, 2)}
+
+Accumulated Results: ${JSON.stringify(accumulatedResults, null, 2)}
+
+Please generate a corrected plan that includes a lookup step FIRST to resolve the name to its integer ID.`;
+
+                const obj = Object.fromEntries(usefulData);
+                const str = JSON.stringify(obj, null, 2);
+
+                // Re-invoke the planner (using the OpenAI API key from parent scope)
+                currentPlanResponse = await sendToPlanner(plannerContext, process.env.NEXT_PUBLIC_OPENAI_API_KEY!, str);
+                sanitizedPlanResponse = sanitizePlannerResponse(currentPlanResponse);
+                actionablePlan = JSON.parse(sanitizedPlanResponse);
+
+                // Skip this step and continue to next iteration with new plan
+                continue;
+              }
+
+              // If it's not a validation error, rethrow
+              throw apiError;
+            }
 
             // 检查是否需要 fan-out
             if (apiResponse && typeof apiResponse === 'object' && 'needsFanOut' in apiResponse) {
@@ -481,52 +588,39 @@ async function executeIterativePlanner(
               Object.assign(apiResponse, mergedResponse);
             }
 
-
             console.log('API Response:', apiResponse);
 
-            // 清理和精简 usefulData，去除多余转义和嵌套
-            function cleanUsefulData(raw: string): string {
-              let obj;
-              try {
-                obj = JSON.parse(raw);
-              } catch {
-                obj = raw;
-              }
-              if (typeof obj === 'object') {
-                return JSON.stringify(flattenObject(obj), null, 2);
-              }
-              return raw.replace(/\\/g, '\\').replace(/\"/g, '"');
+            // Compose a unique key for API call: method + path + input hash
+            const apiKeyBase = apiSchema.method + ' ' + apiSchema.path;
+            let inputKey = '';
+            try {
+              // Use a stable stringification for input
+              inputKey = JSON.stringify({ parameters: parametersToUse, requestBody: requestBodyToUse });
+            } catch {
+              inputKey = '';
             }
+            const apiKey = inputKey ? `${apiKeyBase} | ${inputKey}` : apiKeyBase;
 
-            function flattenObject(obj: any): any {
-              if (typeof obj !== 'object' || obj === null) return obj;
-              const result: any = {};
-              for (const key in obj) {
-                if (typeof obj[key] === 'object') {
-                  const flat = flattenObject(obj[key]);
-                  if (typeof flat === 'object' && flat !== null) {
-                    Object.assign(result, flat);
-                  } else {
-                    result[key] = flat;
-                  }
-                } else {
-                  result[key] = obj[key];
-                }
-              }
-              return result;
-            }
-
+            // Extract and clean useful data (no recursive nesting)
             const obj = Object.fromEntries(usefulData);
             const str = JSON.stringify(obj, null, 2);
-
             const extracted = await extractUsefulDataFromApiResponses(
               refinedQuery,
               finalDeliverable,
               str,
               JSON.stringify(apiResponse)
             );
-            const cleaned = cleanUsefulData(extracted);
-            usefulData.set(apiSchema.method + ' ' + apiSchema.path, cleaned);
+
+            // If the same API and input, override; else add new entry
+            if (extracted) {
+              console.log('Extracted Useful Data:', extracted);
+              usefulData.set(apiKey, extracted);
+            }
+
+            // Remove any old entries for the same API with different input if needed (optional, for deduplication)
+            // [...usefulData.keys()].forEach(key => {
+            //   if (key.startsWith(apiKeyBase) && key !== apiKey) usefulData.delete(key);
+            // });
 
             console.log('Updated Useful Data:', usefulData);
 
@@ -563,6 +657,25 @@ async function executeIterativePlanner(
             });
 
             console.log(`✅ Step ${stepToExecute.step_number || executedSteps.length} completed. Remaining steps in plan: ${actionablePlan.execution_plan.length}`);
+
+            // Now validate if we have sufficient information
+            console.log('\n🔍 Validating if more actions are needed 1...');
+            const validationResult = await validateNeedMoreActions(
+              refinedQuery,
+              executedSteps,
+              accumulatedResults,
+              usefulData,
+              actionablePlan // Pass the last execution plan
+            );
+
+            console.log('Validation result:', validationResult);
+
+            if (!validationResult.needsMoreActions) {
+              console.log('✅ Validator confirmed: sufficient information gathered');
+              actionablePlan.execution_plan = []; // Clear remaining steps
+              completed = true;
+              break;
+            }
           } // End of for loop (for each stepToExecute)
         } else {
           console.warn(`⚠️  Step ${step.step_number} is not a valid API call (path: ${step.api?.path}, method: ${step.api?.method})`);
@@ -572,19 +685,14 @@ async function executeIterativePlanner(
           // Don't add invalid steps to executedSteps since no API was actually called
           // The validator will detect that the goal is not met and request proper API steps
         }
-
-        // 获取所有实体的匹配API（embedding检索+过滤）
-        const allMatchedApis = await getAllMatchedApis({ entities, apiKey });
-
-        // Convert Map to array and sort by similarity
-        let topKResults = await getTopKResults(allMatchedApis, 10);
+        
+        if (completed) break; // <-- Add this line
 
         const obj = Object.fromEntries(usefulData);
         const str = JSON.stringify(obj, null, 2);
         
         // 调用独立planner函数
         let { actionablePlan: actionablePlanNeo, planResponse: plannerRawResponse } = await runPlannerWithInputs({
-          topKResults,
           refinedQuery,
           apiKey,
           usefulData: str,
@@ -617,12 +725,12 @@ async function executeIterativePlanner(
       }
 
       // Now validate if we have sufficient information
-      console.log('\n🔍 Validating if more actions are needed...');
+      console.log('\n🔍 Validating if more actions are needed 2...');
       const validationResult = await validateNeedMoreActions(
         refinedQuery,
         executedSteps,
         accumulatedResults,
-        apiKey,
+        usefulData,
         actionablePlan // Pass the last execution plan
       );
 
@@ -630,6 +738,7 @@ async function executeIterativePlanner(
 
       if (!validationResult.needsMoreActions) {
         console.log('✅ Validator confirmed: sufficient information gathered');
+        completed = true;
         break;
       }
 
@@ -661,7 +770,9 @@ Please generate the next step in the plan, or indicate that no more steps are ne
       const obj = Object.fromEntries(usefulData);
       const str = JSON.stringify(obj, null, 2);
 
-      currentPlanResponse = await sendToPlanner(matchedApis, plannerContext, apiKey, str);
+      if (!completed) {
+        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str);
+      }
     } catch (error: any) {
       console.error('Error during iterative planner execution:', error);
       return {
@@ -743,15 +854,15 @@ Please generate the next step in the plan, or indicate that no more steps are ne
     return result;
   });
 
-  const obj = Object.fromEntries(usefulData);
-  const str = JSON.stringify(obj, null, 2);
+  const usefulDataObj = Object.fromEntries(usefulData);
+  const usefulDataStr = JSON.stringify(usefulDataObj, null, 2);
 
   const finalAnswer = await generateFinalAnswer(
     refinedQuery,
     preparedResults,
     apiKey,
     stoppedReason,
-    str
+    usefulDataStr
   );
 
   console.log('\n' + '='.repeat(80));

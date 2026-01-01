@@ -63,7 +63,7 @@ export async function summarizeMessages(messages: Message[], apiKey: string): Pr
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'gpt-3.5-turbo',
@@ -77,7 +77,7 @@ export async function summarizeMessages(messages: Message[], apiKey: string): Pr
             content: `对话历史：\n${oldMessages.map(m => `${m.role}: ${m.content}`).join('\n')}`,
           },
         ],
-        temperature: 0.3,
+        temperature: 0,
         max_tokens: 4096,
       }),
     });

@@ -113,6 +113,39 @@ export function extractRequiredParams(
 }
 
 /**
+ * 验证参数类型是否匹配
+ * @param paramName - 参数名
+ * @param expectedType - 期望的类型
+ * @param value - 实际值
+ * @param isPathParam - 是否是路径参数
+ * @returns 类型是否有效，以及错误消息（如果无效）
+ */
+function validateParamType(
+  paramName: string,
+  expectedType: ParamType | undefined,
+  value: any,
+  isPathParam: boolean
+): { valid: boolean; error?: string } {
+  if (!expectedType || expectedType === "unknown") {
+    return { valid: true }; // 无法验证未知类型
+  }
+
+  const actualType = guessValueType(value);
+
+  // 对于路径参数中的 number/integer 类型，严格验证
+  if (isPathParam && (expectedType === "number")) {
+    if (actualType === "string" && isNaN(Number(value))) {
+      return {
+        valid: false,
+        error: `Parameter '${paramName}' expects type 'integer' for path parameter, but received non-numeric string '${value}'. You must use a search/lookup API to convert this name to its integer ID first.`
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
  * 核心映射函数：将提供的参数映射到 required 参数
  *
  * @param required - 从 API schema 提取的 required 参数
@@ -135,6 +168,14 @@ export function mapArgsToRequired(
     // 1) 精确匹配（最优先）
     if (req.name in provided) {
       const value = provided[req.name];
+
+      // 类型验证
+      const typeCheck = validateParamType(req.name, req.type, value, req.inPath);
+      if (!typeCheck.valid) {
+        console.error(`❌ Type validation failed: ${typeCheck.error}`);
+        throw new Error(typeCheck.error);
+      }
+
       mapped[req.name] = value;
       mapping[req.name] = req.name;
 
@@ -191,6 +232,14 @@ export function mapArgsToRequired(
     // 3) 应用最佳匹配（阈值可调）
     if (best && best.score >= 6) {
       const value = provided[best.key];
+
+      // 类型验证
+      const typeCheck = validateParamType(req.name, req.type, value, req.inPath);
+      if (!typeCheck.valid) {
+        console.error(`❌ Type validation failed during fuzzy matching: ${typeCheck.error}`);
+        throw new Error(typeCheck.error);
+      }
+
       mapped[req.name] = value;
       mapping[req.name] = best.key;
 

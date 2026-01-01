@@ -17,7 +17,7 @@ export async function extractUsefulDataFromApiResponses(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -27,15 +27,15 @@ export async function extractUsefulDataFromApiResponses(
             content: prompt,
           },
         ],
-        temperature: 0.5,
+        temperature: 0,
         max_tokens: 4096,
       }),
     });
     if (!response.ok) {
-      return existingUsefulData;
+      return '';
     }
     const data = await response.json();
-    const extractedData = (existingUsefulData + ' ' + data.choices[0]?.message?.content) || existingUsefulData;
+    const extractedData = data.choices[0]?.message?.content;
     return extractedData;
   } catch (error) {
     console.error('Error extracting useful data:', error);

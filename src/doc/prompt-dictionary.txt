@@ -1,0 +1,249 @@
+user
+
+admin
+
+role
+
+permission
+
+login
+
+session
+
+token
+
+API token
+
+password
+
+reset password
+
+verification code
+
+email verification link
+
+OAuth
+
+Google auth
+
+Microsoft auth
+
+account
+
+profile
+
+user profile
+
+photo
+
+resume
+
+onboarding
+
+onboarding step
+
+notification
+
+unsubscribe
+
+unsubscription URL
+
+billing address
+
+credit card
+
+plan
+
+subscription
+
+user plan
+
+plan subscription
+
+payment
+
+price
+
+currency
+
+credit balance
+
+credit balance history
+
+📧 Communication & Email
+
+email
+
+email authorization
+
+email verification
+
+email unsubscribe
+
+notification
+
+message
+
+secret
+
+secret value
+
+file
+
+file key
+
+test
+
+test type
+
+test request
+
+request status
+
+request date
+
+status
+
+page
+
+pagination
+
+created_at
+
+updated_at
+
+deleted
+
+active
+
+AI service
+
+prompt
+
+model
+
+temperature
+
+response
+
+waitlist
+
+waitlist entry
+
+Pokémon
+
+Pokémon species
+
+Pokémon form
+
+generation
+
+region
+
+type
+
+ability
+
+move
+
+stat
+
+item
+
+berry
+
+Pokémon search
+
+move search
+
+ability search
+
+type search
+
+filter
+
+sorting
+
+pagination
+
+watchlist
+
+watchlist item
+
+Pokémon team
+
+team
+
+team member
+
+nickname
+
+level
+
+shiny
+
+⚔️ Pokémon – Battle Mechanics
+
+move damage class
+
+move target
+
+move effect
+
+contest type
+
+contest effect
+
+move method
+
+priority
+
+accuracy
+
+power
+
+PP
+
+height
+
+weight
+
+habitat
+
+color
+
+shape
+
+gender rate
+
+capture rate
+
+growth rate
+
+base happiness
+
+legendary
+
+mythical
+
+baby Pokémon
+
+language
+
+localized name
+
+flavor text
+
+version
+
+version group
+
+Pokémon type mapping
+
+Pokémon stats mapping
+
+Pokémon abilities mapping
+
+Pokémon moves mapping
+
+team–member relation

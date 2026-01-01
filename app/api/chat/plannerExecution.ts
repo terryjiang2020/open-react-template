@@ -1,22 +1,23 @@
 // Planner execution utilities for chat API
 // Handles planner input preparation and execution
 
+import { sendToPlanner } from "./planner";
+
 export async function runPlannerWithInputs({
-  topKResults,
   refinedQuery,
   apiKey,
   usefulData,
   conversationContext,
   finalDeliverable
 }: {
-  topKResults: any[],
   refinedQuery: string,
   apiKey: string,
   usefulData: string,
   conversationContext?: string,
   finalDeliverable?: string
 }): Promise<{ actionablePlan: any, planResponse: string }> {
-  const planResponse = await sendToPlanner(topKResults, refinedQuery, apiKey, usefulData, conversationContext);
+  console.log('runPlannerWithInputs is triggered');
+  const planResponse = await sendToPlanner(refinedQuery, apiKey, usefulData, conversationContext);
   let actionablePlan;
   try {
     const sanitizedPlanResponse = sanitizePlannerResponse(planResponse);
@@ -53,16 +54,4 @@ export function sanitizePlannerResponse(response: string): string {
     console.error('Error sanitizing planner response:', error);
     throw error;
   }
-}
-
-// Dummy implementation for sendToPlanner, should be replaced by actual logic from planner.ts
-export async function sendToPlanner(
-  apis: any[],
-  refinedQuery: string,
-  apiKey: string,
-  usefulData: string,
-  conversationContext?: string
-): Promise<string> {
-  // This should be implemented in planner.ts and imported here
-  return '';
 }

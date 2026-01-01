@@ -46,19 +46,26 @@ export async function dynamicApiRequest(baseUrl: string, schema: any, userToken?
     // 如果 schema 包含 parameters 定义（OpenAPI 格式），进行映射
     if (schema.parametersSchema || schema.apiParameters) {
       const apiParameters = schema.parametersSchema || schema.apiParameters;
-      mappingResult = prepareArgsForRequest(path, apiParameters, providedArgs);
-      pathParams = mappingResult.mapped;
 
-      // 检测 fan-out：路径参数要求标量，但收到数组
-      if (mappingResult.fanOutDetected && mappingResult.fanOutParam && mappingResult.fanOutValues) {
-        console.log(`🔄 检测到 fan-out 需求，返回 FanOutRequest`);
-        return {
-          needsFanOut: true,
-          fanOutParam: mappingResult.fanOutParam,
-          fanOutValues: mappingResult.fanOutValues,
-          baseSchema: schema,
-          mappedParams: pathParams,
-        } as FanOutRequest;
+      try {
+        mappingResult = prepareArgsForRequest(path, apiParameters, providedArgs);
+        pathParams = mappingResult.mapped;
+
+        // 检测 fan-out：路径参数要求标量，但收到数组
+        if (mappingResult.fanOutDetected && mappingResult.fanOutParam && mappingResult.fanOutValues) {
+          console.log(`🔄 检测到 fan-out 需求，返回 FanOutRequest`);
+          return {
+            needsFanOut: true,
+            fanOutParam: mappingResult.fanOutParam,
+            fanOutValues: mappingResult.fanOutValues,
+            baseSchema: schema,
+            mappedParams: pathParams,
+          } as FanOutRequest;
+        }
+      } catch (error: any) {
+        // 类型验证失败 - 抛出错误，让调用方处理
+        console.error('❌ Parameter mapping/validation failed:', error.message);
+        throw new Error(`Parameter validation failed: ${error.message}`);
       }
     } else {
       console.log('⚠️  Schema 未提供 parametersSchema，跳过参数映射');

@@ -20,7 +20,7 @@ export async function generateFinalAnswer(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -34,7 +34,7 @@ export async function generateFinalAnswer(
             content: `Original Question: ${originalQuery}\n\nAPI Response Data:\n${JSON.stringify(accumulatedResults, null, 2)}${usefulData || ''}\n\nIMPORTANT: The data above includes complete arrays. Pay careful attention to:\n- Learning methods for moves (level-up, tutor, machine, egg, etc.)\n- Type information for moves\n- Power values for moves\n- Any other detailed attributes\n\nOnly state facts that are explicitly present in the data. Do not make assumptions about learning methods or other attributes.`,
           },
         ],
-        temperature: 0.7,
+        temperature: 0,
         max_tokens: 2048,
       }),
     });

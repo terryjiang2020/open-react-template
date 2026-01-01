@@ -1,11 +1,15 @@
 // Validation utilities for chat API
 // Handles validator logic
 
+import fs from 'fs';
+import path from 'path';
+import { fetchPromptFile } from './promptUtils';
+
 export async function validateNeedMoreActions(
   originalQuery: string,
   executedSteps: any[],
   accumulatedResults: any[],
-  apiKey: string,
+  usefulData: Map<string, any>,
   lastExecutionPlan?: any
 ): Promise<{
   needsMoreActions: boolean,
@@ -19,26 +23,27 @@ export async function validateNeedMoreActions(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: `You are the VALIDATOR.\n\nYour ONLY responsibility is to determine whether\nthe ORIGINAL USER GOAL has been fully satisfied.\n... (prompt omitted for brevity, see route.ts for full prompt) ...`,
+            content: await fetchPromptFile('prompt-verifier.txt'),
           },
           {
             role: 'user',
-            content: `Original Query: ${originalQuery}\n\nLast Execution Plan: ${lastExecutionPlan ? JSON.stringify(lastExecutionPlan.execution_plan || lastExecutionPlan, null, 2) : 'No plan available'}\n\nExecuted Steps (with responses): ${JSON.stringify(executedSteps, null, 2)}\n\nAccumulated Results: ${JSON.stringify(accumulatedResults, null, 2)}\n\nCan we answer the original query with the information we have? Or do we need more API calls?`,
+            content: `Original Query: ${originalQuery}\n\nUseful Data: ${JSON.stringify(Object.fromEntries(usefulData), null, 2)}\n\nLast Execution Plan: ${lastExecutionPlan ? JSON.stringify(lastExecutionPlan.execution_plan || lastExecutionPlan, null, 2) : 'No plan available'}\n\nExecuted Steps (with responses): ${JSON.stringify(executedSteps, null, 2)}\n\nAccumulated Results: ${JSON.stringify(accumulatedResults, null, 2)}\n\nCan we answer the original query with the information we have? Or do we need more API calls?`,
           },
         ],
-        temperature: 0.3,
+        temperature: 0,
         max_tokens: 4096,
       }),
     });
     if (!response.ok) {
-      return { needsMoreActions: false, reason: 'Validator error, proceeding with available data' };
+        console.warn('Validator API response not OK:', response.status, response.statusText);
+        return { needsMoreActions: false, reason: 'Validator error, proceeding with available data' };
     }
     const data = await response.json();
     const content = data.choices[0]?.message?.content || '';
@@ -47,6 +52,7 @@ export async function validateNeedMoreActions(
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
+    console.log('Validator response parsing failed, content:', content);
     return { needsMoreActions: false, reason: 'Unable to parse validator response' };
   } catch (error) {
     console.error('Error in validator:', error);

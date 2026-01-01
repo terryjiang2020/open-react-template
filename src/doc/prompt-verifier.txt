@@ -48,6 +48,7 @@ Output format (JSON only):
 {
   "status": "approved" | "rejected" | "needs_clarification",
   "reason": "Why",
+  "needsMoreActions": true | false
   "violated_rules": ["R1", "R2", "R3", "R4", "R5", "R6", "R7"]
   "next_action": "return_result | continue_execution | ask_user"
 }
@@ -57,6 +58,7 @@ Sample output:
 {
   "status": "rejected",
   "reason": "Returned data is an intermediate result (category list) and does not satisfy the final deliverable (item list filtered by category).",
+  "needsMoreActions": true,
   "violated_rules": ["R4", "R5"],
   "next_action": "continue_execution"
 }

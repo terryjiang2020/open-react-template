@@ -49,6 +49,15 @@ export default function ChatWidget() {
         return;
       }
 
+      const user = localStorage.getItem('user') || '';
+
+      let id = 0;
+
+      if (user && typeof user === 'string' && user.startsWith('{')) {
+        const userObj = JSON.parse(user);
+        id = userObj.id || 0;
+      }
+
       // Proceed with the API call if necessary
       // The backend handles planning and execution in one call
       const response = await fetch('/api/chat', {
@@ -59,6 +68,7 @@ export default function ChatWidget() {
         },
         body: JSON.stringify({
           messages: updatedMessages, // Send full conversation history
+          userId: id,
         }),
       });
 

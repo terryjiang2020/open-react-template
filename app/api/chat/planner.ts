@@ -1,5 +1,47 @@
-import { getAllMatchedApis, getTopKResults } from "./embeddingSearch";
+import { clarifyAndRefineUserInput } from "@/utils/queryRefinement";
+import { getAllMatchedApis, getTopKResults, locateKeyEntityInIntention } from "./embeddingSearch";
 import { fetchPromptFile } from "./promptUtils";
+import { createTempFile } from "./utils";
+
+/**
+ * classifyIntent: Classifies a one-sentence intent string as 'fetch' (read) or 'mutate' (write)
+ * @param intent - The intent string output by the LLM
+ * @returns 'fetch' | 'mutate' | 'unknown'
+ */
+export async function classifyIntent(intent: string): Promise<'fetch' | 'mutate' | 'unknown'> {
+    if (!intent) return 'unknown';
+    console.log('intent:', intent);
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert at classifying user intents for API actions into two categories: "fetch" (read) or "mutate" (write). Given a one-sentence intent description, determine whether the intent is to retrieve data (fetch) or to modify data (mutate). A single noun is considered "fetch". If the intent is unclear or does not fit either category, classify it as "unknown".',
+          },
+          {
+            role: 'user',
+            content: `User's intention: ${intent}`,
+          },
+        ],
+        temperature: 0
+      }),
+    });
+    if (!response.ok) {
+      return 'unknown';
+    }
+    const data = await response.json();
+    const classification = data.choices?.[0]?.message?.content?.trim().toLowerCase();
+    if (classification === 'fetch' || classification === 'mutate' || classification === 'unknown') {
+      return classification;
+    }
+    return 'unknown';
+}
 
 /**
  * sendToPlanner: 自主工作流程 - 始终使用 LLM 意图分析 + RAG API 检索 + 单步计划生成
@@ -11,7 +53,6 @@ import { fetchPromptFile } from "./promptUtils";
  * @returns plannerResponse（JSON字符串，单步执行计划）
  */
 export async function sendToPlanner(
-  apis: any[],
   refinedQuery: string,
   apiKey: string,
   usefulData: string,
@@ -29,40 +70,43 @@ export async function sendToPlanner(
     try {
       // ==================== STEP 1: LLM 分析下一步意图 ====================
       const contextInfo = conversationContext
-        ? `对话上下文:\n${conversationContext}\n\n`
+        ? `Conversation Context:\n${conversationContext}\n\n`
         : '';
 
-      const intentPrompt = `你是 API 自动化系统的智能决策模块。根据当前状态，决定下一步最合理的单个操作。
 
-${contextInfo}用户目标: ${refinedQuery}
+      const intentPrompt = `You are the intelligent decision module of an API automation system. Based on the current state, decide the single most reasonable next action.
 
-已有数据: ${usefulData || '无'}
+    ${contextInfo}User goal: ${refinedQuery}
 
-要求:
-1. 分析用户目标和已有数据，判断距离目标还差什么
-2. 决定下一步最关键的单个操作（不要规划多步）
-3. 用一句清晰的话描述这个操作意图，包含关键实体和动作
-4. 如果已有数据足够完成目标，返回 "GOAL_COMPLETED"
+    Existing data: ${usefulData || 'None'}
 
-示例:
-- "搜索所有Flying类型的宝可梦"
-- "根据已有的team id列表，获取第一个team的详细信息"
-- "查找Attack属性ID"
+    Requirements:
+    1. Analyze the user goal and existing data, and determine what is still missing to achieve the goal.
+    2. Decide the single most critical next action (do NOT plan multiple steps).
+    3. Describe this action intent in one clear sentence, using an explicit action verb from the following list: get, fetch, find, search, list, show, retrieve, read, view, display, count, details, lookup, describe, query, create, add, update, edit, delete, remove, set, change, insert, modify, post, put, patch, write. Do not use ambiguous or project-specific verbs.
+    4. If the existing data is sufficient to complete the goal, return "GOAL_COMPLETED".
 
-只输出一句话描述，不要解释。`;
+    Examples:
+    - "Get all users"
+    - "Fetch details for the specified item"
+    - "Create a new record"
+    - "Update the user email"
+    - "Delete the entry by ID"
+
+    Output only one sentence describing the intent, starting with the action verb. Do not explain.`;
 
       console.log('📊 Step 1: 分析下一步意图...');
       const intentRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'system', content: intentPrompt }],
-          temperature: 0.3,
-          max_tokens: 256,
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'system', content: intentPrompt }],
+            temperature: 0,
+            max_tokens: 256,
         }),
       });
 
@@ -86,15 +130,8 @@ ${contextInfo}用户目标: ${refinedQuery}
 
       // ==================== STEP 2: RAG 检索相关 API ====================
       console.log('🔍 Step 2: RAG 检索相关 API...');
-      let ragApis: any[] = [];
-      try {
-        const allMatchedApis = await getAllMatchedApis({ entities: [nextIntent], apiKey });
-        ragApis = await getTopKResults(allMatchedApis, 8);
-        console.log(`✅ 检索到 ${ragApis.length} 个相关 API`);
-      } catch (e) {
-        console.warn('⚠️ RAG API检索失败:', e);
-        ragApis = [];
-      }
+
+      let ragApis = await fetchRagApisForIntent(nextIntent);
 
       if (ragApis.length === 0) {
         console.warn('⚠️ 未找到相关API，无法生成执行计划');
@@ -110,29 +147,7 @@ ${contextInfo}用户目标: ${refinedQuery}
       // ==================== STEP 3: LLM 生成单步执行计划 ====================
       console.log('📝 Step 3: 生成单步执行计划...');
 
-      const plannerSystemPrompt = await fetchPromptFile('prompt-planner.txt');
-      const singleStepInstruction = `
-CRITICAL: 你必须只生成单步执行计划（step_number: 1），不要生成多步计划。
-原因: 后续步骤需要根据当前步骤的实际结果动态决定，无法提前规划。
-
-生成格式:
-{
-  "needs_clarification": false,
-  "execution_plan": [
-    {
-      "step_number": 1,
-      "description": "具体操作描述",
-      "api": {
-        "path": "/api/path",
-        "method": "get/post",
-        "parameters": {...},
-        "requestBody": {...}
-      }
-    }
-  ]
-}
-
-如果传统上需要多步才能完成（比如先查ID再用ID查详情），也只生成第一步，后续步骤留给下次调用。`;
+      const plannerSystemPrompt = ragApis.length > 0 && ragApis[0].id.startsWith('semantic') ? await fetchPromptFile('prompt-planner-table.txt') : await fetchPromptFile('prompt-planner.txt');
 
       const plannerUserMessage = `${contextInfo}Refined Query: ${refinedQuery}
 
@@ -140,24 +155,26 @@ Next Step Intent: ${nextIntent}
 
 Available APIs: ${ragApiDesc}
 
-Useful Data: ${usefulData || '无'}
+Useful Data: ${usefulData || 'None'}`;
 
-${singleStepInstruction}`;
+      createTempFile('planner_input_', plannerUserMessage);
+
+      console.log('📨 发送给 Planner 的用户消息:', plannerUserMessage);
 
       const plannerRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: plannerSystemPrompt },
-            { role: 'user', content: plannerUserMessage },
-          ],
-          temperature: 0.5,
-          max_tokens: 2048,
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: plannerSystemPrompt },
+                { role: 'user', content: plannerUserMessage },
+            ],
+            temperature: 0,
+            max_tokens: 2048,
         }),
       });
 
@@ -169,6 +186,8 @@ ${singleStepInstruction}`;
       const plannerData = await plannerRes.json();
       let plannerResponse = plannerData.choices[0]?.message?.content || '';
       plannerResponse = plannerResponse.replace(/```json|```/g, '').trim();
+
+      createTempFile('planner_raw_response_', plannerResponse);
 
       // 提取JSON
       const jsonMatch = plannerResponse.match(/\{[\s\S]*\}/);
@@ -184,10 +203,12 @@ ${singleStepInstruction}`;
       let containsAssumption = /\bassume\b|\bassuming\b/i.test(plannerResponse);
       let needsIdClarification = false;
       let needsClarification = false;
+      let newIntent = '';
 
       try {
         const parsed = JSON.parse(plannerResponse);
         needsClarification = parsed.needs_clarification === true;
+        newIntent = parsed.reason || '';
 
         // 验证是否只有单步
         if (parsed.execution_plan && Array.isArray(parsed.execution_plan)) {
@@ -200,14 +221,12 @@ ${singleStepInstruction}`;
         if (needsClarification) {
           const reason = (parsed.reason || '').toLowerCase();
           const question = (parsed.clarification_question || '').toLowerCase();
-          const shouldLookupKeywords = [
-            'id', 'identifier', 'type id', 'category id', 'status id',
-            'stat id', 'ability id', 'move id', 'enum', 'code',
-            'look it up', 'look up', 'using an api', 'use an api',
-            'does not provide', 'necessary id', 'required id', 'internal id'
+          // Generalize: Use LLM to detect if clarification is about missing resolvable data (e.g., IDs, codes, enums, metadata)
+          const genericClarificationPatterns = [
+            /id/i, /identifier/i, /code/i, /enum/i, /metadata/i, /internal/i, /lookup/i, /look up/i, /resolve/i, /missing.*(value|data|info|information)/i, /required.*(value|data|info|information)/i, /does not provide/i, /use an api/i, /using an api/i
           ];
-          needsIdClarification = shouldLookupKeywords.some(keyword =>
-            reason.includes(keyword) || question.includes(keyword)
+          needsIdClarification = genericClarificationPatterns.some(pattern =>
+            pattern.test(reason) || pattern.test(question)
           );
         }
       } catch (e) {
@@ -223,34 +242,47 @@ ${singleStepInstruction}`;
 You MUST NOT ask for clarification about IDs, identifiers, names, codes, or any information that can be looked up via the provided APIs.
 
 MANDATORY RULES:
-1. If you need to resolve a human-readable name to an ID, you MUST use the appropriate search/lookup API
-2. If you need any category, type, status, or entity ID, you MUST use the appropriate lookup endpoint
-3. If you need enum values or internal codes, you MUST use the appropriate API to retrieve them
-4. ONLY ask for clarification if the user's INTENT is ambiguous, NOT if you need to look up data
+1. If you need to resolve a human-readable name to an ID, you MUST use the appropriate search/lookup API.
+2. If you need any category, type, status, or entity ID, you MUST use the appropriate lookup endpoint.
+3. If you need enum values or internal codes, you MUST use the appropriate API to retrieve them.
+4. ONLY ask for clarification if the user's INTENT is ambiguous, NOT if you need to look up data.
 
 The available APIs can resolve these lookups. CREATE AN EXECUTION PLAN with ONLY THE FIRST STEP (step_number: 1) that starts the lookup process.
 
 Return a proper single-step execution_plan with "needs_clarification": false.`
-          : `不准给我assume任何东西。而且你必须只生成单步计划（step_number: 1），不要生成多步计划。后续步骤会在当前步骤完成后根据实际结果动态决定。重新生成单步执行计划。`;
+            : `Do NOT assume anything. You MUST only generate a single-step plan (step_number: 1), do NOT generate multi-step plans. Subsequent steps will be decided dynamically after the current step is completed based on the actual result. Regenerate a single-step execution plan.`;
 
         console.warn(`⚠️ 需要重新生成计划 (retry ${retryCount}/${maxRetries})`);
+
+        // Convert Map to array and sort by similarity
+        let topKResults = await fetchRagApisForIntent(newIntent || nextIntent);
+
+        const ragApiDesc = JSON.stringify(topKResults, null, 2);
+
+        const plannerUserMessageRerun = `${contextInfo}Refined Query: ${refinedQuery}
+
+Next Step Intent: ${newIntent || nextIntent}
+
+Available APIs: ${ragApiDesc}
+
+Useful Data: ${usefulData || 'None'}`;
 
         // 重试时带上correction message
         const retryPlannerRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
           },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
             messages: [
               { role: 'system', content: plannerSystemPrompt },
-              { role: 'user', content: plannerUserMessage },
+              { role: 'user', content: plannerUserMessageRerun },
               { role: 'assistant', content: plannerResponse },
               { role: 'user', content: correctionMessage },
             ],
-            temperature: 0.5,
+            temperature: 0,
             max_tokens: 2048,
           }),
         });
@@ -315,4 +347,42 @@ Return a proper single-step execution_plan with "needs_clarification": false.`
   }
 
   throw new Error('Failed to generate plan after maximum retries');
+}
+
+export async function fetchRagApisForIntent(
+    intent: string
+): Promise<any[]> {
+    console.log(`🔍 RAG 检索 APIs for intent: ${intent}`);
+    try {
+        let ragApis: any[] = [];
+        try {
+            // const keyEntity = await locateKeyEntityInIntention(intent);
+            // console.log('🔑 定位到的关键实体:', keyEntity);
+            // const allMatchedApis = await getAllMatchedApis(keyEntity || intent);
+            // ragApis = await getTopKResults(allMatchedApis, 8);
+            const { entities } = await clarifyAndRefineUserInput(intent);
+            ragApis = [];
+            for (const entity of entities) {
+                const allMatchedApis = await getAllMatchedApis(entity);
+                const topApis = await getTopKResults(allMatchedApis, 5);
+                ragApis.push(...topApis);
+            }
+            // 去重
+            const uniqueApisMap = new Map<string, any>();
+            for (const api of ragApis) {
+                if (!uniqueApisMap.has(api.id)) {
+                    uniqueApisMap.set(api.id, api);
+                }
+            }
+            ragApis = Array.from(uniqueApisMap.values());
+            console.log(`✅ 检索到 ${ragApis.length} 个相关 API`);
+        } catch (e) {
+            console.warn('⚠️ RAG API检索失败:', e);
+            ragApis = [];
+        }
+        return ragApis;
+    } catch (error) {
+        console.error('❌ Error in fetchRagApisForIntent:', error);
+        return [];
+    }
 }

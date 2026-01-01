@@ -1,9 +1,11 @@
-export async function clarifyAndRefineUserInput(userInput: string, apiKey: string): Promise<{ refinedQuery: string; language: string; concepts: string[]; apiNeeds: string[]; entities: string[] }> {
+import { fetchPromptFile } from "@/app/api/chat/promptUtils";
+
+export async function clarifyAndRefineUserInput(userInput: string): Promise<{ refinedQuery: string; language: string; concepts: string[]; apiNeeds: string[]; entities: string[] }> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
@@ -35,19 +37,30 @@ When the query asks "how many", "count", "number of", etc., you MUST identify th
 
 The investigatory entity should describe the data retrieval, not the counting operation.
 
+When you need to look up something's ID, always do search API or check table.
+
 Examples:
 
 Query: "most powerful steel move that Magnemite can learn"
-Investigatory Entities: ["Magnemite details and moves", "steel type moves", "pokemon move learnset"]
+Investigatory Entities: ["Magnemite details and moves (GET)", "steel type moves (GET)", "pokemon move learnset (GET)"]
 
 Query: "fire pokemon in Kanto"
-Investigatory Entities: ["fire type pokemon", "Kanto region pokemon", "pokemon by region and type"]
+Investigatory Entities: ["fire type pokemon (GET)", "Kanto region pokemon (GET)", "pokemon by region and type (GET)"]
 
-Query: "abilities of Pikachu"
-Investigatory Entities: ["Pikachu details", "pokemon abilities"]
+Query: "Add metapod to my watchlist"
+Investigatory Entities: ["metapod details (GET)", "add to watchlist (POST)"]
 
-Query: "How many members are in New teams?"
-Investigatory Entities: ["team members for New teams", "team details and member list", "get all team members"]
+Query: "Rename Team Alpha to Team Omega"
+Investigatory Entities: ["Team Alpha details (GET)", "rename team (PUT/PATCH)"]
+
+Query: "Remove pikachu from my watchlist"
+Investigatory Entities: ["pikachu details (GET)", "remove from watchlist (DELETE)"]
+
+When refining, try to use the words from the following list if possible: ${
+  await fetchPromptFile('prompt-dictionary.txt')
+}
+
+Also try to include the expected api method: POST (create), GET (retrieve), PUT/PATCH (update), DELETE (remove) where relevant.
 
 Always respond in the following format:
 
@@ -55,6 +68,7 @@ Refined Query: [refined query]
 Language: [language code]
 Concepts: [list of concepts]
 API Needs: [list of API functionalities needed]
+Fetch vs Mutate: [should the API calls be fetch/retrieve or mutate/update]
 Entities: [list of entities that require investigation to answer the query]`,
         },
         {
@@ -62,7 +76,7 @@ Entities: [list of entities that require investigation to answer the query]`,
           content: userInput,
         },
       ],
-      temperature: 0.5,
+      temperature: 0,
       max_tokens: 4096,
     }),
   });
