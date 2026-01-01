@@ -31,6 +31,8 @@ export async function sendToPlanner(
         ? `对话上下文:\n${conversationContext}\n\n`
         : '';
 
+        console.log('usefulData: ', usefulData);
+
       const intentPrompt = `你是 API 自动化系统的智能决策模块。根据当前状态，决定下一步最合理的单个操作。
 
 ${contextInfo}用户目标: ${refinedQuery}
@@ -131,7 +133,16 @@ CRITICAL: 你必须只生成单步执行计划（step_number: 1），不要生�
   ]
 }
 
-如果传统上需要多步才能完成（比如先查ID再用ID查详情），也只生成第一步，后续步骤留给下次调用。`;
+或：
+{
+    "needs_clarification": true,
+    "reason": "说明需要澄清的原因",
+    "clarification_question": "提出一个澄清问题，帮助获取必要的信息"
+}
+
+如果传统上需要多步才能完成（比如先查ID再用ID查详情），也只生成第一步，后续步骤留给下次调用。
+
+If you need ID, lookup, enum, or code values, you MUST use the appropriate API to retrieve them. DO NOT ask the user for this information OR use placeholder. If no appropriate API is available, respond with "needs_clarification": true.`;
 
       const plannerUserMessage = `${contextInfo}Refined Query: ${refinedQuery}
 
@@ -139,9 +150,9 @@ Next Step Intent: ${nextIntent}
 
 Available APIs: ${ragApiDesc}
 
-Useful Data: ${usefulData || '无'}
+Useful Data: ${usefulData || '无'}`;
 
-${singleStepInstruction}`;
+// ${singleStepInstruction}`;
 
       const plannerRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -194,6 +205,10 @@ ${singleStepInstruction}`;
             console.warn(`⚠️ Planner 生成了 ${parsed.execution_plan.length} 步，需要修正为单步`);
             containsAssumption = true; // 触发重试
           }
+        }
+
+        if (plannerResponse.includes('<') && plannerResponse.includes('>')) {
+            containsAssumption = true;
         }
 
         if (needsClarification) {

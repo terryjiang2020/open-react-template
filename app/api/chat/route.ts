@@ -193,17 +193,25 @@ export async function getTopKResults(allMatchedApis: Map<string, any>, topK: num
 
     topKResults = topKResults.map((item: any) => {
       // 拆分item.content，前面为tags，后面为json
-      let tags: string[] = [];
-      let jsonStr = item.content;
-      const jsonStartIdx = item.content.indexOf('{');
-      if (jsonStartIdx > 0) {
-        const tagText = item.content.slice(0, jsonStartIdx).trim();
-        tags = tagText.split(/\s+/).filter(Boolean);
-        jsonStr = item.content.slice(jsonStartIdx);
-      }
-      const content = JSON.parse(jsonStr);
-      content.tags = tags.length > 0 ? tags : (content.tags || []);
-      return content;
+      // let tags: string[] = [];
+      // let jsonStr = item.content;
+      // const jsonStartIdx = item.content.indexOf('{');
+      // if (jsonStartIdx > 0) {
+      //   const tagText = item.content.slice(0, jsonStartIdx).trim();
+      //   tags = tagText.split(/\s+/).filter(Boolean);
+      //   jsonStr = item.content.slice(jsonStartIdx);
+      // }
+      // console.log('jsonStr topK: ', jsonStr);
+      // const content = JSON.parse(jsonStr);
+      // content.tags = tags.length > 0 ? tags : (content.tags || []);
+      // return content;
+      console.log('item topK: ', item);
+      return {
+        id: item.id,
+        summary: item.summary,
+        tags: item.tags,
+        content: item.content
+      };
     });
 
     return topKResults;
@@ -1116,11 +1124,28 @@ async function executeIterativePlanner(
             };
 
             // Perform the API call for the current step
-            const apiResponse = await dynamicApiRequest(
-              process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
-              apiSchema,
-              userToken // Pass user token for authentication
-            );
+            let apiResponse;
+            try {
+              apiResponse = await dynamicApiRequest(
+                process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
+                apiSchema,
+                userToken // Pass user token for authentication
+              );
+            } catch (err: any) {
+              // 参数类型不匹配错误处理
+              if (typeof err?.message === 'string' && err.message.includes('参数类型不匹配')) {
+                console.warn('参数类型不匹配，打回AI重写:', err.message);
+                return {
+                  error: '参数类型不匹配',
+                  reason: err.message,
+                  executedSteps,
+                  accumulatedResults,
+                  clarification_question: `参数类型不匹配：${err.message}。请根据API schema重写参数。`,
+                };
+              }
+              // 其他错误继续抛出
+              throw err;
+            }
 
             // 检查是否需要 fan-out
             if (apiResponse && typeof apiResponse === 'object' && 'needsFanOut' in apiResponse) {
@@ -1140,11 +1165,26 @@ async function executeIterativePlanner(
                 };
 
                 console.log(`  📤 Fan-out 调用 ${fanOutReq.fanOutParam}=${value}`);
-                const singleResult = await dynamicApiRequest(
-                  process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
-                  singleValueSchema,
-                  userToken
-                );
+                let singleResult;
+                try {
+                  singleResult = await dynamicApiRequest(
+                    process.env.NEXT_PUBLIC_ELASTICDASH_API || '',
+                    singleValueSchema,
+                    userToken
+                  );
+                } catch (err: any) {
+                  if (typeof err?.message === 'string' && err.message.includes('参数类型不匹配')) {
+                    console.warn('参数类型不匹配，打回AI重写:', err.message);
+                    return {
+                      error: '参数类型不匹配',
+                      reason: err.message,
+                      executedSteps,
+                      accumulatedResults,
+                      clarification_question: `参数类型不匹配：${err.message}。请根据API schema重写参数。`,
+                    };
+                  }
+                  throw err;
+                }
 
                 fanOutResults.push({
                   [fanOutReq.fanOutParam]: value,

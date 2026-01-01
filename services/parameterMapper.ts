@@ -10,7 +10,7 @@
  * 3. 支持 fan-out 检测（标量参数收到数组值）
  */
 
-export type ParamType = "number" | "string" | "boolean" | "object" | "array" | "unknown";
+export type ParamType = "number" | "string" | "boolean" | "object" | "array" | "integer" | "unknown";
 
 export interface RequiredParam {
   name: string;
@@ -24,6 +24,8 @@ export interface MappingResult {
   fanOutDetected: boolean;
   fanOutParam?: string; // 触发 fan-out 的参数名
   fanOutValues?: any[]; // fan-out 的值数组
+  typeMismatchDetected?: boolean;
+  typeMismatchDetail?: string[]; // 类型不匹配详情
 }
 
 /**
@@ -131,12 +133,28 @@ export function mapArgsToRequired(
 
   const providedEntries = Object.entries(provided);
 
+  let typeMismatchDetected = false;
+  let typeMismatchDetail: string[] = [];
+
   for (const req of required) {
     // 1) 精确匹配（最优先）
     if (req.name in provided) {
       const value = provided[req.name];
       mapped[req.name] = value;
       mapping[req.name] = req.name;
+
+      // 类型校验
+      const vt = guessValueType(value);
+      if ((req.type === "number" || req.type === "integer") && vt !== "number") {
+        typeMismatchDetected = true;
+        typeMismatchDetail.push(`参数 "${req.name}" 期望类型为 ${req.type}，但实际为 ${vt}`);
+        console.warn(`⚠️ 参数类型不匹配: "${req.name}" 期望 ${req.type}，实际为 ${vt}`);
+      }
+      if (req.type === "string" && vt !== "string") {
+        typeMismatchDetected = true;
+        typeMismatchDetail.push(`参数 "${req.name}" 期望类型为 string，但实际为 ${vt}`);
+        console.warn(`⚠️ 参数类型不匹配: "${req.name}" 期望 string，实际为 ${vt}`);
+      }
 
       // 检测 fan-out：路径参数要求标量，但收到数组
       if (req.inPath && Array.isArray(value) && value.length > 1) {
@@ -194,6 +212,19 @@ export function mapArgsToRequired(
       mapped[req.name] = value;
       mapping[req.name] = best.key;
 
+      // 类型校验
+      const vt = guessValueType(value);
+      if ((req.type === "number" || req.type === "integer") && vt !== "number") {
+        typeMismatchDetected = true;
+        typeMismatchDetail.push(`参数 "${req.name}" 期望类型为 ${req.type}，但实际为 ${vt}`);
+        console.warn(`⚠️ 参数类型不匹配: "${req.name}" 期望 ${req.type}，实际为 ${vt}`);
+      }
+      if (req.type === "string" && vt !== "string") {
+        typeMismatchDetected = true;
+        typeMismatchDetail.push(`参数 "${req.name}" 期望类型为 string，但实际为 ${vt}`);
+        console.warn(`⚠️ 参数类型不匹配: "${req.name}" 期望 string，实际为 ${vt}`);
+      }
+
       // 检测 fan-out
       if (req.inPath && Array.isArray(value) && value.length > 1) {
         fanOutDetected = true;
@@ -213,6 +244,8 @@ export function mapArgsToRequired(
     fanOutDetected,
     fanOutParam,
     fanOutValues,
+    typeMismatchDetected,
+    typeMismatchDetail,
   };
 }
 

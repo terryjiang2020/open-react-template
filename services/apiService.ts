@@ -49,6 +49,13 @@ export async function dynamicApiRequest(baseUrl: string, schema: any, userToken?
       mappingResult = prepareArgsForRequest(path, apiParameters, providedArgs);
       pathParams = mappingResult.mapped;
 
+      // 检测类型不匹配
+      if (mappingResult.typeMismatchDetected) {
+        const msg = `❌ 参数类型不匹配: ${mappingResult.typeMismatchDetail?.join("; ")}`;
+        console.warn(msg);
+        throw new Error(msg);
+      }
+
       // 检测 fan-out：路径参数要求标量，但收到数组
       if (mappingResult.fanOutDetected && mappingResult.fanOutParam && mappingResult.fanOutValues) {
         console.log(`🔄 检测到 fan-out 需求，返回 FanOutRequest`);
