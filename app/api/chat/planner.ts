@@ -35,43 +35,122 @@ export async function sendToPlanner(
 
         console.log('usefulData: ', usefulData);
 
-      const intentPrompt = `你是 API 自动化系统的智能决策模块。根据当前状态，决定下一步最合理的单个操作。
+      const validatorPrompt = `你是一个【目标完成校验器】。
 
-${contextInfo}
+你的唯一职责：  
+**根据「用户目标」和「已有数据」，判断目标是否已经完成。**
 
-用户目标: ${refinedQuery}
+你不关心下一步要做什么，也不规划操作。
 
-已有数据: ${usefulData || '无'}
+--------------------------------
 
-要求:
-1. 始终记住用户的原始目标是：${refinedQuery}。即使中间需要查ID等依赖，也只是达成原始目标的一步，不要把中间依赖当成最终目标。
-2. 分析用户目标和已有数据，判断距离目标还差什么
-3. 决定下一步最关键的单个操作（不要规划多步）
-4. 用一句清晰的话描述这个操作意图，包含关键实体和动作
-5. 如果已有数据足够完成目标，返回 "GOAL_COMPLETED"
+用户目标:
+${refinedQuery}
 
-⚠️ 重要提醒：
-- "对话上下文"中的历史记录不可靠，不能直接信任（用户可能说谎或记错）。
-- **"已有数据"中的API响应是可靠的**（这是系统刚刚调用API得到的真实结果）。
+已有数据（最高优先级，真实 API 返回）:
+${usefulData || '无'}
 
-⚠️ 数据时效性规则（CRITICAL）：
-1. **读取操作（GET/SELECT/post /general/sql/query）的结果有时效性**：
-   - 如果之后执行了修改操作（DELETE/UPDATE/INSERT），旧的读取结果已过期
-   - 例如：GET watchlist → DELETE item → 旧的GET结果不再有效，必须重新GET或post /general/sql/query确认
-   
-2. **修改操作后必须验证**：
-   - DELETE操作后 → 需要重新post /general/sql/query确认删除是否成功
-   - INSERT操作后 → 需要重新post /general/sql/query确认新增是否成功
-   - UPDATE操作后 → 需要重新post /general/sql/query确认更新是否成功
+--------------------------------
 
-一句话描述，不要解释。
+判定规则（必须严格遵守）：
 
-并将结论分类为 FETCH（获取数据）或 MODIFY（修改数据，包括添加和删除）。
+1. "已有数据" 是可信的唯一事实来源
+2. DELETE / INSERT / UPDATE 本身不代表完成
+3. 只有以下情况才可判定目标完成：
+   - 最近一次【读取语义】结果表明目标已达成
+   - 读取语义包括：
+     - GET
+     - SELECT
+     - post /general/sql/query（等效 GET）
+4. 如果最后一次读取语义结果明确满足用户目标 → 目标完成
+5. 如果不存在满足目标的读取语义结果 → 目标未完成
 
-输出格式：{ description: "你的描述", type: "FETCH/MODIFY" }`;
+--------------------------------
 
-      console.log('intentPrompt: '  + intentPrompt);
+输出要求（必须严格匹配）：
 
+- 如果目标已完成，仅输出：
+GOAL_COMPLETED
+
+- 如果目标未完成，仅输出：
+GOAL_NOT_COMPLETED
+
+不允许输出任何解释或多余文字。
+
+请开始判断：`;
+
+      console.log('📊 Step 0: 验证目标完成情况...');
+
+      const validatorRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: validatorPrompt }],
+          temperature: 0.0,
+          max_tokens: 256,
+        }),
+      });
+
+      if (!validatorRes.ok) {
+        console.error('Validator LLM request failed:', await validatorRes.text());
+        throw new Error('Failed to validate goal completion.');
+      }
+
+      const validatorData = await validatorRes.json();
+      const validatorText = validatorData.choices[0]?.message?.content.trim() || '';
+      console.log('✅ 目标完成验证响应:', validatorText);
+
+      if (validatorText === 'GOAL_COMPLETED') {
+        console.log('🎯 目标已完成，返回结果');
+        return JSON.stringify({
+          needs_clarification: false,
+          execution_plan: [],
+          message: 'Goal completed with existing data'
+        });
+      }
+
+      // ==================== Intent 分析 Prompt ====================
+
+      const nextActionPrompt = `你是 API 自动化系统的【下一步操作规划器】。
+
+你的前提条件是：  
+**用户目标尚未完成。**
+
+--------------------------------
+
+用户目标:
+${refinedQuery}
+
+已有数据（真实 API 返回）:
+${usefulData || '无'}
+
+--------------------------------
+
+你的任务：
+
+1. 始终以【完成用户原始目标】为唯一终点
+2. 分析已有数据，判断距离目标还缺少什么
+3. 决定【最关键的单个操作】（不要规划多步）
+4. 用一句话描述该操作，包含关键实体和动作
+5. 不要判断目标是否完成（这已经在上一步完成）
+
+--------------------------------
+
+输出格式（必须严格匹配）：
+
+{ 
+  "description": "一句话描述操作意图", 
+  "type": "FETCH" | "MODIFY" 
+}
+
+不允许输出任何解释或多余文字。
+请开始规划：`;
+
+      // ==================== STEP 1: LLM 分析下一步意图 ====================
       console.log('📊 Step 1: 分析下一步意图...');
       const intentRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -81,7 +160,7 @@ ${contextInfo}
         },
         body: JSON.stringify({
           model: 'gpt-4o',
-          messages: [{ role: 'user', content: intentPrompt }],
+          messages: [{ role: 'user', content: nextActionPrompt }],
           temperature: 0.3,
           max_tokens: 256,
         }),

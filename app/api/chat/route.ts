@@ -11,11 +11,28 @@ declare global {
   // Augment the globalThis type to include __rag_entity
   var __rag_entity: string | undefined;
   var __flatUsefulDataMap: Map<string, any> | undefined;
+  var __usefulDataArray: Array<{ key: string; data: string; timestamp: number }> | undefined;
 }
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
+}
+
+// Helper function to serialize useful data in chronological order
+function serializeUsefulDataInOrder(): string {
+  if (!globalThis.__usefulDataArray || globalThis.__usefulDataArray.length === 0) {
+    return '{}';
+  }
+
+  // Create an object with chronologically ordered entries
+  const orderedEntries: Array<[string, string]> = globalThis.__usefulDataArray
+    .sort((a, b) => a.timestamp - b.timestamp) // Sort by timestamp (earliest first)
+    .map(item => [item.key, item.data]);
+
+  // Convert to object maintaining insertion order
+  const orderedObj = Object.fromEntries(orderedEntries);
+  return JSON.stringify(orderedObj, null, 2);
 }
 
 // 从混合响应中提取JSON部分
@@ -423,14 +440,94 @@ async function runPlannerWithInputs({
     return { actionablePlan, planResponse };
   } else {
     // SQL/table检索，强制只允许POST /general/sql/query
-    // 生成SQL语句
+    // Phase 1: Select relevant tables and columns
     const userQuestion = conversationContext
       ? `Previous context:\n${conversationContext}\n\nCurrent query: ${refinedQuery}`
       : refinedQuery;
-    // 构造SQL schema prompt
-    const sqlSchema = `Tables:\n${topKResults}\n\n- If a user ID is needed, always use CURRENT_USER_ID as the value.`;
-    const sqlPrompt = `You are given the following database schema:\n\n${sqlSchema}\n\nGenerate a valid SQL query that answers the user question.\n\nUser Question: ${userQuestion}\nSQL:`;
-    // 直接调用LLM生成SQL
+    
+    // Construct table selection prompt
+    const tableSelectionPrompt = `You are a database schema analyst. Given a list of available tables and a user question, identify which tables and columns are most relevant.
+
+Available Tables:
+${JSON.stringify(topKResults, null, 2)}
+
+User Question: ${userQuestion}
+
+IMPORTANT RULES:
+- Return ONLY a JSON object with the following structure:
+{
+  "selected_tables": ["table_name_1", "table_id_1", ...],
+  "focus_columns": {
+    "table_name_1": ["column1", "column2", ...],
+    "table_name_2": ["column1", "column2", ...]
+  },
+  "reasoning": "Brief explanation of why these tables and columns were selected"
+}
+
+Output:`;
+
+    // Call LLM for table selection
+    const tableSelectionRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: tableSelectionPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 1024,
+      }),
+    });
+    
+    if (!tableSelectionRes.ok) {
+      throw new Error('Failed to select tables');
+    }
+    
+    const tableSelectionData = await tableSelectionRes.json();
+    let tableSelectionText = tableSelectionData.choices[0]?.message?.content?.trim() || '';
+    
+    // Parse table selection response
+    const jsonMatch = tableSelectionText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Failed to parse table selection response');
+    }
+    
+    const tableSelection = JSON.parse(jsonMatch[0]);
+    console.log('📋 Table Selection Result:', tableSelection);
+    
+    // Filter topKResults to only include selected tables
+    const shortlistedTables = topKResults.filter((table: any) => 
+      tableSelection.selected_tables.some((selectedId: string) => 
+        table.id === selectedId || table.id.includes(selectedId) || selectedId.includes(table.id)
+      )
+    );
+    
+    console.log('📊 Shortlisted Tables:', shortlistedTables.map((t: any) => t.id));
+    
+    // Phase 2: Generate SQL using shortlisted tables and focus columns
+    const sqlSchema = `Relevant Tables:\n${JSON.stringify(shortlistedTables, null, 2)}
+
+Focus Columns: ${JSON.stringify(tableSelection.focus_columns, null, 2)}
+
+Selection Reasoning: ${tableSelection.reasoning}
+
+- If a user ID is needed, always use CURRENT_USER_ID as the value.`;
+    
+    const sqlPrompt = `You are an expert SQL generator. Using the relevant tables and focus columns provided, generate a valid SQL query that answers the user question.
+
+${sqlSchema}
+
+User Question: ${userQuestion}
+
+Generate ONLY the SQL query (no explanations):
+
+SQL:`;
+    
+    // Call LLM for SQL generation
     const sqlGenRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -446,14 +543,19 @@ async function runPlannerWithInputs({
         max_tokens: 512,
       }),
     });
+    
     if (!sqlGenRes.ok) {
       throw new Error('Failed to generate SQL');
     }
+    
     const sqlGenData = await sqlGenRes.json();
     let sqlText = sqlGenData.choices[0]?.message?.content?.trim() || '';
-    // 只提取SQL语句
+    
+    // Extract SQL statement
     const sqlMatch = sqlText.match(/select[\s\S]+?;/i);
     if (sqlMatch) sqlText = sqlMatch[0];
+    
+    console.log('🔍 Generated SQL:', sqlText);
     // 构造只包含POST /general/sql/query的plan
     const planObj = {
       needs_clarification: false,
@@ -524,6 +626,10 @@ function sanitizePlannerResponse(response: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  // Initialize/reset global useful data structures for this request
+  globalThis.__flatUsefulDataMap = new Map();
+  globalThis.__usefulDataArray = [];
+
   let usefulData = new Map();
   let finalDeliverable = '';
 
@@ -605,8 +711,8 @@ export async function POST(request: NextRequest) {
     // Convert Map to array and sort by similarity
     let topKResults = await getTopKResults(allMatchedApis, 20);
 
-    const obj = Object.fromEntries(usefulData);
-    const str = JSON.stringify(obj, null, 2);
+    // Serialize useful data in chronological order (earliest first)
+    const str = serializeUsefulDataInOrder();
 
     // 调用独立planner函数
     const { actionablePlan, planResponse: plannerRawResponse } = await runPlannerWithInputs({
@@ -955,29 +1061,93 @@ async function extractUsefulDataFromApiResponses(
   refinedQuery: string,
   finalDeliverable: string,
   existingUsefulData: string,
-  apiResponse: string
+  apiResponse: string,
+  apiSchema?: any,
+  availableApis?: any[]
 ): Promise<string> {
   try {
+    // Build context about the API schema and available APIs
+    let schemaContext = '';
+    if (apiSchema) {
+      schemaContext = `\n\nAPI Schema Context (endpoint that was just called):
+Path: ${apiSchema.path}
+Method: ${apiSchema.method}
+Request Body: ${JSON.stringify(apiSchema.requestBody || {}, null, 2)}
+Parameters: ${JSON.stringify(apiSchema.parameters || {}, null, 2)}`;
+    }
+
+    let availableApisContext = '';
+    if (availableApis && availableApis.length > 0) {
+      // Extract key information from available APIs to help understand data dependencies
+      const apiSummaries = availableApis.slice(0, 10).map((api: any) => {
+        try {
+          // Parse the API content to extract parameter information
+          const content = typeof api.content === 'string' ? api.content : JSON.stringify(api.content);
+          return `- ${api.id}: ${api.summary || 'No summary'}\n  ${content.slice(0, 200)}...`;
+        } catch {
+          return `- ${api.id}: ${api.summary || 'No summary'}`;
+        }
+      }).join('\n');
+
+      availableApisContext = `\n\nAvailable APIs (for understanding data dependencies):
+${apiSummaries}
+
+CRITICAL: Check if any downstream APIs might need fields from the current response.
+For example, if a "delete watchlist" API requires "pokemon_id", then pokemon_id must be preserved from the "get watchlist" response.`;
+    }
+
     const prompt = `You are an expert at extracting useful information from API responses to help answer user queries.
 
 Given the original user query, the refined query, and the final deliverable generated so far,
 extract any useful data points, facts, or details from the API responses that could aid in answering the user's question.
 
-CRITICAL: Do NOT simply append new data. Instead:
+CRITICAL RULES:
 1. If the new API response contains UPDATED or MORE ACCURATE information, REPLACE the old data
 2. Only keep UNIQUE and NON-REDUNDANT information
 3. Remove any duplicate or outdated facts
-4. Keep the output CONCISE (max 3-5 key facts per API endpoint)
+4. Keep the output CONCISE but COMPLETE - include ALL fields that might be needed for downstream operations
 5. If it contains things like ID, deleted, or other important data, make sure to include those
+
+FIELD PRESERVATION RULES (CRITICAL):
+- ALWAYS preserve ALL ID fields (id, pokemon_id, user_id, team_id, etc.) - these are often required for subsequent API calls
+- ALWAYS preserve foreign key relationships (e.g., if an item has both "id" and "pokemon_id", keep BOTH)
+- ALWAYS preserve status fields (deleted, active, success, etc.)
+- ALWAYS preserve timestamps (created_at, updated_at, etc.) if they might be relevant
+- When in doubt, KEEP the field rather than removing it
+- Check the available APIs context to see if any downstream operations might need specific fields
+
+FACTUAL REPORTING ONLY:
+- Report ONLY what the API response explicitly states (e.g., "3 items were deleted", "ID 123 was created")
+- DO NOT infer or state goal completion (e.g., NEVER say "watchlist has been cleared", "task completed", "goal achieved")
+- DO NOT interpret the action's success in terms of user goals
+- State facts like: "deletedCount: 3", "success: true", "ID: 456", "pokemon_id: 789"
+- Let the validator and final answer generator determine if the goal is met
+
+FORMAT:
+Structure the extracted data to preserve relationships. For list responses, maintain the structure:
+- If response contains an array of objects, preserve key fields from each object
+- For single objects, preserve all important fields
+- Use clear labels to indicate what each piece of data represents
 
 If no new useful data is found, return the existing useful data as is.
 
 Refined User Query: ${refinedQuery}
 Final Deliverable: ${finalDeliverable}
 Existing Useful Data: ${existingUsefulData}
-API Response: ${apiResponse}
+API Response: ${apiResponse}${schemaContext}${availableApisContext}
 
 Extracted Useful Data: `;
+
+/*
+🚀 Planner 自主工作流程启动
+📌 忽略传入的 apis 参数，使用自主 RAG 检索
+usefulData:  {
+  "post /general/sql/query::{\"_body\":{\"query\":SELECT id, pokemon_id FROM UserPokemonWatchlist WHERE user_id = CURRENT_USER_ID AND deleted = FALSE ORDER BY created_at DESC;}}": "API Response: {\"success\":true,\"deletedCount\":3}\n\nExtracted Useful Data:\n- The watchlist has been successfully cleared.\n- A total of 3 items were deleted from the watchlist."
+}
+📊 Step 0: 验证目标完成情况...
+✅ 目标完成验证响应: GOAL_COMPLETED
+🎯 目标已完成，返回结果
+*/
 
     const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     if (!apiKey) {
@@ -1464,22 +1634,49 @@ async function executeIterativePlanner(
             }
             
             // Use a flat usefulDataMap (replace the old Map logic)
+            // Also maintain an ordered array for chronological serialization
             if (!globalThis.__flatUsefulDataMap) globalThis.__flatUsefulDataMap = new Map();
+            if (!globalThis.__usefulDataArray) globalThis.__usefulDataArray = [];
+
             const flatUsefulDataMap: Map<string, any> = globalThis.__flatUsefulDataMap;
+            const usefulDataArray = globalThis.__usefulDataArray;
+
             const apiCallKey = getApiCallKey(apiSchema.path, apiSchema.method, parametersToUse, requestBodyToUse);
             const prevUsefulData = flatUsefulDataMap.get(apiCallKey) || '';
+            const isNewEntry = !flatUsefulDataMap.has(apiCallKey);
+
             const newUsefulData = await extractUsefulDataFromApiResponses(
               refinedQuery,
               finalDeliverable,
               prevUsefulData,
-              JSON.stringify(apiResponse)
+              JSON.stringify(apiResponse),
+              apiSchema, // Pass the API schema for context
+              matchedApis // Pass available APIs to understand dependencies
             );
-            // const newUsefulData = JSON.stringify(apiResponse); // 简化为直接存储响应内容
+
+            // Update the Map
             flatUsefulDataMap.set(apiCallKey, newUsefulData);
-            // For compatibility, also update the old usefulData Map with a summary string
-            // usefulData.set(apiSchema.method + ' ' + apiSchema.path, newUsefulData);
+
+            // Update the array: add new entry or update existing one
+            if (isNewEntry) {
+              // New entry: append to array
+              usefulDataArray.push({
+                key: apiCallKey,
+                data: newUsefulData,
+                timestamp: Date.now()
+              });
+            } else {
+              // Existing entry: update the data in the array
+              const existingIndex = usefulDataArray.findIndex(item => item.key === apiCallKey);
+              if (existingIndex !== -1) {
+                usefulDataArray[existingIndex].data = newUsefulData;
+                usefulDataArray[existingIndex].timestamp = Date.now();
+              }
+            }
+
+            // For compatibility, also update the old usefulData Map
             usefulData = flatUsefulDataMap;
-            console.log('Updated Useful Data (flat map):', flatUsefulDataMap);
+            console.log('Updated Useful Data (chronological order):', usefulDataArray.map(item => ({ key: item.key.slice(0, 50) + '...', timestamp: new Date(item.timestamp).toISOString() })));
 
             // Process the response to ensure arrays are properly included
             let processedResponse = apiResponse;
@@ -1530,9 +1727,9 @@ async function executeIterativePlanner(
         // Convert Map to array and sort by similarity
         let topKResults = await getTopKResults(allMatchedApis, 20);
 
-        const obj = Object.fromEntries(usefulData);
-        const str = JSON.stringify(obj, null, 2);
-        
+        // Serialize useful data in chronological order (earliest first)
+        const str = serializeUsefulDataInOrder();
+
         // 调用独立planner函数
         let { actionablePlan: actionablePlanNeo, planResponse: plannerRawResponse } = await runPlannerWithInputs({
           topKResults,
@@ -1609,8 +1806,8 @@ IMPORTANT: If the available APIs do not include an endpoint that can provide the
 
 Please generate the next step in the plan, or indicate that no more steps are needed.`;
 
-      const obj = Object.fromEntries(usefulData);
-      const str = JSON.stringify(obj, null, 2);
+      // Serialize useful data in chronological order (earliest first)
+      const str = serializeUsefulDataInOrder();
 
       currentPlanResponse = await sendToPlanner(matchedApis, plannerContext, apiKey, str);
       actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
@@ -1696,8 +1893,8 @@ Please generate the next step in the plan, or indicate that no more steps are ne
     return result;
   });
 
-  const obj = Object.fromEntries(usefulData);
-  const str = JSON.stringify(obj, null, 2);
+  // Serialize useful data in chronological order (earliest first)
+  const str = serializeUsefulDataInOrder();
 
   const finalAnswer = await generateFinalAnswer(
     refinedQuery,

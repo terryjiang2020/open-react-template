@@ -43,3 +43,5 @@ temp/
 .temp/
 dist/
 src/doc/vectorized-data/
+
+rag_apis.json
