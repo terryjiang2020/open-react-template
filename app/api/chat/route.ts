@@ -102,11 +102,11 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
-            content: '请将以下对话历史总结成简洁的要点，保留关键信息和上下文。用中文回复。',
+            content: '请将以下对话历史总结成简洁的要点，保留关键信息和上下文。用英文回复。',
           },
           {
             role: 'user',
@@ -352,10 +352,6 @@ async function runPlannerWithInputs({
   conversationContext?: string,
   finalDeliverable?: string
 }): Promise<{ actionablePlan: any, planResponse: string }> {
-  // 检查是否为SQL/table检索
-  const sqlKeywords = [
-    'select', 'from', 'where', 'group by', 'order by', 'having', 'join', 'count(', 'sum(', 'avg(', 'min(', 'max(', 'sql', 'table', '数据库', '查询', '检索', '统计', '字段', '列', '行'
-  ];
   let isSqlRetrieval = false;
   for (const item of topKResults) {
     if (item.id && typeof item.id === 'string' && (item.id.startsWith('table-') || item.id === 'sql-query')) {
@@ -432,7 +428,7 @@ async function runPlannerWithInputs({
       ? `Previous context:\n${conversationContext}\n\nCurrent query: ${refinedQuery}`
       : refinedQuery;
     // 构造SQL schema prompt
-    const sqlSchema = `Tables:\nTable customer(id INTEGER, name TEXT, city TEXT)\nTable orders(id INTEGER, customer_id INTEGER, amount FLOAT)\n\n- If a user ID is needed, always use CURRENT_USER_ID as the value.\n- If a user ID is not required by the API (e.g., GET /pokemon/watchlist), do not include it.`;
+    const sqlSchema = `Tables:\n${topKResults}\n\n- If a user ID is needed, always use CURRENT_USER_ID as the value.`;
     const sqlPrompt = `You are given the following database schema:\n\n${sqlSchema}\n\nGenerate a valid SQL query that answers the user question.\n\nUser Question: ${userQuestion}\nSQL:`;
     // 直接调用LLM生成SQL
     const sqlGenRes = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -1472,13 +1468,13 @@ async function executeIterativePlanner(
             const flatUsefulDataMap: Map<string, any> = globalThis.__flatUsefulDataMap;
             const apiCallKey = getApiCallKey(apiSchema.path, apiSchema.method, parametersToUse, requestBodyToUse);
             const prevUsefulData = flatUsefulDataMap.get(apiCallKey) || '';
-            // const newUsefulData = await extractUsefulDataFromApiResponses(
-            //   refinedQuery,
-            //   finalDeliverable,
-            //   prevUsefulData,
-            //   JSON.stringify(apiResponse)
-            // );
-            const newUsefulData = JSON.stringify(apiResponse); // 简化为直接存储响应内容
+            const newUsefulData = await extractUsefulDataFromApiResponses(
+              refinedQuery,
+              finalDeliverable,
+              prevUsefulData,
+              JSON.stringify(apiResponse)
+            );
+            // const newUsefulData = JSON.stringify(apiResponse); // 简化为直接存储响应内容
             flatUsefulDataMap.set(apiCallKey, newUsefulData);
             // For compatibility, also update the old usefulData Map with a summary string
             // usefulData.set(apiSchema.method + ' ' + apiSchema.path, newUsefulData);

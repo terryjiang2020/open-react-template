@@ -181,8 +181,6 @@ Useful Data: ${usefulData || '无'}
 
 IMPORTANT: Execute ONLY the "Next Step Intent" above, ignoring any conflicting implications from the ultimate goal.`;
 
-// ${singleStepInstruction}`;
-
       const plannerRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -226,27 +224,38 @@ IMPORTANT: Execute ONLY the "Next Step Intent" above, ignoring any conflicting i
         validationAttempts++;
         // 让LLM自检SQL与schema一致性
         const validationPrompt = `
-        You are a strict SQL/schema validator. 
-        Your job is to check if the SQL query 
-        and all table/field names in the 
-        following plan strictly match the provided 
-        table schemas. If any table or field name 
-        is not present in the schemas, you MUST 
-        return a clarification request, specifying 
-        the missing or incorrect name. If 
-        everything matches, return the plan 
-        unchanged. Ignore casing regarding table schemas.
-        \n\nAvailable Table Schemas 
-        (sources):\n${ragApiDesc}\n\nCurrent Plan 
-        Response:\n${plannerResponse}\n\nInstructions:\n
-        - Only allow table/field names that exist 
-        in the schemas.\n- If any name is missing, 
-        return a clarification JSON: { needs_clarification: 
-        true, reason: '...', 
-        clarification_question: '...' }\n
-        - If all names are valid, return { 
-        needs_clarification: false }.
-        - CURRENT_USER_ID is not a placeholder, ignore it.`;
+You are a strict SQL/schema validator. 
+Your job is to check if the SQL query 
+and all table/field names in the 
+following plan strictly match the provided 
+table schemas. If any table or field name 
+is not present in the schemas, you MUST 
+return a clarification request, specifying 
+the missing or incorrect name. If 
+everything matches, return the plan 
+unchanged. Ignore casing regarding table schemas.
+
+
+Available Table Schemas 
+(sources):
+${ragApiDesc}
+
+Current Plan 
+Response:
+${plannerResponse}
+
+Instructions:
+
+- Only allow table/field names that exist 
+in the schemas.
+- If any name is missing, 
+return a clarification JSON: { needs_clarification: 
+true, reason: '...', 
+clarification_question: '...' }
+
+- If all names are valid, return { 
+needs_clarification: false }.
+- CURRENT_USER_ID is not a placeholder, ignore it.`;
         const validationRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -329,8 +338,7 @@ IMPORTANT: Execute ONLY the "Next Step Intent" above, ignoring any conflicting i
 
       // 如果需要重新生成（有assumption或需要ID clarification）
       if (containsAssumption || needsIdClarification) {
-        const correctionMessage = needsIdClarification
-          ? `CRITICAL ERROR: You are asking the user for information that MUST be resolved via API.
+        const correctionMessage = `CRITICAL ERROR: You are asking the user for information that MUST be resolved via API.
 
 You MUST NOT ask for clarification about IDs, identifiers, names, codes, or any information that can be looked up via the provided APIs.
 
@@ -342,8 +350,7 @@ MANDATORY RULES:
 
 The available APIs can resolve these lookups. CREATE AN EXECUTION PLAN with ONLY THE FIRST STEP (step_number: 1) that starts the lookup process.
 
-Return a proper single-step execution_plan with "needs_clarification": false.`
-          : `不准给我assume任何东西。而且你必须只生成单步计划（step_number: 1），不要生成多步计划。后续步骤会在当前步骤完成后根据实际结果动态决定。重新生成单步执行计划。`;
+Return a proper single-step execution_plan with "needs_clarification": false.`;
 
         console.warn(`⚠️ 需要重新生成计划 (retry ${retryCount}/${maxRetries})`);
 
