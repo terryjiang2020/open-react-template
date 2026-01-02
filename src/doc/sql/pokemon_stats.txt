@@ -1,0 +1,25 @@
+Database Schema:
+Tables:
+pokemon_stats(pokemon_id, stat_id, base_stat, effort)
+
+-- Example 1
+Question: Find me the strongest fire-type pokemon.
+SQL: SELECT p.identifier, SUM(ps.base_stat) as total_stats
+FROM pokemon p
+JOIN pokemon_types pt ON p.id = pt.pokemon_id
+JOIN types t ON pt.type_id = t.id
+JOIN pokemon_stats ps ON p.id = ps.pokemon_id
+WHERE t.identifier = 'fire'
+GROUP BY p.id, p.identifier
+ORDER BY total_stats DESC
+LIMIT 1;
+
+-- Example 2
+Question: What's the lowest attack a grass-type pokemon can have?
+SQL: SELECT MIN(ps.base_stat) as min_attack
+FROM pokemon p
+JOIN pokemon_types pt ON p.id = pt.pokemon_id
+JOIN types t ON pt.type_id = t.id
+JOIN pokemon_stats ps ON p.id = ps.pokemon_id
+JOIN stats s ON ps.stat_id = s.id
+WHERE t.identifier = 'grass' AND s.identifier = 'attack';

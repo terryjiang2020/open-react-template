@@ -69,7 +69,7 @@ export default function ChatWidget() {
       }
 
       const data = await response.json();
-      console.log('API Response:', data);
+      console.log('(Chat) API Response:', data);
 
       // Add assistant response to messages
       const assistantMessage: Message = {

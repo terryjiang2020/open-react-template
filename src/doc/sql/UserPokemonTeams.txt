@@ -1,0 +1,17 @@
+Database Schema:
+Tables:
+UserPokemonTeams(id, user_id, team_name, deleted, created_at, created_by, updated_at, updated_by)
+
+-- Example 1
+Question: List all teams created by user 3.
+SQL: SELECT id, team_name, created_at
+FROM UserPokemonTeams
+WHERE user_id = 3 AND deleted = FALSE
+ORDER BY created_at DESC;
+
+-- Example 2
+Question: Find teams with names containing "Fire".
+SQL: SELECT id, user_id, team_name
+FROM UserPokemonTeams
+WHERE team_name ILIKE '%Fire%' AND deleted = FALSE
+ORDER BY team_name;

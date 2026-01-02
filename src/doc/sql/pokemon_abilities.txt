@@ -1,0 +1,23 @@
+Database Schema:
+Tables:
+pokemon_abilities(id, pokemon_id, ability_id, is_hidden, slot)
+
+-- Example 1
+Question: List all abilities available to pikachu.
+SQL: SELECT a.identifier, pa.is_hidden
+FROM pokemon p
+JOIN pokemon_abilities pa ON p.id = pa.pokemon_id
+JOIN abilities a ON pa.ability_id = a.id
+WHERE p.identifier = 'pikachu'
+ORDER BY pa.slot;
+
+-- Example 2
+Question: Find hidden abilities for fire-type pokemon.
+SQL: SELECT DISTINCT p.identifier as pokemon, a.identifier as ability
+FROM pokemon p
+JOIN pokemon_types pt ON p.id = pt.pokemon_id
+JOIN types t ON pt.type_id = t.id
+JOIN pokemon_abilities pa ON p.id = pa.pokemon_id
+JOIN abilities a ON pa.ability_id = a.id
+WHERE t.identifier = 'fire' AND pa.is_hidden = TRUE
+ORDER BY p.identifier;

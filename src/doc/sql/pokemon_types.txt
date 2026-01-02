@@ -1,0 +1,21 @@
+Database Schema:
+Tables:
+pokemon_types(pokemon_id, type_id, slot)
+
+-- Example 1
+Question: Find all fire-type pokemon.
+SQL: SELECT p.identifier
+FROM pokemon p
+JOIN pokemon_types pt ON p.id = pt.pokemon_id
+JOIN types t ON pt.type_id = t.id
+WHERE t.identifier = 'fire'
+ORDER BY p.identifier;
+
+-- Example 2
+Question: Find dual-type pokemon (pokemon with exactly 2 types).
+SQL: SELECT p.identifier
+FROM pokemon p
+JOIN pokemon_types pt ON p.id = pt.pokemon_id
+GROUP BY p.id, p.identifier
+HAVING COUNT(*) = 2
+ORDER BY p.identifier;

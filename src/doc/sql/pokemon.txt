@@ -1,0 +1,17 @@
+Database Schema:
+Tables:
+pokemon(id, identifier, species_id, height, weight, base_experience, order, is_default)
+
+-- Example 1
+Question: Show pokemon that weigh more than 2000 hectograms.
+SQL: SELECT identifier, weight
+FROM pokemon
+WHERE weight > 2000
+ORDER BY weight DESC;
+
+-- Example 2
+Question: Find the default form for each pokemon species.
+SQL: SELECT p.identifier, p.height, p.weight
+FROM pokemon p
+WHERE p.is_default = TRUE
+ORDER BY p.identifier;

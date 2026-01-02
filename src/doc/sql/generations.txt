@@ -1,0 +1,19 @@
+Database Schema:
+Tables:
+generations(id, main_region_id, identifier)
+
+-- Example 1
+Question: How many pokemon were introduced in each generation?
+SQL: SELECT g.identifier as generation, COUNT(DISTINCT ps.id) as pokemon_count
+FROM generations g
+LEFT JOIN pokemon_species ps ON g.id = ps.generation_id
+GROUP BY g.id, g.identifier
+ORDER BY g.id;
+
+-- Example 2
+Question: Count the number of abilities introduced per generation.
+SQL: SELECT g.identifier as generation, COUNT(*) as ability_count
+FROM generations g
+LEFT JOIN abilities a ON g.id = a.generation_id
+GROUP BY g.id, g.identifier
+ORDER BY g.id;

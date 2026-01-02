@@ -1,0 +1,14 @@
+Database Schema:
+Tables:
+customer(id, name, city)
+
+-- Example 1
+Question: List all customers.
+SQL: SELECT name FROM customer;
+
+-- Example 2
+Question: Show customer names with order amounts over 100.
+SQL: SELECT c.name
+FROM customer c
+JOIN orders o ON c.id = o.customer_id
+WHERE o.amount > 100;

@@ -1,0 +1,19 @@
+Database Schema:
+Tables:
+contest_types(id, identifier)
+
+-- Example 1
+Question: List all contest types with berry flavor associations.
+SQL: SELECT ct.identifier, COUNT(DISTINCT bf.berry_id) as berry_count
+FROM contest_types ct
+LEFT JOIN berry_flavors bf ON ct.id = bf.contest_type_id
+GROUP BY ct.id, ct.identifier
+ORDER BY berry_count DESC;
+
+-- Example 2
+Question: Find moves associated with each contest type.
+SQL: SELECT ct.identifier as contest_type, COUNT(*) as move_count
+FROM contest_types ct
+LEFT JOIN moves m ON ct.id = m.contest_type_id
+GROUP BY ct.id, ct.identifier
+ORDER BY move_count DESC;

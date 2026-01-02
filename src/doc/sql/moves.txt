@@ -1,0 +1,20 @@
+Database Schema:
+Tables:
+moves(id, identifier, generation_id, type_id, power, pp, accuracy, priority, target_id, damage_class_id, effect_id, effect_chance, contest_type_id, contest_effect_id, super_contest_effect_id)
+
+-- Example 1
+Question: Find the most powerful fire-type moves.
+SQL: SELECT m.identifier, m.power, m.accuracy
+FROM moves m
+JOIN types t ON m.type_id = t.id
+WHERE t.identifier = 'fire' AND m.power IS NOT NULL
+ORDER BY m.power DESC
+LIMIT 10;
+
+-- Example 2
+Question: Find moves with 100% accuracy and power greater than 80.
+SQL: SELECT m.identifier, m.power, t.identifier as type
+FROM moves m
+JOIN types t ON m.type_id = t.id
+WHERE m.accuracy = 100 AND m.power > 80
+ORDER BY m.power DESC;

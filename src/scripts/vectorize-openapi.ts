@@ -70,29 +70,26 @@ const readOpenApiDocs = () => {
   return apiChunks;
 };
 
-// Read SQL semantic .txt files and split by semantic chunk headers
-const readSqlStructures = () => {
+// Read SQL documentation .txt files - each file is counted as one chunk
+const readSqlDocs = () => {
   const files = fs.readdirSync(sqlDir).filter((file) => file.endsWith('.txt'));
   const sqlChunks: { id: string; content: string }[] = [];
 
   files.forEach((file) => {
     const filePath = path.join(sqlDir, file);
     const fileContent = fs.readFileSync(filePath, 'utf-8');
-    // Split by semantic chunk header: -- Table: <table_name>
-    const chunks = fileContent.split(/(?=^-- Table: )/m).filter(Boolean);
-    chunks.forEach((chunk, idx) => {
-      // Clean up chunk: trim, ensure not empty
-      const trimmed = chunk.trim();
-      if (trimmed) {
-        const firstLine = trimmed.split('\n')[0];
-        const tableName = firstLine.replace('-- Table: ', '');
-        sqlChunks.push({
-          id: `semantic-${tableName}-${idx}`,
-          content: trimmed,
-        });
-      }
-    });
+    const trimmed = fileContent.trim();
+
+    if (trimmed) {
+      // Use the filename (without extension) as the table name
+      const tableName = file.replace('.txt', '');
+      sqlChunks.push({
+        id: `table-${tableName}`,
+        content: trimmed,
+      });
+    }
   });
+
   return sqlChunks;
 };
 
@@ -174,8 +171,8 @@ const processVectorization = async (apiChunks: any[], sqlChunks: any[]) => {
 (async () => {
   try {
     const apiChunks = readOpenApiDocs();
-    const sqlChunks = readSqlStructures();
-    console.log(`Extracted ${apiChunks.length} API chunks and ${sqlChunks.length} SQL structure chunks.`);
+    const sqlChunks = readSqlDocs();
+    console.log(`Extracted ${apiChunks.length} API chunks and ${sqlChunks.length} SQL documentation chunks.`);
 
     await saveInitialUnvectorizedData(apiChunks, sqlChunks);
     await processVectorization(apiChunks, sqlChunks);

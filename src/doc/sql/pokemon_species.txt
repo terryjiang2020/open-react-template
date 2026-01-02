@@ -1,0 +1,17 @@
+Database Schema:
+Tables:
+pokemon_species(id, identifier, generation_id, evolves_from_species_id, evolution_chain_id, color_id, shape_id, habitat_id, gender_rate, capture_rate, base_happiness, is_baby, hatch_counter, has_gender_differences, growth_rate_id, forms_switchable, is_legendary, is_mythical, order, conquest_order)
+
+-- Example 1
+Question: List all legendary pokemon.
+SQL: SELECT identifier
+FROM pokemon_species
+WHERE is_legendary = TRUE
+ORDER BY identifier;
+
+-- Example 2
+Question: Find pokemon that evolve from pikachu.
+SQL: SELECT ps.identifier
+FROM pokemon_species ps
+JOIN pokemon_species parent ON ps.evolves_from_species_id = parent.id
+WHERE parent.identifier = 'pikachu';

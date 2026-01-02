@@ -10,6 +10,7 @@ import { sendToPlanner } from './planner';
 declare global {
   // Augment the globalThis type to include __rag_entity
   var __rag_entity: string | undefined;
+  var __flatUsefulDataMap: Map<string, any> | undefined;
 }
 
 interface Message {
@@ -135,41 +136,94 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
 }
 
 // 独立函数：多实体embedding检索与API过滤
-export async function getAllMatchedApis({ entities, apiKey }: { entities: string[], apiKey: string }): Promise<Map<string, any>> {
+export async function getAllMatchedApis({ entities, intentType, apiKey }: { entities: string[], intentType: "FETCH" | "MODIFY", apiKey: string }): Promise<Map<string, any>> {
+  // SQL retrieval detection: Only use SQL mode for FETCH intent (pure data retrieval)
+  // MODIFY intent (add/update/delete) should always use API mode
   const allMatchedApis = new Map();
-  for (const entity of entities) {
-    console.log(`\n--- Searching for entity: "${entity}" ---`);
-    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-ada-002',
-        input: entity,
-      }),
-    });
-    if (!embeddingResponse.ok) {
-      console.warn(`Failed to generate embedding for entity "${entity}"`);
-      continue;
-    }
-    const embeddingData = await embeddingResponse.json();
-    const entityEmbedding = embeddingData.data[0].embedding;
-    const entityResults = findTopKSimilar(entityEmbedding, 10);
-    const entityTerms: string[] = entity.toLowerCase().match(/\b\w+\b/g) || [];
-    const relevantResults = entityResults;
-    console.log(`Found ${entityResults.length} APIs for entity "${entity}", ${relevantResults.length} after filtering:`,
-      relevantResults.map((item: any) => ({ id: item.id, similarity: item.similarity.toFixed(3) }))
-    );
-    relevantResults.forEach((result: any) => {
-      const existing = allMatchedApis.get(result.id);
-      if (!existing || result.similarity > existing.similarity) {
-        allMatchedApis.set(result.id, result);
+  let isSqlRetrieval = intentType === 'FETCH';
+
+  if (isSqlRetrieval) {
+    // Use vectorizedDataTable for SQL retrieval
+    for (const entity of entities) {
+      console.log(`\n--- SQL检索模式: "${entity}" ---`);
+      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'text-embedding-ada-002',
+          input: entity,
+        }),
+      });
+      if (!embeddingResponse.ok) {
+        console.warn(`Failed to generate embedding for entity "${entity}"`);
+        continue;
       }
+      const embeddingData = await embeddingResponse.json();
+      const entityEmbedding = embeddingData.data[0].embedding;
+      // Use vectorizedDataTable for similarity search
+      const entityResults = findTopKSimilarTable(entityEmbedding, 10);
+      const relevantResults = entityResults;
+      console.log(`Found ${entityResults.length} tables for entity "${entity}"`);
+      relevantResults.forEach((result: any) => {
+        const existing = allMatchedApis.get(result.id);
+        if (!existing || result.similarity > existing.similarity) {
+          allMatchedApis.set(result.id, result);
+        }
+      });
+    }
+    // Add a special API spec for POST /general/sql/query
+    allMatchedApis.set('sql-query', {
+      id: 'sql-query',
+      summary: 'Execute SQL query',
+      tags: ['sql', 'query', 'table', 'database'],
+      content: 'path: /general/sql/query\nmethod: POST\ntags: sql, query, table, database\nsummary: Execute SQL query\ndescription: Execute a SQL query and return results.\nparameters: query (body): string',
+      api: {
+        path: '/general/sql/query',
+        method: 'POST',
+        parameters: {},
+        requestBody: { query: '' }
+      },
+      similarity: 0
     });
+    return allMatchedApis;
+  } else {
+    // Default: use vectorizedDataApi for normal API retrieval
+    for (const entity of entities) {
+      console.log(`\n--- Searching for entity: "${entity}" ---`);
+      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'text-embedding-ada-002',
+          input: entity,
+        }),
+      });
+      if (!embeddingResponse.ok) {
+        console.warn(`Failed to generate embedding for entity "${entity}"`);
+        continue;
+      }
+      const embeddingData = await embeddingResponse.json();
+      const entityEmbedding = embeddingData.data[0].embedding;
+      const entityResults = findTopKSimilarApi(entityEmbedding, 10);
+      const relevantResults = entityResults;
+      console.log(`Found ${entityResults.length} APIs for entity "${entity}", ${relevantResults.length} after filtering:`,
+        relevantResults.map((item: any) => ({ id: item.id, similarity: item.similarity.toFixed(3) }))
+      );
+      relevantResults.forEach((result: any) => {
+        const existing = allMatchedApis.get(result.id);
+        if (!existing || result.similarity > existing.similarity) {
+          allMatchedApis.set(result.id, result);
+        }
+      });
+    }
+    return allMatchedApis;
   }
-  return allMatchedApis;
 }
 
 export async function getTopKResults(allMatchedApis: Map<string, any>, topK: number): Promise<any[]> {
@@ -178,6 +232,8 @@ export async function getTopKResults(allMatchedApis: Map<string, any>, topK: num
     let topKResults = Array.from(allMatchedApis.values())
       .sort((a: any, b: any) => b.similarity - a.similarity)
       .slice(0, topK); // Take top topK from combined results
+
+    console.log('topKResults.length: ', topKResults.length);
 
     console.log(`\n✅ Combined Results: Found ${allMatchedApis.size} unique APIs across all entities`);
     console.log(`📋 Top ${topKResults.length} APIs selected:`,
@@ -205,13 +261,14 @@ export async function getTopKResults(allMatchedApis: Map<string, any>, topK: num
       // const content = JSON.parse(jsonStr);
       // content.tags = tags.length > 0 ? tags : (content.tags || []);
       // return content;
-      console.log('item topK: ', item);
-      return {
+      const topK = {
         id: item.id,
         summary: item.summary,
         tags: item.tags,
         content: item.content
       };
+      // console.log('item topK: ', topK.id);
+      return topK;
     });
 
     return topKResults;
@@ -219,37 +276,47 @@ export async function getTopKResults(allMatchedApis: Map<string, any>, topK: num
 
 // Load vectorized data
 const vectorizedDataPath = path.join(process.cwd(), 'src/doc/vectorized-data/vectorized-data.json');
+const vectorizedDataTablePath = path.join(process.cwd(), 'src/doc/vectorized-data/table/vectorized-data.json');
+const vectorizedDataApiPath = path.join(process.cwd(), 'src/doc/vectorized-data/api/vectorized-data.json');
 const vectorizedData = JSON.parse(fs.readFileSync(vectorizedDataPath, 'utf-8'));
+const vectorizedDataTable = JSON.parse(fs.readFileSync(vectorizedDataTablePath, 'utf-8'));
+const vectorizedDataApi = JSON.parse(fs.readFileSync(vectorizedDataApiPath, 'utf-8'));
 
-// Function to find the top-k most similar vectors
-function findTopKSimilar(queryEmbedding: number[], topK: number = 3) {
-  return vectorizedData
+// Function to find the top-k most similar API vectors
+function findTopKSimilarApi(queryEmbedding: number[], topK: number = 3) {
+  return vectorizedDataApi
     .map((item: any) => {
-      // 拆分item.content，前面为tags，后面为json
-      let tags: string[] = [];
-      let jsonStr = item.content;
-      const jsonStartIdx = item.content.indexOf('{');
-      if (jsonStartIdx > 0) {
-        const tagText = item.content.slice(0, jsonStartIdx).trim();
-        tags = tagText.split(/\s+/).filter(Boolean);
-        jsonStr = item.content.slice(jsonStartIdx);
-      }
-      let summary = '';
-      try {
-        const content = JSON.parse(jsonStr);
-        summary = (content.summary || '').toLowerCase();
-      } catch {}
-
+      let tags: string[] = item.tags || [];
+      let summary = (item.summary || '').toLowerCase();
       // 计算embedding相似度
       let similarity = cosineSimilarity(queryEmbedding, item.embedding);
-
       // 加强tag和summary权重
       const entityText = (globalThis.__rag_entity || '').toLowerCase();
       const tagHit = tags.some(t => entityText.includes(t.toLowerCase()) || t.toLowerCase().includes(entityText));
       const summaryHit = summary && (entityText.includes(summary) || summary.includes(entityText));
       if (tagHit) similarity += 0.15;
       if (summaryHit) similarity += 0.10;
+      return {
+        ...item,
+        similarity,
+      };
+    })
+    .sort((a: any, b: any) => b.similarity - a.similarity)
+    .slice(0, topK);
+}
 
+// Function to find the top-k most similar table vectors
+function findTopKSimilarTable(queryEmbedding: number[], topK: number = 3) {
+  return vectorizedDataTable
+    .map((item: any) => {
+      let tags: string[] = item.tags || [];
+      let summary = (item.summary || '').toLowerCase();
+      let similarity = cosineSimilarity(queryEmbedding, item.embedding);
+      const entityText = (globalThis.__rag_entity || '').toLowerCase();
+      const tagHit = tags.some(t => entityText.includes(t.toLowerCase()) || t.toLowerCase().includes(entityText));
+      const summaryHit = summary && (entityText.includes(summary) || summary.includes(entityText));
+      if (tagHit) similarity += 0.15;
+      if (summaryHit) similarity += 0.10;
       return {
         ...item,
         similarity,
@@ -285,23 +352,140 @@ async function runPlannerWithInputs({
   conversationContext?: string,
   finalDeliverable?: string
 }): Promise<{ actionablePlan: any, planResponse: string }> {
-  // 发送到planner
-  const planResponse = await sendToPlanner(topKResults, refinedQuery, apiKey, usefulData, conversationContext);
-  let actionablePlan;
-  try {
-    // Remove comments and sanitize the JSON string
-    const sanitizedPlanResponse = sanitizePlannerResponse(planResponse);
-    console.log('Sanitized Planner Response:', sanitizedPlanResponse);
-    actionablePlan = JSON.parse(sanitizedPlanResponse);
-    if (actionablePlan && finalDeliverable && !actionablePlan.final_deliverable) {
-      actionablePlan.final_deliverable = finalDeliverable;
+  // 检查是否为SQL/table检索
+  const sqlKeywords = [
+    'select', 'from', 'where', 'group by', 'order by', 'having', 'join', 'count(', 'sum(', 'avg(', 'min(', 'max(', 'sql', 'table', '数据库', '查询', '检索', '统计', '字段', '列', '行'
+  ];
+  let isSqlRetrieval = false;
+  for (const item of topKResults) {
+    if (item.id && typeof item.id === 'string' && (item.id.startsWith('table-') || item.id === 'sql-query')) {
+      isSqlRetrieval = true;
+      break;
     }
-  } catch (error) {
-    console.warn('Failed to parse planner response as JSON:', error);
-    console.warn('Original Planner Response:', planResponse);
-    throw new Error('Failed to parse planner response');
   }
-  return { actionablePlan, planResponse };
+  if (!isSqlRetrieval) {
+    // 发送到planner（API模式）
+    const planResponse = await sendToPlanner(topKResults, refinedQuery, apiKey, usefulData, conversationContext);
+    let actionablePlan;
+    try {
+      // Remove comments and sanitize the JSON string
+      let sanitizedPlanResponse = sanitizePlannerResponse(planResponse);
+      // --- PATCH: Remove user_id from /pokemon/watchlist POST plan ---
+      let planObj;
+      try {
+        planObj = JSON.parse(sanitizedPlanResponse);
+        if (planObj && planObj.execution_plan && Array.isArray(planObj.execution_plan)) {
+          planObj.execution_plan = planObj.execution_plan.map((step: any) => {
+            if (
+              step.api &&
+              typeof step.api.path === 'string' &&
+              step.api.path.replace(/^\/api/, '') === '/pokemon/watchlist' &&
+              step.api.method && step.api.method.toLowerCase() === 'post'
+            ) {
+              // Remove user_id from requestBody if present
+              if (step.api.requestBody && typeof step.api.requestBody === 'object') {
+                const newBody = { ...step.api.requestBody };
+                delete newBody.user_id;
+                // Also handle possible snake/camel case
+                delete newBody.userId;
+                step.api.requestBody = newBody;
+              }
+            }
+            return step;
+          });
+        }
+        // Also patch selected_tools_spec
+        if (planObj && planObj.selected_tools_spec && Array.isArray(planObj.selected_tools_spec)) {
+          planObj.selected_tools_spec = planObj.selected_tools_spec.map((tool: any) => {
+            if (
+              tool.endpoint &&
+              tool.endpoint.replace(/^POST \/api/, 'POST ') === 'POST /pokemon/watchlist'
+            ) {
+              // Remove user_id from derivations if present
+              if (Array.isArray(tool.derivations)) {
+                tool.derivations = tool.derivations.filter((d: string) => !d.toLowerCase().includes('user_id'));
+              }
+            }
+            return tool;
+          });
+        }
+        sanitizedPlanResponse = JSON.stringify(planObj);
+      } catch (e) {
+        // fallback: do nothing
+      }
+      console.log('Sanitized Planner Response:', sanitizedPlanResponse);
+      actionablePlan = JSON.parse(sanitizedPlanResponse);
+      // 强制保留原始finalDeliverable，不被plan覆盖
+      if (actionablePlan && finalDeliverable) {
+        actionablePlan.final_deliverable = finalDeliverable;
+      }
+    } catch (error) {
+      console.warn('Failed to parse planner response as JSON:', error);
+      console.warn('Original Planner Response:', planResponse);
+      throw new Error('Failed to parse planner response');
+    }
+    return { actionablePlan, planResponse };
+  } else {
+    // SQL/table检索，强制只允许POST /general/sql/query
+    // 生成SQL语句
+    const userQuestion = conversationContext
+      ? `Previous context:\n${conversationContext}\n\nCurrent query: ${refinedQuery}`
+      : refinedQuery;
+    // 构造SQL schema prompt
+    const sqlSchema = `Tables:\nTable customer(id INTEGER, name TEXT, city TEXT)\nTable orders(id INTEGER, customer_id INTEGER, amount FLOAT)\n\n- If a user ID is needed, always use CURRENT_USER_ID as the value.\n- If a user ID is not required by the API (e.g., GET /pokemon/watchlist), do not include it.`;
+    const sqlPrompt = `You are given the following database schema:\n\n${sqlSchema}\n\nGenerate a valid SQL query that answers the user question.\n\nUser Question: ${userQuestion}\nSQL:`;
+    // 直接调用LLM生成SQL
+    const sqlGenRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: sqlPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 512,
+      }),
+    });
+    if (!sqlGenRes.ok) {
+      throw new Error('Failed to generate SQL');
+    }
+    const sqlGenData = await sqlGenRes.json();
+    let sqlText = sqlGenData.choices[0]?.message?.content?.trim() || '';
+    // 只提取SQL语句
+    const sqlMatch = sqlText.match(/select[\s\S]+?;/i);
+    if (sqlMatch) sqlText = sqlMatch[0];
+    // 构造只包含POST /general/sql/query的plan
+    const planObj = {
+      needs_clarification: false,
+      phase: 'execution',
+      final_deliverable: finalDeliverable || '',
+      execution_plan: [
+        {
+          step_number: 1,
+          description: 'Execute SQL query to fulfill user request',
+          api: {
+            path: '/general/sql/query',
+            method: 'post',
+            requestBody: { query: sqlText }
+          }
+        }
+      ],
+      selected_tools_spec: [
+        {
+          endpoint: 'POST /general/sql/query',
+          purpose: 'Execute SQL query',
+          returns: 'SQL query result',
+          derivations: [ `query = ${JSON.stringify(sqlText)}` ]
+        }
+      ]
+    };
+    const planResponse = JSON.stringify(planObj);
+    return { actionablePlan: planObj, planResponse };
+  }
 }
 
 // Enhanced JSON sanitization to handle comments and invalid trailing characters
@@ -398,7 +582,9 @@ export async function POST(request: NextRequest) {
       ? `Previous context:\n${conversationContext}\n\nCurrent query: ${userMessage.content}`
       : userMessage.content;
 
-    const { refinedQuery, language, concepts, apiNeeds, entities } = await clarifyAndRefineUserInput(queryWithContext, apiKey);
+    const { refinedQuery, language, concepts, apiNeeds, entities, intentType } = await clarifyAndRefineUserInput(queryWithContext, apiKey);
+    // 设置原始finalDeliverable为refinedQuery，保证不被中间依赖覆盖
+    if (!finalDeliverable) finalDeliverable = refinedQuery;
     console.log('\n📝 QUERY REFINEMENT RESULTS:');
     console.log('  Original:', userMessage.content);
     console.log('  Refined Query:', refinedQuery);
@@ -418,10 +604,10 @@ export async function POST(request: NextRequest) {
 
 
     // 获取所有实体的匹配API（embedding检索+过滤）
-    const allMatchedApis = await getAllMatchedApis({ entities, apiKey });
+    const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey });
 
     // Convert Map to array and sort by similarity
-    let topKResults = await getTopKResults(allMatchedApis, 10);
+    let topKResults = await getTopKResults(allMatchedApis, 20);
 
     const obj = Object.fromEntries(usefulData);
     const str = JSON.stringify(obj, null, 2);
@@ -435,7 +621,8 @@ export async function POST(request: NextRequest) {
       conversationContext,
       finalDeliverable
     });
-    finalDeliverable = actionablePlan.final_deliverable || finalDeliverable;
+    // 保留原始finalDeliverable，不被plan覆盖
+    // finalDeliverable = actionablePlan.final_deliverable || finalDeliverable;
     const planResponse = plannerRawResponse;
     console.log('Generated Plan:', planResponse);
 
@@ -465,8 +652,7 @@ export async function POST(request: NextRequest) {
         finalDeliverable,
         usefulData,
         conversationContext,
-        entities,
-        20 // max iterations
+        entities
       );
 
       // Check if there was an error during execution
@@ -493,7 +679,29 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // If no execution plan, return a message
+    // 如果plan为GOAL_COMPLETED或无execution_plan，自动进入final answer生成
+    if (
+      actionablePlan &&
+      (actionablePlan.message?.toLowerCase().includes('goal completed') ||
+        (Array.isArray(actionablePlan.execution_plan) && actionablePlan.execution_plan.length === 0))
+    ) {
+      // 直接用usefulData和accumulatedResults生成最终答案
+      const answer = await generateFinalAnswer(
+        refinedQuery,
+        [],
+        apiKey,
+        undefined,
+        str // usefulData
+      );
+      return NextResponse.json({
+        message: answer,
+        refinedQuery,
+        topKResults,
+        planResponse,
+        final: true
+      });
+    }
+    // 否则返回plan does not include an execution plan
     return NextResponse.json({
       message: 'Plan does not include an execution plan.',
       refinedQuery,
@@ -531,7 +739,7 @@ async function validateNeedMoreActions(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -759,9 +967,14 @@ async function extractUsefulDataFromApiResponses(
 Given the original user query, the refined query, and the final deliverable generated so far,
 extract any useful data points, facts, or details from the API responses that could aid in answering the user's question.
 
-If there is already existing useful data, integrate the new findings with it.
+CRITICAL: Do NOT simply append new data. Instead:
+1. If the new API response contains UPDATED or MORE ACCURATE information, REPLACE the old data
+2. Only keep UNIQUE and NON-REDUNDANT information
+3. Remove any duplicate or outdated facts
+4. Keep the output CONCISE (max 3-5 key facts per API endpoint)
+5. If it contains things like ID, deleted, or other important data, make sure to include those
 
-Return the extracted useful data in a concise format. If no new useful data is found, return the existing useful data as is.
+If no new useful data is found, return the existing useful data as is.
 
 Refined User Query: ${refinedQuery}
 Final Deliverable: ${finalDeliverable}
@@ -782,7 +995,7 @@ Extracted Useful Data: `;
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -800,7 +1013,7 @@ Extracted Useful Data: `;
     }
 
     const data = await response.json();
-    const extractedData = (existingUsefulData + ' ' + data.choices[0]?.message?.content) || existingUsefulData;
+    const extractedData = data.choices[0]?.message?.content?.trim() || existingUsefulData;
     return extractedData;
   } catch (error) {
     console.error('Error extracting useful data:', error);
@@ -838,7 +1051,7 @@ Use the actual data from the API responses to provide specific, accurate informa
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -899,13 +1112,13 @@ async function executeIterativePlanner(
   usefulData: Map<string, any>,
   conversationContext: string,
   entities: any[] = [],
-  maxIterations: number = 20
+  maxIterations: number = 10
 ): Promise<any> {
   let currentPlanResponse = initialPlanResponse;
   let accumulatedResults: any[] = [];
   let executedSteps: any[] = [];
   let iteration = 0;
-  let previousValidationReason = '';
+  let intentType: 'FETCH' | 'MODIFY' = matchedApis[0]?.id.startsWith('semantic') ? 'FETCH' : 'MODIFY';
   let stuckCount = 0; // Track how many times we get the same validation reason
 
   console.log('\n' + '='.repeat(80));
@@ -947,7 +1160,7 @@ async function executeIterativePlanner(
       // This prevents premature validation and ensures complete plan execution
       console.log(`\n📋 Executing complete plan with ${actionablePlan.execution_plan.length} steps`);
 
-      while (actionablePlan.execution_plan.length > 0) {
+      while (actionablePlan.execution_plan?.length > 0) {
         const step = actionablePlan.execution_plan.shift(); // Remove first step
         console.log(`\nExecuting step ${step.step_number || executedSteps.length + 1}:`, JSON.stringify(step, null, 2));
 
@@ -988,6 +1201,7 @@ async function executeIterativePlanner(
 
           // Execute each step (could be 1 or multiple)
           for (const stepToExecute of stepsToExecute) {
+            console.log(`\n📌 Executing step ${stepToExecute.step_number}...`);
             // If this step depends on a previous step, populate empty fields with data from that step
             let requestBodyToUse = stepToExecute.api.requestBody;
             let parametersToUse = stepToExecute.api.parameters || stepToExecute.input || {};
@@ -1132,7 +1346,11 @@ async function executeIterativePlanner(
                 userToken // Pass user token for authentication
               );
             } catch (err: any) {
-              // 参数类型不匹配错误处理
+              // CRITICAL: Treat errors as part of the response, not as failures
+              // Many HTTP status codes (404, 409, 403, etc.) are informative responses
+              console.warn(`⚠️  API call encountered an error (this may be expected):`, err.message);
+              
+              // 参数类型不匹配是特殊情况，需要重新规划
               if (typeof err?.message === 'string' && err.message.includes('参数类型不匹配')) {
                 console.warn('参数类型不匹配，打回AI重写:', err.message);
                 return {
@@ -1143,8 +1361,24 @@ async function executeIterativePlanner(
                   clarification_question: `参数类型不匹配：${err.message}。请根据API schema重写参数。`,
                 };
               }
-              // 其他错误继续抛出
-              throw err;
+              
+              // 其他HTTP错误（404, 409, 403等）作为响应内容继续处理
+              // 构造一个包含错误信息的响应对象
+              apiResponse = {
+                success: false,
+                error: true,
+                statusCode: err.statusCode || err.status || 500,
+                message: err.message || 'API request failed',
+                details: err.response || err.data || null,
+                // 保留原始错误信息供后续分析
+                _originalError: {
+                  name: err.name,
+                  message: err.message,
+                  stack: err.stack
+                }
+              };
+              
+              console.log(`📋 Treating error as response data:`, apiResponse);
             }
 
             // 检查是否需要 fan-out
@@ -1173,6 +1407,7 @@ async function executeIterativePlanner(
                     userToken
                   );
                 } catch (err: any) {
+                  // 参数类型不匹配是特殊情况，需要重新规划
                   if (typeof err?.message === 'string' && err.message.includes('参数类型不匹配')) {
                     console.warn('参数类型不匹配，打回AI重写:', err.message);
                     return {
@@ -1183,7 +1418,15 @@ async function executeIterativePlanner(
                       clarification_question: `参数类型不匹配：${err.message}。请根据API schema重写参数。`,
                     };
                   }
-                  throw err;
+                  
+                  // 其他HTTP错误作为响应内容继续处理
+                  console.warn(`⚠️  Fan-out call for ${fanOutReq.fanOutParam}=${value} encountered an error:`, err.message);
+                  singleResult = {
+                    success: false,
+                    error: true,
+                    statusCode: err.statusCode || err.status || 500,
+                    message: err.message || 'API request failed'
+                  };
                 }
 
                 fanOutResults.push({
@@ -1204,19 +1447,43 @@ async function executeIterativePlanner(
               Object.assign(apiResponse, mergedResponse);
             }
 
-            console.log('API Response:', apiResponse);
-
-            const obj = Object.fromEntries(usefulData);
-            const str = JSON.stringify(obj, null, 2);
-
-            usefulData.set(apiSchema.method + ' ' + apiSchema.path, await extractUsefulDataFromApiResponses(
-              refinedQuery,
-              finalDeliverable,
-              str,
-              JSON.stringify(apiResponse)
-            ));
-
-            console.log('Updated Useful Data:', usefulData);
+            console.log('(route) API Response:', apiResponse);
+            
+            // Helper: Generate a unique key for each API call (method + path + input)
+            // CRITICAL: Must include BOTH parameters and requestBody to avoid key collisions
+            // (e.g., different SQL queries would have same key if we only use parameters)
+            function getApiCallKey(path: string, method: string, params: any, body: any) {
+              // Use JSON.stringify for input, but sort keys for stability
+              const stableStringify: (obj: any) => string = (obj: any) => {
+                if (!obj || typeof obj !== 'object') return String(obj);
+                if (Array.isArray(obj)) return '[' + obj.map(stableStringify).join(',') + ']';
+                return '{' + Object.keys(obj).sort().map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}';
+              };
+              // Merge params and body into a single input object for key generation
+              const combinedInput = {
+                ...(params && typeof params === 'object' ? params : {}),
+                ...(body && typeof body === 'object' ? { _body: body } : {})
+              };
+              return `${method.toLowerCase()} ${path}::${stableStringify(combinedInput)}`;
+            }
+            
+            // Use a flat usefulDataMap (replace the old Map logic)
+            if (!globalThis.__flatUsefulDataMap) globalThis.__flatUsefulDataMap = new Map();
+            const flatUsefulDataMap: Map<string, any> = globalThis.__flatUsefulDataMap;
+            const apiCallKey = getApiCallKey(apiSchema.path, apiSchema.method, parametersToUse, requestBodyToUse);
+            const prevUsefulData = flatUsefulDataMap.get(apiCallKey) || '';
+            // const newUsefulData = await extractUsefulDataFromApiResponses(
+            //   refinedQuery,
+            //   finalDeliverable,
+            //   prevUsefulData,
+            //   JSON.stringify(apiResponse)
+            // );
+            const newUsefulData = JSON.stringify(apiResponse); // 简化为直接存储响应内容
+            flatUsefulDataMap.set(apiCallKey, newUsefulData);
+            // For compatibility, also update the old usefulData Map with a summary string
+            // usefulData.set(apiSchema.method + ' ' + apiSchema.path, newUsefulData);
+            usefulData = flatUsefulDataMap;
+            console.log('Updated Useful Data (flat map):', flatUsefulDataMap);
 
             // Process the response to ensure arrays are properly included
             let processedResponse = apiResponse;
@@ -1262,10 +1529,10 @@ async function executeIterativePlanner(
         }
 
         // 获取所有实体的匹配API（embedding检索+过滤）
-        const allMatchedApis = await getAllMatchedApis({ entities, apiKey });
+        const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey });
 
         // Convert Map to array and sort by similarity
-        let topKResults = await getTopKResults(allMatchedApis, 10);
+        let topKResults = await getTopKResults(allMatchedApis, 20);
 
         const obj = Object.fromEntries(usefulData);
         const str = JSON.stringify(obj, null, 2);
@@ -1350,6 +1617,8 @@ Please generate the next step in the plan, or indicate that no more steps are ne
       const str = JSON.stringify(obj, null, 2);
 
       currentPlanResponse = await sendToPlanner(matchedApis, plannerContext, apiKey, str);
+      actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
+      console.log('\n🔄 Generated new plan from validator feedback');
     } catch (error: any) {
       console.error('Error during iterative planner execution:', error);
       return {

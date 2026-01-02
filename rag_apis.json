@@ -1,0 +1,53 @@
+[
+  {
+    "id": "table-UserPokemonWatchlist",
+    "content": "Database Schema:\nTables:\nUserPokemonWatchlist(id, pokemon_id, user_id, deleted, created_at, created_by, updated_at, updated_by)\n\n-- Example 1\nQuestion: List all pokemon in user 5's watchlist.\nSQL: SELECT pokemon_id\nFROM UserPokemonWatchlist\nWHERE user_id = 5 AND deleted = FALSE\nORDER BY created_at DESC;\n\n-- Example 2\nQuestion: Find users watching pikachu (pokemon_id = 25).\nSQL: SELECT DISTINCT user_id\nFROM UserPokemonWatchlist\nWHERE pokemon_id = 25 AND deleted = FALSE\nORDER BY user_id;"
+  },
+  {
+    "id": "table-contest_types",
+    "content": "Database Schema:\nTables:\ncontest_types(id, identifier)\n\n-- Example 1\nQuestion: List all contest types with berry flavor associations.\nSQL: SELECT ct.identifier, COUNT(DISTINCT bf.berry_id) as berry_count\nFROM contest_types ct\nLEFT JOIN berry_flavors bf ON ct.id = bf.contest_type_id\nGROUP BY ct.id, ct.identifier\nORDER BY berry_count DESC;\n\n-- Example 2\nQuestion: Find moves associated with each contest type.\nSQL: SELECT ct.identifier as contest_type, COUNT(*) as move_count\nFROM contest_types ct\nLEFT JOIN moves m ON ct.id = m.contest_type_id\nGROUP BY ct.id, ct.identifier\nORDER BY move_count DESC;"
+  },
+  {
+    "id": "table-pokemon_move_methods",
+    "content": "Database Schema:\nTables:\npokemon_move_methods(id, identifier)\n\n-- Example 1\nQuestion: List all move learning methods with move counts.\nSQL: SELECT pmm.identifier as method, COUNT(DISTINCT pm.move_id) as move_count\nFROM pokemon_move_methods pmm\nLEFT JOIN pokemon_moves pm ON pmm.id = pm.move_method_id\nGROUP BY pmm.id, pmm.identifier\nORDER BY move_count DESC;\n\n-- Example 2\nQuestion: Find moves that pikachu learns by leveling up.\nSQL: SELECT m.identifier, pm.level\nFROM pokemon p\nJOIN pokemon_moves pm ON p.id = pm.pokemon_id\nJOIN moves m ON pm.move_id = m.id\nJOIN pokemon_move_methods pmm ON pm.move_method_id = pmm.id\nWHERE p.identifier = 'pikachu' AND pmm.identifier = 'level-up'\nORDER BY pm.level;"
+  },
+  {
+    "id": "table-generations",
+    "content": "Database Schema:\nTables:\ngenerations(id, main_region_id, identifier)\n\n-- Example 1\nQuestion: How many pokemon were introduced in each generation?\nSQL: SELECT g.identifier as generation, COUNT(DISTINCT ps.id) as pokemon_count\nFROM generations g\nLEFT JOIN pokemon_species ps ON g.id = ps.generation_id\nGROUP BY g.id, g.identifier\nORDER BY g.id;\n\n-- Example 2\nQuestion: Count the number of abilities introduced per generation.\nSQL: SELECT g.identifier as generation, COUNT(*) as ability_count\nFROM generations g\nLEFT JOIN abilities a ON g.id = a.generation_id\nGROUP BY g.id, g.identifier\nORDER BY g.id;"
+  },
+  {
+    "id": "table-items",
+    "content": "Database Schema:\nTables:\nitems(id, identifier, category_id, cost, fling_power, fling_effect_id)\n\n-- Example 1\nQuestion: Find the most expensive items.\nSQL: SELECT identifier, cost\nFROM items\nWHERE cost IS NOT NULL\nORDER BY cost DESC\nLIMIT 10;\n\n-- Example 2\nQuestion: List items with high fling power (greater than 50).\nSQL: SELECT identifier, fling_power, cost\nFROM items\nWHERE fling_power > 50\nORDER BY fling_power DESC;"
+  },
+  {
+    "id": "table-move_damage_classes",
+    "content": "Database Schema:\nTables:\nmove_damage_classes(id, identifier)\n\n-- Example 1\nQuestion: List all status moves (moves with no power).\nSQL: SELECT m.identifier\nFROM moves m\nJOIN move_damage_classes mdc ON m.damage_class_id = mdc.id\nWHERE mdc.identifier = 'status'\nORDER BY m.identifier;\n\n-- Example 2\nQuestion: List all move damage classes with example moves.\nSQL: SELECT mdc.identifier as damage_class, COUNT(*) as move_count\nFROM move_damage_classes mdc\nLEFT JOIN moves m ON mdc.id = m.damage_class_id\nGROUP BY mdc.id, mdc.identifier\nORDER BY move_count DESC;"
+  },
+  {
+    "id": "table-move_targets",
+    "content": "Database Schema:\nTables:\nmove_targets(id, identifier)\n\n-- Example 1\nQuestion: Show the distribution of moves across different target types.\nSQL: SELECT mt.identifier as target_type, COUNT(*) as move_count\nFROM move_targets mt\nLEFT JOIN moves m ON mt.id = m.target_id\nGROUP BY mt.id, mt.identifier\nORDER BY move_count DESC;\n\n-- Example 2\nQuestion: Find powerful moves that target all opponents.\nSQL: SELECT m.identifier, m.power\nFROM moves m\nJOIN move_targets mt ON m.target_id = mt.id\nWHERE mt.identifier = 'all-opponents' AND m.power IS NOT NULL\nORDER BY m.power DESC\nLIMIT 10;"
+  },
+  {
+    "id": "table-pokemon_species",
+    "content": "Database Schema:\nTables:\npokemon_species(id, identifier, generation_id, evolves_from_species_id, evolution_chain_id, color_id, shape_id, habitat_id, gender_rate, capture_rate, base_happiness, is_baby, hatch_counter, has_gender_differences, growth_rate_id, forms_switchable, is_legendary, is_mythical, order, conquest_order)\n\n-- Example 1\nQuestion: List all legendary pokemon.\nSQL: SELECT identifier\nFROM pokemon_species\nWHERE is_legendary = TRUE\nORDER BY identifier;\n\n-- Example 2\nQuestion: Find pokemon that evolve from pikachu.\nSQL: SELECT ps.identifier\nFROM pokemon_species ps\nJOIN pokemon_species parent ON ps.evolves_from_species_id = parent.id\nWHERE parent.identifier = 'pikachu';"
+  },
+  {
+    "id": "table-UserPokemonTeamMembers",
+    "content": "Database Schema:\nTables:\nUserPokemonTeamMembers(id, team_id, pokemon_id, nickname, level, order_index, moves, shiny, deleted, created_at, created_by, updated_at, updated_by)\n\n-- Example 1\nQuestion: Show all pokemon in team 10 ordered by position.\nSQL: SELECT pokemon_id, nickname, level, shiny\nFROM UserPokemonTeamMembers\nWHERE team_id = 10 AND deleted = FALSE\nORDER BY order_index;\n\n-- Example 2\nQuestion: Find all shiny pokemon across all teams.\nSQL: SELECT tm.team_id, t.team_name, tm.pokemon_id, tm.nickname\nFROM UserPokemonTeamMembers tm\nJOIN UserPokemonTeams t ON tm.team_id = t.id\nWHERE tm.shiny = TRUE AND tm.deleted = FALSE AND t.deleted = FALSE\nORDER BY t.team_name, tm.order_index;"
+  },
+  {
+    "id": "table-berry_flavors",
+    "content": "Database Schema:\nTables:\nberry_flavors(berry_id, contest_type_id, flavor)\n\n-- Example 1\nQuestion: Find berries with high spicy flavor.\nSQL: SELECT b.id, bfl.flavor as spicy_level\nFROM berries b\nJOIN berry_flavors bfl ON b.id = bfl.berry_id\nJOIN contest_types ct ON bfl.contest_type_id = ct.id\nWHERE ct.identifier = 'cool'\nORDER BY bfl.flavor DESC\nLIMIT 10;\n\n-- Example 2\nQuestion: Find berries with balanced flavors (all flavors between 10-30).\nSQL: SELECT b.id, COUNT(DISTINCT bfl.contest_type_id) as flavor_count\nFROM berries b\nJOIN berry_flavors bfl ON b.id = bfl.berry_id\nWHERE bfl.flavor BETWEEN 10 AND 30\nGROUP BY b.id\nHAVING COUNT(DISTINCT bfl.contest_type_id) >= 5;"
+  },
+  {
+    "id": "sql-query",
+    "summary": "Execute SQL query",
+    "tags": [
+      "sql",
+      "query",
+      "table",
+      "database"
+    ],
+    "content": "path: /general/sql/query\nmethod: POST\ntags: sql, query, table, database\nsummary: Execute SQL query\ndescription: Execute a SQL query and return results.\nparameters: query (body): string"
+  }
+]

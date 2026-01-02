@@ -1,0 +1,18 @@
+Database Schema:
+Tables:
+UserPokemonTeamMembers(id, team_id, pokemon_id, nickname, level, order_index, moves, shiny, deleted, created_at, created_by, updated_at, updated_by)
+
+-- Example 1
+Question: Show all pokemon in team 10 ordered by position.
+SQL: SELECT pokemon_id, nickname, level, shiny
+FROM UserPokemonTeamMembers
+WHERE team_id = 10 AND deleted = FALSE
+ORDER BY order_index;
+
+-- Example 2
+Question: Find all shiny pokemon across all teams.
+SQL: SELECT tm.team_id, t.team_name, tm.pokemon_id, tm.nickname
+FROM UserPokemonTeamMembers tm
+JOIN UserPokemonTeams t ON tm.team_id = t.id
+WHERE tm.shiny = TRUE AND tm.deleted = FALSE AND t.deleted = FALSE
+ORDER BY t.team_name, tm.order_index;

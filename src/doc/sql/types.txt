@@ -1,0 +1,16 @@
+Database Schema:
+Tables:
+types(id, identifier, generation_id, damage_class_id)
+
+-- Example 1
+Question: List all pokemon types.
+SQL: SELECT identifier
+FROM types
+ORDER BY identifier;
+
+-- Example 2
+Question: Find types introduced in each generation.
+SQL: SELECT g.identifier as generation, t.identifier as type
+FROM generations g
+JOIN types t ON g.id = t.generation_id
+ORDER BY g.id, t.identifier;

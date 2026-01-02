@@ -1,0 +1,17 @@
+Database Schema:
+Tables:
+UserPokemonWatchlist(id, pokemon_id, user_id, deleted, created_at, created_by, updated_at, updated_by)
+
+-- Example 1
+Question: List all pokemon in user 5's watchlist.
+SQL: SELECT pokemon_id
+FROM UserPokemonWatchlist
+WHERE user_id = 5 AND deleted = FALSE
+ORDER BY created_at DESC;
+
+-- Example 2
+Question: Find users watching pikachu (pokemon_id = 25).
+SQL: SELECT DISTINCT user_id
+FROM UserPokemonWatchlist
+WHERE pokemon_id = 25 AND deleted = FALSE
+ORDER BY user_id;

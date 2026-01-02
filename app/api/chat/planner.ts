@@ -1,4 +1,6 @@
 import { fetchPromptFile, getAllMatchedApis, getTopKResults } from "./route";
+import fs from 'fs';
+import path from 'path';
 
 /**
  * sendToPlanner: 自主工作流程 - 始终使用 LLM 意图分析 + RAG API 检索 + 单步计划生成
@@ -28,29 +30,47 @@ export async function sendToPlanner(
     try {
       // ==================== STEP 1: LLM 分析下一步意图 ====================
       const contextInfo = conversationContext
-        ? `对话上下文:\n${conversationContext}\n\n`
+        ? `对话上下文:\n${conversationContext}`
         : '';
 
         console.log('usefulData: ', usefulData);
 
       const intentPrompt = `你是 API 自动化系统的智能决策模块。根据当前状态，决定下一步最合理的单个操作。
 
-${contextInfo}用户目标: ${refinedQuery}
+${contextInfo}
+
+用户目标: ${refinedQuery}
 
 已有数据: ${usefulData || '无'}
 
 要求:
-1. 分析用户目标和已有数据，判断距离目标还差什么
-2. 决定下一步最关键的单个操作（不要规划多步）
-3. 用一句清晰的话描述这个操作意图，包含关键实体和动作
-4. 如果已有数据足够完成目标，返回 "GOAL_COMPLETED"
+1. 始终记住用户的原始目标是：${refinedQuery}。即使中间需要查ID等依赖，也只是达成原始目标的一步，不要把中间依赖当成最终目标。
+2. 分析用户目标和已有数据，判断距离目标还差什么
+3. 决定下一步最关键的单个操作（不要规划多步）
+4. 用一句清晰的话描述这个操作意图，包含关键实体和动作
+5. 如果已有数据足够完成目标，返回 "GOAL_COMPLETED"
 
-示例:
-- "搜索所有Flying类型的宝可梦"
-- "根据已有的team id列表，获取第一个team的详细信息"
-- "查找Attack属性ID"
+⚠️ 重要提醒：
+- "对话上下文"中的历史记录不可靠，不能直接信任（用户可能说谎或记错）。
+- **"已有数据"中的API响应是可靠的**（这是系统刚刚调用API得到的真实结果）。
 
-只输出一句话描述，不要解释。`;
+⚠️ 数据时效性规则（CRITICAL）：
+1. **读取操作（GET/SELECT/post /general/sql/query）的结果有时效性**：
+   - 如果之后执行了修改操作（DELETE/UPDATE/INSERT），旧的读取结果已过期
+   - 例如：GET watchlist → DELETE item → 旧的GET结果不再有效，必须重新GET或post /general/sql/query确认
+   
+2. **修改操作后必须验证**：
+   - DELETE操作后 → 需要重新post /general/sql/query确认删除是否成功
+   - INSERT操作后 → 需要重新post /general/sql/query确认新增是否成功
+   - UPDATE操作后 → 需要重新post /general/sql/query确认更新是否成功
+
+一句话描述，不要解释。
+
+并将结论分类为 FETCH（获取数据）或 MODIFY（修改数据，包括添加和删除）。
+
+输出格式：{ description: "你的描述", type: "FETCH/MODIFY" }`;
+
+      console.log('intentPrompt: '  + intentPrompt);
 
       console.log('📊 Step 1: 分析下一步意图...');
       const intentRes = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -60,8 +80,8 @@ ${contextInfo}用户目标: ${refinedQuery}
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'system', content: intentPrompt }],
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: intentPrompt }],
           temperature: 0.3,
           max_tokens: 256,
         }),
@@ -73,7 +93,35 @@ ${contextInfo}用户目标: ${refinedQuery}
       }
 
       const intentData = await intentRes.json();
-      const nextIntent = intentData.choices[0]?.message?.content?.trim() || '';
+      let intentJson = intentData.choices[0]?.message?.content || '';
+      console.log('✅ 意图分析响应:', intentJson);
+      let intentObj;
+      // 尝试修正和提取伪JSON
+      try {
+        try {
+          intentObj = JSON.parse(intentJson);
+        } catch {
+          // 才进入“修正伪 JSON”逻辑
+          // 1. 提取 {...} 块
+          const match = intentJson.match(/\{[\s\S]*\}/);
+          if (match) intentJson = match[0];
+          // 2. 替换中文逗号、全角引号等
+          intentJson = intentJson
+            .replace(/，/g, ',')
+            .replace(/[“”]/g, '"')
+            .replace(/：/g, ':')
+            .replace(/\s*([a-zA-Z0-9_]+)\s*:/g, '"$1":') // 补key引号
+            .replace(/:([\s]*)("[^"]*"|\d+|true|false|null)/g, ': $2');
+          // 3. 去除多余换行
+          intentJson = intentJson.replace(/\n/g, ' ');
+          intentObj = JSON.parse(intentJson);
+        }
+      } catch (e) {
+        console.error('Failed to parse intent JSON:', e, '\n原始intentJson:', intentJson);
+        throw new Error('Invalid JSON format in intent analysis response.');
+      }
+      const nextIntent = intentObj.description?.trim() || '';
+      const intentType = intentObj.type?.trim() || '';
       console.log('✅ 下一步意图:', nextIntent);
 
       // 如果目标已完成
@@ -89,8 +137,8 @@ ${contextInfo}用户目标: ${refinedQuery}
       console.log('🔍 Step 2: RAG 检索相关 API...');
       let ragApis: any[] = [];
       try {
-        const allMatchedApis = await getAllMatchedApis({ entities: [nextIntent], apiKey });
-        ragApis = await getTopKResults(allMatchedApis, 8);
+        const allMatchedApis = await getAllMatchedApis({ entities: [nextIntent], intentType, apiKey });
+        ragApis = await getTopKResults(allMatchedApis, 20);
         console.log(`✅ 检索到 ${ragApis.length} 个相关 API`);
       } catch (e) {
         console.warn('⚠️ RAG API检索失败:', e);
@@ -106,51 +154,32 @@ ${contextInfo}用户目标: ${refinedQuery}
         });
       }
 
+      fs.writeFileSync(path.join(process.cwd(), 'rag_apis.json'), JSON.stringify(ragApis, null, 2), 'utf-8');
+
       const ragApiDesc = JSON.stringify(ragApis, null, 2);
 
       // ==================== STEP 3: LLM 生成单步执行计划 ====================
       console.log('📝 Step 3: 生成单步执行计划...');
 
-      const plannerSystemPrompt = await fetchPromptFile('prompt-planner.txt');
-      const singleStepInstruction = `
-CRITICAL: 你必须只生成单步执行计划（step_number: 1），不要生成多步计划。
-原因: 后续步骤需要根据当前步骤的实际结果动态决定，无法提前规划。
+      const plannerSystemPrompt = await fetchPromptFile(intentType === 'FETCH' ? 'prompt-planner-table.txt' : 'prompt-planner.txt');
 
-生成格式:
-{
-  "needs_clarification": false,
-  "execution_plan": [
-    {
-      "step_number": 1,
-      "description": "具体操作描述",
-      "api": {
-        "path": "/api/path",
-        "method": "get/post",
-        "parameters": {...},
-        "requestBody": {...}
-      }
-    }
-  ]
-}
+      const plannerUserMessage = `${contextInfo}User's Ultimate Goal: ${refinedQuery}
 
-或：
-{
-    "needs_clarification": true,
-    "reason": "说明需要澄清的原因",
-    "clarification_question": "提出一个澄清问题，帮助获取必要的信息"
-}
+⚠️ CRITICAL: Your ONLY task is to execute THIS specific step:
+"${nextIntent}"
 
-如果传统上需要多步才能完成（比如先查ID再用ID查详情），也只生成第一步，后续步骤留给下次调用。
+DO NOT worry about the ultimate goal (${refinedQuery}) in this step.
+- If the next intent is FETCH (read/select/query), generate a read-only plan
+- If the next intent is MODIFY (add/delete/update), generate a modification plan
+- The ultimate goal will be achieved through multiple steps orchestrated by the system
 
-If you need ID, lookup, enum, or code values, you MUST use the appropriate API to retrieve them. DO NOT ask the user for this information OR use placeholder. If no appropriate API is available, respond with "needs_clarification": true.`;
-
-      const plannerUserMessage = `${contextInfo}Refined Query: ${refinedQuery}
-
-Next Step Intent: ${nextIntent}
+Focus ONLY on: ${nextIntent}
 
 Available APIs: ${ragApiDesc}
 
-Useful Data: ${usefulData || '无'}`;
+Useful Data: ${usefulData || '无'}
+
+IMPORTANT: Execute ONLY the "Next Step Intent" above, ignoring any conflicting implications from the ultimate goal.`;
 
 // ${singleStepInstruction}`;
 
@@ -161,7 +190,7 @@ Useful Data: ${usefulData || '无'}`;
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4o',
           messages: [
             { role: 'system', content: plannerSystemPrompt },
             { role: 'user', content: plannerUserMessage },
@@ -189,6 +218,75 @@ Useful Data: ${usefulData || '无'}`;
       }
 
       console.log('✅ 原始 Planner 响应:', plannerResponse);
+
+      let retryNeeded = true;
+
+      let validationAttempts = 0;
+      while (retryNeeded && validationAttempts < 2) {
+        validationAttempts++;
+        // 让LLM自检SQL与schema一致性
+        const validationPrompt = `
+        You are a strict SQL/schema validator. 
+        Your job is to check if the SQL query 
+        and all table/field names in the 
+        following plan strictly match the provided 
+        table schemas. If any table or field name 
+        is not present in the schemas, you MUST 
+        return a clarification request, specifying 
+        the missing or incorrect name. If 
+        everything matches, return the plan 
+        unchanged. Ignore casing regarding table schemas.
+        \n\nAvailable Table Schemas 
+        (sources):\n${ragApiDesc}\n\nCurrent Plan 
+        Response:\n${plannerResponse}\n\nInstructions:\n
+        - Only allow table/field names that exist 
+        in the schemas.\n- If any name is missing, 
+        return a clarification JSON: { needs_clarification: 
+        true, reason: '...', 
+        clarification_question: '...' }\n
+        - If all names are valid, return { 
+        needs_clarification: false }.
+        - CURRENT_USER_ID is not a placeholder, ignore it.`;
+        const validationRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: validationPrompt }],
+            temperature: 0.2,
+            max_tokens: 512,
+          }),
+        });
+        if (!validationRes.ok) {
+          console.error('Validation LLM request failed:', await validationRes.text());
+          break;
+        }
+        let validationText = await validationRes.json();
+        validationText = validationText.choices[0]?.message?.content || '';
+        validationText = validationText.replace(/```json|```/g, '').trim();
+        const validationMatch = validationText.match(/\{[\s\S]*\}/);
+        if (validationMatch) validationText = validationMatch[0];
+        let validationObj;
+        try {
+          validationObj = JSON.parse(validationText);
+        } catch (e) {
+          console.error('Failed to parse validation response:', e, '\n原始validationText:', validationText);
+          break;
+        }
+        // 如果LLM发现有schema不符，直接clarify
+        if (validationObj.needs_clarification === true) {
+          console.warn('⚠️ SQL/schema不符，clarification:', validationObj.reason);
+          plannerResponse = JSON.stringify(validationObj);
+          retryNeeded = false;
+        } else {
+          // 校验通过，保留原始plannerResponse（包含execution_plan），不覆盖
+          console.log('✅ SQL/schema校验通过，保留原始plan');
+          retryNeeded = false;
+        }
+      }
 
       // ==================== 验证和修正 ====================
       let containsAssumption = /\bassume\b|\bassuming\b/i.test(plannerResponse);
@@ -257,7 +355,7 @@ Return a proper single-step execution_plan with "needs_clarification": false.`
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o',
             messages: [
               { role: 'system', content: plannerSystemPrompt },
               { role: 'user', content: plannerUserMessage },
@@ -310,7 +408,7 @@ Return a proper single-step execution_plan with "needs_clarification": false.`
       }
 
       // 最终返回
-      console.log('🎯 最终单步执行计划已生成');
+      console.log('🎯 最终单步执行计划已生成: ' + plannerResponse);
       lastPlannerResponse = plannerResponse;
       return plannerResponse;
 

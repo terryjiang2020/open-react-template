@@ -1,0 +1,21 @@
+Database Schema:
+Tables:
+pokemon_move_methods(id, identifier)
+
+-- Example 1
+Question: List all move learning methods with move counts.
+SQL: SELECT pmm.identifier as method, COUNT(DISTINCT pm.move_id) as move_count
+FROM pokemon_move_methods pmm
+LEFT JOIN pokemon_moves pm ON pmm.id = pm.move_method_id
+GROUP BY pmm.id, pmm.identifier
+ORDER BY move_count DESC;
+
+-- Example 2
+Question: Find moves that pikachu learns by leveling up.
+SQL: SELECT m.identifier, pm.level
+FROM pokemon p
+JOIN pokemon_moves pm ON p.id = pm.pokemon_id
+JOIN moves m ON pm.move_id = m.id
+JOIN pokemon_move_methods pmm ON pm.move_method_id = pmm.id
+WHERE p.identifier = 'pikachu' AND pmm.identifier = 'level-up'
+ORDER BY pm.level;
