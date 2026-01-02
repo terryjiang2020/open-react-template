@@ -759,24 +759,58 @@ export async function POST(request: NextRequest) {
 
       // Check if there was an error during execution
       if (result.error) {
+        // Sanitize before returning
+        const sanitizeForResponse = (obj: any): any => {
+          const seen = new WeakSet();
+          return JSON.parse(JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              if (seen.has(value)) return '[Circular]';
+              seen.add(value);
+              if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+              if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+              if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+                return Object.fromEntries(Object.entries(value));
+              }
+            }
+            return value;
+          }));
+        };
+        
         return NextResponse.json({
           message: result.clarification_question || result.error,
           error: result.error,
           reason: result.reason,
           refinedQuery,
           topKResults,
-          executedSteps: result.executedSteps || [],
-          accumulatedResults: result.accumulatedResults || [],
+          executedSteps: sanitizeForResponse(result.executedSteps || []),
+          accumulatedResults: sanitizeForResponse(result.accumulatedResults || []),
         });
       }
+
+      // Sanitize before returning success
+      const sanitizeForResponse = (obj: any): any => {
+        const seen = new WeakSet();
+        return JSON.parse(JSON.stringify(obj, (key, value) => {
+          if (typeof value === 'object' && value !== null) {
+            if (seen.has(value)) return '[Circular]';
+            seen.add(value);
+            if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+            if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+            if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+              return Object.fromEntries(Object.entries(value));
+            }
+          }
+          return value;
+        }));
+      };
 
       // Return the final answer
       return NextResponse.json({
         message: result.message,
         refinedQuery,
         topKResults,
-        executedSteps: result.executedSteps,
-        accumulatedResults: result.accumulatedResults,
+        executedSteps: sanitizeForResponse(result.executedSteps),
+        accumulatedResults: sanitizeForResponse(result.accumulatedResults),
         iterations: result.iterations,
       });
     }
@@ -1036,6 +1070,7 @@ Can we answer the original query with the information we have? Or do we need mor
     }
 
     const data = await response.json();
+    console.log('Validator Response 1:', data);
     const content = data.choices[0]?.message?.content || '';
 
     // Sanitize and parse the response
@@ -1278,26 +1313,28 @@ async function executeIterativePlanner(
   usefulData: Map<string, any>,
   conversationContext: string,
   entities: any[] = [],
-  maxIterations: number = 10
+  maxIterations: number = 20
 ): Promise<any> {
   let currentPlanResponse = initialPlanResponse;
   let accumulatedResults: any[] = [];
   let executedSteps: any[] = [];
-  let iteration = 0;
+  let iteration = 0; // Track total API calls made
+  let planIteration = 0; // Track planning cycles
   let intentType: 'FETCH' | 'MODIFY' = matchedApis[0]?.id.startsWith('semantic') ? 'FETCH' : 'MODIFY';
   let stuckCount = 0; // Track how many times we get the same validation reason
 
   console.log('\n' + '='.repeat(80));
   console.log('🔄 STARTING ITERATIVE PLANNER');
+  console.log(`Max API calls allowed: ${maxIterations}`);
   console.log('='.repeat(80));
 
   // Sanitize and parse the current plan response
   let sanitizedPlanResponse = sanitizePlannerResponse(currentPlanResponse);
   let actionablePlan = JSON.parse(sanitizedPlanResponse);
 
-  while (iteration < maxIterations) {
-    iteration++;
-    console.log(`\n--- Iteration ${iteration} ---`);
+  while (planIteration < 20) { // Max 20 planning cycles (separate from API call limit)
+    planIteration++;
+    console.log(`\n--- Planning Cycle ${planIteration} (API calls made: ${iteration}/${maxIterations}) ---`);
 
     try {
 
@@ -1367,7 +1404,21 @@ async function executeIterativePlanner(
 
           // Execute each step (could be 1 or multiple)
           for (const stepToExecute of stepsToExecute) {
-            console.log(`\n📌 Executing step ${stepToExecute.step_number}...`);
+            // Check iteration limit before each API call
+            if (iteration >= maxIterations) {
+              console.warn(`⚠️ Reached max iterations (${maxIterations}) during step execution`);
+              return {
+                error: 'Max iterations reached',
+                message: `Sorry, I was unable to complete the task within the allowed ${maxIterations} API calls.`,
+                executedSteps,
+                accumulatedResults,
+                iterations: iteration,
+              };
+            }
+            
+            // Increment iteration counter for each API call
+            iteration++;
+            console.log(`\n📌 Executing API call #${iteration}/${maxIterations} (step ${stepToExecute.step_number})...`);
             // If this step depends on a previous step, populate empty fields with data from that step
             let requestBodyToUse = stepToExecute.api.requestBody;
             let parametersToUse = stepToExecute.api.parameters || stepToExecute.input || {};
@@ -1615,6 +1666,40 @@ async function executeIterativePlanner(
 
             console.log('(route) API Response:', apiResponse);
             
+            // Helper: Sanitize response for JSON serialization (remove circular references)
+            function sanitizeForSerialization(obj: any): any {
+              const seen = new WeakSet();
+              return JSON.parse(JSON.stringify(obj, (key, value) => {
+                // Skip circular references and non-serializable objects
+                if (typeof value === 'object' && value !== null) {
+                  if (seen.has(value)) {
+                    return '[Circular]';
+                  }
+                  seen.add(value);
+                  
+                  // Remove large/problematic objects from error details
+                  if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') {
+                    return '[Omitted]';
+                  }
+                  
+                  // Simplify config object
+                  if (key === 'config') {
+                    return {
+                      method: value.method,
+                      url: value.url,
+                      data: value.data
+                    };
+                  }
+                  
+                  // Simplify headers
+                  if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+                    return Object.fromEntries(Object.entries(value));
+                  }
+                }
+                return value;
+              }));
+            }
+            
             // Helper: Generate a unique key for each API call (method + path + input)
             // CRITICAL: Must include BOTH parameters and requestBody to avoid key collisions
             // (e.g., different SQL queries would have same key if we only use parameters)
@@ -1645,11 +1730,14 @@ async function executeIterativePlanner(
             const prevUsefulData = flatUsefulDataMap.get(apiCallKey) || '';
             const isNewEntry = !flatUsefulDataMap.has(apiCallKey);
 
+            // Sanitize the API response before stringifying to avoid circular reference errors
+            const sanitizedResponse = sanitizeForSerialization(apiResponse);
+
             const newUsefulData = await extractUsefulDataFromApiResponses(
               refinedQuery,
               finalDeliverable,
               prevUsefulData,
-              JSON.stringify(apiResponse),
+              JSON.stringify(sanitizedResponse),
               apiSchema, // Pass the API schema for context
               matchedApis // Pass available APIs to understand dependencies
             );
@@ -1687,9 +1775,10 @@ async function executeIterativePlanner(
               }
 
               // For large arrays (like moves), ensure they're not truncated
+              // Use sanitization to avoid circular reference errors
               if (processedResponse && typeof processedResponse === 'object') {
                 // Deep clone to ensure all nested data is accessible
-                processedResponse = JSON.parse(JSON.stringify(processedResponse));
+                processedResponse = sanitizeForSerialization(processedResponse);
               }
             } catch (e) {
               // If parsing fails, use original response
@@ -1698,15 +1787,18 @@ async function executeIterativePlanner(
 
             // CRITICAL: Store both step and response together
             // This allows Validator to see the complete execution history
+            // Sanitize the response before storing to avoid circular references
+            const sanitizedProcessedResponse = sanitizeForSerialization(processedResponse);
+            
             executedSteps.push({
               step: stepToExecute,
-              response: processedResponse,
+              response: sanitizedProcessedResponse,
             });
 
             accumulatedResults.push({
               step: stepToExecute.step_number || executedSteps.length,
               description: stepToExecute.description || 'API call',
-              response: processedResponse,
+              response: sanitizedProcessedResponse,
               executionIndex: stepToExecute._executionIndex, // Track which item this execution was for
             });
 
@@ -1766,10 +1858,28 @@ async function executeIterativePlanner(
 
       // Now validate if we have sufficient information
       console.log('\n🔍 Validating if more actions are needed...');
+      
+      // Create a sanitization helper at the top level to reuse
+      const sanitizeForValidation = (obj: any): any => {
+        const seen = new WeakSet();
+        return JSON.parse(JSON.stringify(obj, (key, value) => {
+          if (typeof value === 'object' && value !== null) {
+            if (seen.has(value)) return '[Circular]';
+            seen.add(value);
+            if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+            if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+            if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+              return Object.fromEntries(Object.entries(value));
+            }
+          }
+          return value;
+        }));
+      };
+      
       const validationResult = await validateNeedMoreActions(
         refinedQuery,
-        executedSteps,
-        accumulatedResults,
+        sanitizeForValidation(executedSteps),
+        sanitizeForValidation(accumulatedResults),
         apiKey,
         actionablePlan // Pass the last execution plan
       );
@@ -1827,20 +1937,47 @@ Please generate the next step in the plan, or indicate that no more steps are ne
   // Determine why we stopped
   let stoppedReason = '';
   if (iteration >= maxIterations) {
-    console.warn(`Reached max iterations (${maxIterations})`);
+    console.warn(`Reached max API call limit (${maxIterations})`);
     stoppedReason = 'max_iterations';
+  } else if (planIteration >= 20) {
+    console.warn('Reached max planning cycles (20)');
+    stoppedReason = 'max_planning_cycles';
   } else if (stuckCount >= 2) {
     console.warn('Stopped due to stuck state (repeated validation reasons)');
     stoppedReason = 'stuck_state';
   }
+
+  console.log(`\n📊 Execution Summary:`);
+  console.log(`  - Total API calls made: ${iteration}/${maxIterations}`);
+  console.log(`  - Planning cycles: ${planIteration}`);
+  console.log(`  - Stopped reason: ${stoppedReason || 'goal_completed'}`);
 
   // Generate final answer based on accumulated results
   console.log('\n' + '='.repeat(80));
   console.log('📝 GENERATING FINAL ANSWER');
   console.log('='.repeat(80));
 
+  // Sanitize accumulated results before preparing for final answer
+  const sanitizeForFinalAnswer = (obj: any): any => {
+    const seen = new WeakSet();
+    return JSON.parse(JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+        if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+        if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+        if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+          return Object.fromEntries(Object.entries(value));
+        }
+      }
+      return value;
+    }));
+  };
+  
+  const sanitizedAccumulatedResults = sanitizeForFinalAnswer(accumulatedResults);
+  
   // Prepare data for final answer - handle large arrays intelligently
-  const preparedResults = accumulatedResults.map((result: any) => {
+  const preparedResults = sanitizedAccumulatedResults.map((result: any) => {
     const response = result.response;
 
     // If response has large arrays (like moves), filter to relevant data

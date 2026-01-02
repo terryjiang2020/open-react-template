@@ -104,6 +104,7 @@ IntentType: ["FETCH"/"MODIFY"]`,
   });
 
   const data = await response.json();
+  console.log('Validator Response 2:', data);
   const content = data.choices[0]?.message?.content || `Refined Query: ${userInput}\nLanguage: EN\nConcepts: []\nAPI Needs: []\nEntities: []`;
 
   const refinedQueryMatch = content.match(/Refined Query: (.+)\nLanguage:/);
