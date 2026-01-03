@@ -430,7 +430,7 @@ async function runPlannerWithInputs({
   }
   if (!isSqlRetrieval) {
     // 发送到planner（API模式）
-    const planResponse = await sendToPlanner(topKResults, refinedQuery, apiKey, usefulData, conversationContext);
+    const planResponse = await sendToPlanner(refinedQuery, apiKey, usefulData, conversationContext);
     let actionablePlan;
     try {
       // Remove comments and sanitize the JSON string
@@ -2195,7 +2195,7 @@ Please generate the next step in the plan, or indicate that no more steps are ne
       // Serialize useful data in chronological order (earliest first)
       const str = serializeUsefulDataInOrder(requestContext);
 
-      currentPlanResponse = await sendToPlanner(matchedApis, plannerContext, apiKey, str);
+      currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str);
       actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
       console.log('\n🔄 Generated new plan from validator feedback');
     } catch (error: any) {

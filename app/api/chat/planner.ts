@@ -4,7 +4,6 @@ import path from 'path';
 
 /**
  * sendToPlanner: 自主工作流程 - 始终使用 LLM 意图分析 + RAG API 检索 + 单步计划生成
- * @param apis - 当前可用API schema数组 (已忽略，保留参数以保持向后兼容)
  * @param refinedQuery - 用户精炼后的目标
  * @param apiKey - OpenAI Key
  * @param usefulData - 已有useful data（字符串）
@@ -12,7 +11,6 @@ import path from 'path';
  * @returns plannerResponse（JSON字符串，单步执行计划）
  */
 export async function sendToPlanner(
-  apis: any[],
   refinedQuery: string,
   apiKey: string,
   usefulData: string,
