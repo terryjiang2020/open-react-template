@@ -97,20 +97,35 @@ const PokemonDetailPage = () => {
 
       <h2>Types</h2>
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        {pokemon.types.map((type: { type: string; type_name: string }, index: number) => (
-          <span
-            key={index}
-            style={{
-              backgroundColor: typeColors[type?.type?.toLowerCase() as keyof typeof typeColors] || "#ccc",
-              color: "#fff",
-              padding: "0.5rem 1rem",
-              borderRadius: "12px",
-              fontWeight: "bold",
-            }}
-          >
-            {type.type_name}
-          </span>
-        ))}
+        {pokemon.types && pokemon.types.length > 0 ? (
+          pokemon.types.map((type: string, index: number) => {
+            // Handle different possible structures from API
+            const typeIdentifier = type || "";
+            const typeName = type || typeIdentifier;
+            const typeKey = typeIdentifier.toLowerCase();
+            
+            return (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: typeColors[typeKey as keyof typeof typeColors] || "#ccc",
+                  color: "#fff",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "12px",
+                  fontWeight: "bold",
+                  display: "inline-block",
+                  minWidth: "80px",
+                  textAlign: "center",
+                  textTransform: "capitalize",
+                }}
+              >
+                {typeName || "Unknown"}
+              </span>
+            );
+          })
+        ) : (
+          <p>No type information available</p>
+        )}
       </div>
 
       <h2>Abilities</h2>
