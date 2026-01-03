@@ -7,6 +7,30 @@ import { findApiParameters } from '@/services/apiSchemaLoader';
 import { clarifyAndRefineUserInput, handleQueryConceptsAndNeeds } from '@/utils/queryRefinement';
 import { sendToPlanner } from './planner';
 
+// In-memory plan storage for approval workflow
+// Key: sessionId (generated from user conversation hash)
+const pendingPlans = new Map<string, {
+  plan: any;
+  planResponse: string;
+  refinedQuery: string;
+  topKResults: any[];
+  conversationContext: string;
+  finalDeliverable: string;
+  entities: any[];
+  intentType: 'FETCH' | 'MODIFY';
+  timestamp: number;
+}>();
+
+// Clean up old pending plans (older than 1 hour)
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, data] of pendingPlans.entries()) {
+    if (now - data.timestamp > 3600000) {
+      pendingPlans.delete(sessionId);
+    }
+  }
+}, 300000); // Run every 5 minutes
+
 // Request-scoped context to prevent race conditions between concurrent requests
 interface RequestContext {
   ragEntity?: string;
@@ -17,6 +41,34 @@ interface RequestContext {
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
+}
+
+// Generate a session ID from messages to track pending plans
+function generateSessionId(messages: Message[]): string {
+  // Use all messages EXCEPT the last one to create a stable session ID
+  // This way, the session ID remains the same when user sends "approve"
+  const messagesForHash = messages.slice(0, -1);
+  
+  if (messagesForHash.length === 0) {
+    // First message in conversation - use just the conversation start
+    return `session_new_${Date.now()}`;
+  }
+  
+  // Use first 3 messages + second-to-last message for stability
+  const keyMessages = [
+    ...messagesForHash.slice(0, Math.min(3, messagesForHash.length)),
+    messagesForHash[messagesForHash.length - 1]
+  ].filter(Boolean);
+  
+  const content = keyMessages.map(m => `${m.role}:${m.content}`).join('|');
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return `session_${Math.abs(hash)}`;
 }
 
 // Helper function to serialize useful data in chronological order
@@ -693,9 +745,109 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('Authorization') || '';
     const userToken = authHeader.startsWith('Bearer ') ? authHeader : '';
 
-    const { messages } = await request.json();
+    const requestBody = await request.json();
+    const { messages, sessionId: clientSessionId, isApproval: clientIsApproval } = requestBody;
 
     console.log('\n💬 Received messages:', messages);
+
+    // Use client-provided session ID if available, otherwise generate one
+    const sessionId = clientSessionId || generateSessionId(messages);
+    console.log('📋 Session ID:', sessionId);
+    console.log('📋 Client provided sessionId:', clientSessionId);
+    console.log('📋 Pending plans:', Array.from(pendingPlans.keys()));
+
+    // Check if user is approving a pending plan
+    const userMessage = [...messages].reverse().find((msg: Message) => msg.role === 'user');
+    const userInput = userMessage?.content?.trim().toLowerCase() || '';
+    const isApproval = clientIsApproval === true || /^(approve|yes|proceed|ok|confirm|go ahead)$/i.test(userInput);
+    
+    console.log('🔍 User input:', userInput);
+    console.log('🔍 Is approval:', isApproval);
+    console.log('🔍 Has pending plan:', pendingPlans.has(sessionId));
+    
+    if (isApproval && pendingPlans.has(sessionId)) {
+      console.log('✅ User approved pending plan, proceeding with execution...');
+      
+      const pendingData = pendingPlans.get(sessionId)!;
+      pendingPlans.delete(sessionId); // Remove from pending
+      
+      const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'OpenAI API key not configured' },
+          { status: 500 }
+        );
+      }
+
+      // Execute the approved plan
+      if (pendingData.plan.execution_plan && pendingData.plan.execution_plan.length > 0) {
+        console.log('▶️ Executing approved plan...');
+        
+        const result = await executeIterativePlanner(
+          pendingData.refinedQuery,
+          pendingData.topKResults,
+          pendingData.planResponse,
+          apiKey,
+          userToken,
+          pendingData.finalDeliverable,
+          usefulData,
+          pendingData.conversationContext,
+          pendingData.entities,
+          requestContext
+        );
+
+        // Sanitize and return result
+        const sanitizeForResponse = (obj: any): any => {
+          const seen = new WeakSet();
+          return JSON.parse(JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              if (seen.has(value)) return '[Circular]';
+              seen.add(value);
+              if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+              if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+              if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+                return Object.fromEntries(Object.entries(value));
+              }
+            }
+            return value;
+          }));
+        };
+
+        if (result.error) {
+          return NextResponse.json({
+            message: result.clarification_question || result.error,
+            error: result.error,
+            reason: result.reason,
+            refinedQuery: pendingData.refinedQuery,
+            topKResults: pendingData.topKResults,
+            executedSteps: sanitizeForResponse(result.executedSteps || []),
+            accumulatedResults: sanitizeForResponse(result.accumulatedResults || []),
+          });
+        }
+
+        return NextResponse.json({
+          message: result.message,
+          refinedQuery: pendingData.refinedQuery,
+          topKResults: pendingData.topKResults,
+          executedSteps: sanitizeForResponse(result.executedSteps),
+          accumulatedResults: sanitizeForResponse(result.accumulatedResults),
+          iterations: result.iterations,
+        });
+      }
+    }
+
+    // Check if user is rejecting a pending plan
+    const isRejection = userMessage && pendingPlans.has(sessionId) && !isApproval;
+    if (isRejection) {
+      console.log('❌ User rejected plan, clearing pending plan...');
+      pendingPlans.delete(sessionId);
+      
+      // Return a message asking for modifications
+      return NextResponse.json({
+        message: 'Plan rejected. Please tell me what you would like to change, or ask a new question.',
+        planRejected: true,
+      });
+    }
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -712,8 +864,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract the latest user message
-    const userMessage = [...messages].reverse().find((msg: Message) => msg.role === 'user');
+    // userMessage already extracted above for approval check
     if (!userMessage) {
       return NextResponse.json(
         { error: 'No user message found' },
@@ -797,6 +948,45 @@ export async function POST(request: NextRequest) {
 
     // Execute the plan iteratively if execution_plan exists
     if (actionablePlan.execution_plan && actionablePlan.execution_plan.length > 0) {
+      // Store plan for approval instead of executing immediately
+      console.log('📋 Plan generated, storing for user approval...');
+      
+      pendingPlans.set(sessionId, {
+        plan: actionablePlan,
+        planResponse,
+        refinedQuery,
+        topKResults,
+        conversationContext,
+        finalDeliverable,
+        entities,
+        intentType,
+        timestamp: Date.now()
+      });
+
+      // Format plan for user review
+      const planSummary = {
+        goal: refinedQuery,
+        phase: actionablePlan.phase,
+        steps: actionablePlan.execution_plan.map((step: any) => ({
+          step_number: step.step_number,
+          description: step.description,
+          api: `${step.api.method.toUpperCase()} ${step.api.path}`,
+          parameters: step.api.parameters || {},
+          requestBody: step.api.requestBody || {}
+        })),
+        selected_apis: actionablePlan.selected_tools_spec || []
+      };
+
+      return NextResponse.json({
+        message: `## 📋 Execution Plan\n\n**Goal:** ${refinedQuery}\n\n**Phase:** ${actionablePlan.phase}\n\n**Planned Steps:**\n${actionablePlan.execution_plan.map((step: any) => `\n${step.step_number}. ${step.description}\n   - API: \`${step.api.method.toUpperCase()} ${step.api.path}\`\n   - Parameters: \`\`\`json\n${JSON.stringify(step.api.parameters || {}, null, 2)}\n\`\`\`\n   - Body: \`\`\`json\n${JSON.stringify(step.api.requestBody || {}, null, 2)}\n\`\`\``).join('\n')}\n\n---\n\n**Please review the plan above. Reply with "approve" to execute, or provide feedback to regenerate.**`,
+        planSummary,
+        awaitingApproval: true,
+        refinedQuery,
+        sessionId
+      });
+
+      // OLD CODE: Execute immediately (now commented out)
+      /*
       console.log('Starting iterative execution of the plan...');
 
       // Execute the plan using the iterative planner
@@ -813,62 +1003,7 @@ export async function POST(request: NextRequest) {
         requestContext // Pass request context
       );
 
-      // Check if there was an error during execution
-      if (result.error) {
-        // Sanitize before returning
-        const sanitizeForResponse = (obj: any): any => {
-          const seen = new WeakSet();
-          return JSON.parse(JSON.stringify(obj, (key, value) => {
-            if (typeof value === 'object' && value !== null) {
-              if (seen.has(value)) return '[Circular]';
-              seen.add(value);
-              if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
-              if (key === 'config') return { method: value.method, url: value.url, data: value.data };
-              if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
-                return Object.fromEntries(Object.entries(value));
-              }
-            }
-            return value;
-          }));
-        };
-        
-        return NextResponse.json({
-          message: result.clarification_question || result.error,
-          error: result.error,
-          reason: result.reason,
-          refinedQuery,
-          topKResults,
-          executedSteps: sanitizeForResponse(result.executedSteps || []),
-          accumulatedResults: sanitizeForResponse(result.accumulatedResults || []),
-        });
-      }
-
-      // Sanitize before returning success
-      const sanitizeForResponse = (obj: any): any => {
-        const seen = new WeakSet();
-        return JSON.parse(JSON.stringify(obj, (key, value) => {
-          if (typeof value === 'object' && value !== null) {
-            if (seen.has(value)) return '[Circular]';
-            seen.add(value);
-            if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
-            if (key === 'config') return { method: value.method, url: value.url, data: value.data };
-            if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
-              return Object.fromEntries(Object.entries(value));
-            }
-          }
-          return value;
-        }));
-      };
-
-      // Return the final answer
-      return NextResponse.json({
-        message: result.message,
-        refinedQuery,
-        topKResults,
-        executedSteps: sanitizeForResponse(result.executedSteps),
-        accumulatedResults: sanitizeForResponse(result.accumulatedResults),
-        iterations: result.iterations,
-      });
+      */
     }
 
     // 如果plan为GOAL_COMPLETED或无execution_plan，自动进入final answer生成

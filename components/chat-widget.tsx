@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  awaitingApproval?: boolean;
+  sessionId?: string;
 }
 
 export default function ChatWidget() {
@@ -75,6 +79,8 @@ export default function ChatWidget() {
       const assistantMessage: Message = {
         role: 'assistant',
         content: data.message || 'I apologize, but I was unable to process your request.',
+        awaitingApproval: data.awaitingApproval,
+        sessionId: data.sessionId,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
@@ -93,6 +99,99 @@ export default function ChatWidget() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  // Handle approval/rejection buttons
+  const handleApproval = async (approved: boolean, sessionId?: string) => {
+    setIsLoading(true);
+    
+    if (approved) {
+      // For approval, send "approve" message
+      const userMessage: Message = { role: 'user', content: 'approve' };
+      const updatedMessages = [...messages, userMessage];
+      setMessages(updatedMessages);
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+          },
+          body: JSON.stringify({
+            messages: updatedMessages,
+            sessionId: sessionId,
+            isApproval: true,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to process the request');
+        }
+
+        const data = await response.json();
+        console.log('(Chat) Approval Response:', data);
+
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.message || 'I apologize, but I was unable to process your request.',
+          awaitingApproval: data.awaitingApproval,
+          sessionId: data.sessionId,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error: any) {
+        const errorMessage: Message = {
+          role: 'assistant',
+          content: 'An error occurred while processing your request. Please try again.',
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        console.warn('Error in handleApproval:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // For rejection, send rejection signal and prompt for modification
+      const userMessage: Message = { role: 'user', content: 'reject' };
+      const updatedMessages = [...messages, userMessage];
+      setMessages(updatedMessages);
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
+          },
+          body: JSON.stringify({
+            messages: updatedMessages,
+            sessionId: sessionId,
+            isApproval: false,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to process the request');
+        }
+
+        const data = await response.json();
+        console.log('(Chat) Rejection Response:', data);
+
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.message || 'Plan rejected. Please tell me what you would like to change.',
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error: any) {
+        const errorMessage: Message = {
+          role: 'assistant',
+          content: 'An error occurred while processing your request. Please try again.',
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        console.warn('Error in handleRejection:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -179,9 +278,29 @@ export default function ChatWidget() {
                       : 'bg-gray-800 text-gray-100'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap text-sm">
-                    {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
-                  </p>
+                  <div className="prose-chat text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
+                    </ReactMarkdown>
+                  </div>
+                  {message.awaitingApproval && index === messages.length - 1 && (
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => handleApproval(true, message.sessionId)}
+                        disabled={isLoading}
+                        className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-green-700 disabled:opacity-50"
+                      >
+                        ✓ Approve
+                      </button>
+                      <button
+                        onClick={() => handleApproval(false, message.sessionId)}
+                        disabled={isLoading}
+                        className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                      >
+                        ✗ Reject
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
