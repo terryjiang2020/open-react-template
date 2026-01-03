@@ -244,7 +244,7 @@ ${usefulData || '无'}
 
       const plannerUserMessage = `${contextInfo}User's Ultimate Goal: ${refinedQuery}
 
-⚠️ CRITICAL: Your ONLY task is to execute THIS specific step:
+CRITICAL: Your ONLY task is to execute THIS specific step:
 "${nextIntent}"
 
 DO NOT worry about the ultimate goal (${refinedQuery}) in this step.

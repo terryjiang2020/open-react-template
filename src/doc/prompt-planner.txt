@@ -248,17 +248,3 @@ Before generating output, you MUST internally verify:
   ]
 }
 ```
-
----
-
-## 🧨 WHY THIS VERSION KILLS PLACEHOLDERS (IMPORTANT)
-
-1. **Planner no longer feels forced to “pretend resolution happened”**
-2. **Execution phase is structurally unreachable unless IDs are concrete**
-3. **Single-step rule is preserved (one phase ≠ one goal)**
-4. **Executor can safely:
-
-   * Store derived IDs in world_state
-   * Re-invoke planner for next phase**
-
-This is exactly how production-grade agent systems avoid hallucinated wiring.

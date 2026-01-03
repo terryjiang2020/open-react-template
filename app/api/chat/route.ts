@@ -866,6 +866,7 @@ async function validateNeedMoreActions(
   missing_requirements?: string[],
   suggested_next_action?: string,
   useful_data?: string 
+  item_not_found?: boolean
 }> {
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -969,6 +970,34 @@ C) Multi-step goals
      - Partial progress is NOT sufficient
 
 ────────────────────────────────────────
+CRITICAL: NO RESULTS / NOT FOUND DETECTION
+────────────────────────────────────────
+
+If a search/query API call returns:
+- Empty array/list (length = 0)
+- null result
+- "not found" message
+- 404 status code
+- Error indicating item doesn't exist
+
+AND the user is searching for a specific item by name/identifier:
+
+→ The item DOES NOT EXIST in the system
+→ DO NOT request more searches with different variations
+→ DO NOT say "try a different search endpoint"
+→ Conclude: needsMoreActions = false
+→ Reason: "The requested item '[name]' was not found in the system after searching"
+
+Example:
+- User: "Find Pikachu2000"
+- API response: [] (empty array) or {result: null} or "Pokemon not found"
+→ needsMoreActions = false (item doesn't exist, no point retrying)
+
+HOWEVER, if the empty result is due to filters/conditions (not a direct search):
+- Continue if there are other valid approaches
+- Only stop if ALL reasonable search methods have been exhausted
+
+────────────────────────────────────────
 FORBIDDEN HEURISTICS
 ────────────────────────────────────────
 
@@ -976,6 +1005,7 @@ FORBIDDEN HEURISTICS
 ❌ "There are no remaining steps"
 ❌ "The planner didn't include more actions"
 ❌ "The data exists, so the goal must be satisfied"
+❌ "Keep searching with different variations" (when item clearly doesn't exist)
 
 ────────────────────────────────────────
 CRITICAL: COUNT DERIVATION RULE
@@ -1019,6 +1049,14 @@ If the goal is NOT satisfied:
     "Explicit unmet condition 2"
   ],
   "suggested_next_action": "High-level description of what must happen next (NOT a full plan)"
+}
+
+If the requested item/entity DOES NOT EXIST (after search returned empty/null/404):
+
+{
+  "needsMoreActions": false,
+  "reason": "The requested item '[name]' does not exist in the system. Search returned no results.",
+  "item_not_found": true
 }
 
 ────────────────────────────────────────
@@ -1243,6 +1281,28 @@ Use the actual data from the API responses to provide specific, accurate informa
     } else if (stoppedReason === 'stuck_state') {
       // additionalContext = `\n\nNOTE: The system detected that the required information may not be available through the current APIs. Provide the best answer possible with available data and acknowledge any limitations.`;
       return `It seems that the information you're looking for may not be available through the current APIs. If you have more specific details or another question, feel free to ask!`;
+    } else if (stoppedReason === 'item_not_found') {
+      // Check accumulated results for what was searched
+      let searchedItem = '';
+      try {
+        for (const result of accumulatedResults) {
+          if (result.response && (
+            Array.isArray(result.response) && result.response.length === 0 ||
+            result.response.result === null ||
+            result.response.results?.length === 0 ||
+            result.response.message?.toLowerCase().includes('not found')
+          )) {
+            // Try to extract what was being searched from the step
+            const step = result.step || result.description || '';
+            searchedItem = step.toString();
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not extract searched item:', e);
+      }
+      
+      return `I couldn't find the item you're looking for${searchedItem ? ` (${searchedItem})` : ''} in the system. The search returned no results. Please check the spelling or try a different search term.`;
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -1322,6 +1382,7 @@ async function executeIterativePlanner(
   let planIteration = 0; // Track planning cycles
   let intentType: 'FETCH' | 'MODIFY' = matchedApis[0]?.id.startsWith('semantic') ? 'FETCH' : 'MODIFY';
   let stuckCount = 0; // Track how many times we get the same validation reason
+  let stoppedReason = '';
 
   console.log('\n' + '='.repeat(80));
   console.log('🔄 STARTING ITERATIVE PLANNER');
@@ -1888,6 +1949,13 @@ async function executeIterativePlanner(
 
       if (!validationResult.needsMoreActions) {
         console.log('✅ Validator confirmed: sufficient information gathered');
+        
+        // Check if it's because the item was not found
+        if (validationResult.item_not_found) {
+          console.log('❌ Item not found - will generate answer explaining this');
+          stoppedReason = 'item_not_found';
+        }
+        
         break;
       }
 
@@ -1935,7 +2003,6 @@ Please generate the next step in the plan, or indicate that no more steps are ne
   }
 
   // Determine why we stopped
-  let stoppedReason = '';
   if (iteration >= maxIterations) {
     console.warn(`Reached max API call limit (${maxIterations})`);
     stoppedReason = 'max_iterations';
