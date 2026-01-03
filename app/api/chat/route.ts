@@ -1034,16 +1034,35 @@ If a search/query API call returns:
 
 AND the user is searching for a specific item by name/identifier:
 
+FIRST, check if there is ANY related data in Accumulated Results:
+- If related data exists (e.g., moves for "zygarde" when searching "zygarde-mega")
+- If useful information was found with similar identifiers
+- If the conversation context referenced a variant that exists
+
+→ DO NOT trigger "item_not_found"
+→ USE the related/variant data that was found
+→ Conclude: needsMoreActions = false (but with reason explaining the variant was used)
+
+ONLY IF no related data exists at all:
 → The item DOES NOT EXIST in the system
 → DO NOT request more searches with different variations
 → DO NOT say "try a different search endpoint"
 → Conclude: needsMoreActions = false
 → Reason: "The requested item '[name]' was not found in the system after searching"
+→ Set "item_not_found": true
 
-Example:
+Example 1 (related data exists):
+- User asks about "Zygarde-Mega strongest move"
+- Search for "zygarde-mega" returns empty
+- BUT search for "zygarde" returned moves
+→ needsMoreActions = false (use zygarde data, NOT item_not_found)
+→ Reason: "Found moves for Zygarde (the requested Pokémon variant doesn't have a separate entry)"
+
+Example 2 (no related data):
 - User: "Find Pikachu2000"
-- API response: [] (empty array) or {result: null} or "Pokemon not found"
-→ needsMoreActions = false (item doesn't exist, no point retrying)
+- API response: [] (empty array) or {result: null}
+- No data found for any variant
+→ needsMoreActions = false, item_not_found = true
 
 HOWEVER, if the empty result is due to filters/conditions (not a direct search):
 - Continue if there are other valid approaches
