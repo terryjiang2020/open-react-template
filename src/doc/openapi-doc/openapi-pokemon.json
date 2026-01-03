@@ -369,24 +369,114 @@
         }
       }
     },
-    "/pokemon/watchlist/{pokemonId}": {
+    "/pokemon/type/search": {
+      "post": {
+        "summary": "Search for Pokémon types by name or ID.",
+        "tags": ["pokemon", "type", "search"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "searchterm": {
+                    "type": "string",
+                    "description": "The search keyword for the type name or ID."
+                  },
+                  "page": {
+                    "type": "integer",
+                    "description": "The page number for paginated results (default: 0).",
+                    "default": 0
+                  }
+                },
+                "required": ["searchterm"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Type details retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "description": "List of Pokémon types matching the search criteria.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "number",
+                            "description": "Unique type ID."
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Localized name of the type."
+                          }
+                        }
+                      }
+                    },
+                    "totalCount": {
+                      "type": "integer",
+                      "description": "Total number of types found matching the criteria."
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "Total number of pages available for pagination."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/pokemon/watchlist/{id}": {
       "delete": {
-        "summary": "Remove a Pokemon from the user’s watchlist by Pokemon ID.",
-        "tags": ["pokemon", "watchlist", "user", "remove", "favorite", "pokemon_id"],
+        "summary": "Remove a Pokémon from the user’s watchlist by watchlist item ID.",
+        "tags": ["pokemon", "watchlist", "user", "remove", "favorite"],
         "parameters": [
           {
-            "name": "pokemonId",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer"
             },
-            "description": "The Pokemon ID of the Pokémon to remove from the watchlist."
+            "description": "The watchlist item ID of the Pokémon to remove from the watchlist."
           }
         ],
         "responses": {
           "200": {
             "description": "Pokémon removed from watchlist"
+          }
+        }
+      }
+    },
+    "/pokemon/allwatchlist": {
+      "delete": {
+        "summary": "Remove all Pokémon from the user's watchlist.",
+        "tags": ["pokemon", "watchlist", "delete", "user"],
+        "responses": {
+          "200": {
+            "description": "All Pokémon removed from the user's watchlist successfully."
+          },
+          "401": {
+            "description": "Unauthorized. The user is not logged in or the token has expired."
+          },
+          "500": {
+            "description": "Internal server error."
           }
         }
       }
@@ -442,15 +532,17 @@
     },
     "/pokemon/teams/{teamId}/members": {
       "post": {
-        "summary": "Add a Pokémon as a member to a specified team, with nickname, level, moves, and shiny status.",
-        "tags": ["pokemon", "teams", "team", "member", "add", "user"],
+        "summary": "Add a Pokémon to a team",
+        "description": "Adds a Pokémon to the specified team with details like nickname, level, moves, etc.",
         "parameters": [
           {
             "name": "teamId",
             "in": "path",
             "required": true,
-            "schema": { "type": "number" },
-            "description": "The ID of the team to add the Pokémon to."
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the team to which the Pokémon will be added."
           }
         ],
         "requestBody": {
@@ -460,108 +552,98 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "pokemonId": { "type": "number", "description": "The ID of the Pokémon to add to the team." },
-                  "nickname": { "type": "string", "description": "Custom nickname for this Pokémon (optional, e.g., 'Sparky' for Pikachu)." },
-                  "level": { "type": "number", "description": "The level of this Pokémon (1-100)." },
-                  "moves": { "type": "array", "description": "Array of move IDs that this Pokémon knows (up to 4 moves).", "items": { "type": "number", "description": "Move ID." } },
-                  "shiny": { "type": "boolean", "description": "Whether this Pokémon is shiny (true) or normal (false)." }
-                }
+                  "pokemonId": { "type": "string" },
+                  "nickname": { "type": "string" },
+                  "level": { "type": "integer" },
+                  "moves": { "type": "array", "items": { "type": "string" } },
+                  "shiny": { "type": "boolean" },
+                  "orderIndex": { "type": "integer" }
+                },
+                "required": ["pokemonId"]
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "Member added to team successfully"
+          "200": {
+            "description": "Pokémon added successfully."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "400": {
+            "description": "Bad request."
           }
         }
       },
       "get": {
-        "summary": "Retrieve all Pokémon members of a specified team, including their details.",
-        "tags": ["pokemon", "teams", "team", "member", "get", "user", "all", "count"],
+        "summary": "Get all Pokémon in a team",
+        "description": "Retrieves all Pokémon in the specified team.",
         "parameters": [
           {
             "name": "teamId",
             "in": "path",
             "required": true,
-            "schema": { "type": "number" },
-            "description": "The ID of the team to retrieve members from."
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the team whose members are to be retrieved."
           }
         ],
         "responses": {
           "200": {
-            "description": "Team members retrieved successfully",
+            "description": "List of Pokémon in the team.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
-                  "description": "List of Pokémon members in the specified team.",
                   "items": {
                     "type": "object",
                     "properties": {
-                      "memberId": { "type": "number", "description": "Unique team member ID." },
-                      "pokemonId": { "type": "number", "description": "ID of the Pokémon." },
-                      "nickname": { "type": "string", "description": "Custom nickname for this Pokémon (if set)." },
-                      "level": { "type": "number", "description": "The level of this Pokémon (1-100)." },
-                      "shiny": { "type": "boolean", "description": "Whether this Pokémon is shiny (true) or normal (false)." }
+                      "pokemonId": { "type": "string" },
+                      "nickname": { "type": "string" },
+                      "level": { "type": "integer" },
+                      "moves": { "type": "array", "items": { "type": "string" } },
+                      "shiny": { "type": "boolean" },
+                      "orderIndex": { "type": "integer" }
                     }
                   }
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "400": {
+            "description": "Bad request."
           }
         }
       }
     },
-    "/pokemon/type/search": {
-      "post": {
-        "summary": "Search for Pokémon types by ID or name.",
-        "tags": ["pokemon", "type", "search", "id", "name"],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "searchterm": { "type": "string", "description": "Search keyword for type name or ID." },
-                  "page": { "type": "integer", "default": 0, "description": "Page number for paginated results (default: 0)." }
-                }
-              }
-            }
+    "/pokemon/teams/members/{memberId}": {
+      "delete": {
+        "summary": "Remove a Pokémon from a team",
+        "description": "Removes the specified Pokémon from the team.",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string" },
+            "description": "The ID of the team member to remove."
           }
-        },
+        ],
         "responses": {
           "200": {
-            "description": "Type details retrieved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "results": {
-                      "type": "array",
-                      "description": "List of Pokémon types matching the search criteria.",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": { "type": "number", "description": "Unique type ID (e.g., 1 for Normal, 10 for Fire)." },
-                          "identifier": { "type": "string", "description": "Type identifier (internal name in lowercase)." },
-                          "generation_id": { "type": "number", "description": "Generation ID when this type was introduced (e.g., 1 for Gen I, 6 for Gen VI with Fairy)." },
-                          "localized_name": { "type": "string", "description": "Localized/translated name of the type in the user's language." },
-                          "local_language_id": { "type": "number", "description": "Language ID for the localized name." }
-                        }
-                      }
-                    },
-                    "totalCount": { "type": "integer", "description": "Total number of types found matching the criteria." },
-                    "totalPage": { "type": "integer", "description": "Total number of pages available for pagination." }
-                  }
-                }
-              }
-            }
+            "description": "Pokémon removed successfully."
           },
-          "404": {
-            "description": "Type not found"
+          "401": {
+            "description": "Unauthorized."
+          },
+          "400": {
+            "description": "Bad request."
           }
         }
       }
@@ -702,7 +784,7 @@
                   },
                   "sortBy": {
                     "type": "integer",
-                    "description": "Sorting option: 0 (Level low-high, default), 1 (Level high-low), 2 (Power low-high), 3 (Power high-low), 4 (PP low-high), 5 (PP high-low), 6 (Name A-Z), 7 (Name Z-A).",
+                    "description": "Sorting option: 0 (Level low-high, default), 1 (Level high-low), 2 (Power low-high), 3 (Power high-low), 4 (PP low-high), 5 (PP low-high), 6 (Name A-Z), 7 (Name Z-A).",
                     "default": 0
                   },
                   "page": {
@@ -760,27 +842,53 @@
         }
       }
     },
-    "/pokemon/teams/members/{memberId}": {
+    "/pokemon/teams/{teamId}": {
       "delete": {
-        "summary": "Remove a Pokémon member from a specified team by member ID.",
-        "tags": ["pokemon", "teams", "team", "member", "remove", "user"],
+        "summary": "Delete a specific Pokémon team by its ID.",
+        "tags": ["pokemon", "teams", "delete", "user"],
         "parameters": [
           {
-            "name": "memberId",
+            "name": "teamId",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer"
+              "type": "string"
             },
-            "description": "The ID of the team member to remove."
+            "description": "The ID of the team to delete."
           }
         ],
         "responses": {
           "200": {
-            "description": "Team member removed successfully"
+            "description": "Team deleted successfully."
           },
-          "404": {
-            "description": "Team member not found"
+          "401": {
+            "description": "Unauthorized. The user is not logged in or the token has expired."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/pokemon/allteams": {
+      "delete": {
+        "summary": "Delete all Pokémon teams for the authenticated user",
+        "description": "Deletes all Pokémon teams associated with the authenticated user.",
+        "tags": ["Teams"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All teams deleted successfully."
+          },
+          "401": {
+            "description": "Unauthorized. Token is invalid or expired."
+          },
+          "500": {
+            "description": "Internal server error."
           }
         }
       }
