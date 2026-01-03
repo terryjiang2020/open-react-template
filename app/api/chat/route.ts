@@ -7,11 +7,11 @@ import { findApiParameters } from '@/services/apiSchemaLoader';
 import { clarifyAndRefineUserInput, handleQueryConceptsAndNeeds } from '@/utils/queryRefinement';
 import { sendToPlanner } from './planner';
 
-declare global {
-  // Augment the globalThis type to include __rag_entity
-  var __rag_entity: string | undefined;
-  var __flatUsefulDataMap: Map<string, any> | undefined;
-  var __usefulDataArray: Array<{ key: string; data: string; timestamp: number }> | undefined;
+// Request-scoped context to prevent race conditions between concurrent requests
+interface RequestContext {
+  ragEntity?: string;
+  flatUsefulDataMap: Map<string, any>;
+  usefulDataArray: Array<{ key: string; data: string; timestamp: number }>;
 }
 
 interface Message {
@@ -20,13 +20,13 @@ interface Message {
 }
 
 // Helper function to serialize useful data in chronological order
-function serializeUsefulDataInOrder(): string {
-  if (!globalThis.__usefulDataArray || globalThis.__usefulDataArray.length === 0) {
+function serializeUsefulDataInOrder(context: RequestContext): string {
+  if (!context.usefulDataArray || context.usefulDataArray.length === 0) {
     return '{}';
   }
 
   // Create an object with chronologically ordered entries
-  const orderedEntries: Array<[string, string]> = globalThis.__usefulDataArray
+  const orderedEntries: Array<[string, string]> = context.usefulDataArray
     .sort((a, b) => a.timestamp - b.timestamp) // Sort by timestamp (earliest first)
     .map(item => [item.key, item.data]);
 
@@ -153,7 +153,7 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
 }
 
 // 独立函数：多实体embedding检索与API过滤
-export async function getAllMatchedApis({ entities, intentType, apiKey }: { entities: string[], intentType: "FETCH" | "MODIFY", apiKey: string }): Promise<Map<string, any>> {
+export async function getAllMatchedApis({ entities, intentType, apiKey, context }: { entities: string[], intentType: "FETCH" | "MODIFY", apiKey: string, context?: RequestContext }): Promise<Map<string, any>> {
   // SQL retrieval detection: Only use SQL mode for FETCH intent (pure data retrieval)
   // MODIFY intent (add/update/delete) should always use API mode
   const allMatchedApis = new Map();
@@ -181,7 +181,7 @@ export async function getAllMatchedApis({ entities, intentType, apiKey }: { enti
       const embeddingData = await embeddingResponse.json();
       const entityEmbedding = embeddingData.data[0].embedding;
       // Use vectorizedDataTable for similarity search
-      const entityResults = findTopKSimilarTable(entityEmbedding, 10);
+      const entityResults = findTopKSimilarTable(entityEmbedding, 10, context);
       const relevantResults = entityResults;
       console.log(`Found ${entityResults.length} tables for entity "${entity}"`);
       relevantResults.forEach((result: any) => {
@@ -227,7 +227,7 @@ export async function getAllMatchedApis({ entities, intentType, apiKey }: { enti
       }
       const embeddingData = await embeddingResponse.json();
       const entityEmbedding = embeddingData.data[0].embedding;
-      const entityResults = findTopKSimilarApi(entityEmbedding, 10);
+      const entityResults = findTopKSimilarApi(entityEmbedding, 10, context);
       const relevantResults = entityResults;
       console.log(`Found ${entityResults.length} APIs for entity "${entity}", ${relevantResults.length} after filtering:`,
         relevantResults.map((item: any) => ({ id: item.id, similarity: item.similarity.toFixed(3) }))
@@ -300,7 +300,7 @@ const vectorizedDataTable = JSON.parse(fs.readFileSync(vectorizedDataTablePath, 
 const vectorizedDataApi = JSON.parse(fs.readFileSync(vectorizedDataApiPath, 'utf-8'));
 
 // Function to find the top-k most similar API vectors
-function findTopKSimilarApi(queryEmbedding: number[], topK: number = 3) {
+function findTopKSimilarApi(queryEmbedding: number[], topK: number = 3, context?: RequestContext) {
   return vectorizedDataApi
     .map((item: any) => {
       let tags: string[] = item.tags || [];
@@ -308,7 +308,7 @@ function findTopKSimilarApi(queryEmbedding: number[], topK: number = 3) {
       // 计算embedding相似度
       let similarity = cosineSimilarity(queryEmbedding, item.embedding);
       // 加强tag和summary权重
-      const entityText = (globalThis.__rag_entity || '').toLowerCase();
+      const entityText = (context?.ragEntity || '').toLowerCase();
       const tagHit = tags.some(t => entityText.includes(t.toLowerCase()) || t.toLowerCase().includes(entityText));
       const summaryHit = summary && (entityText.includes(summary) || summary.includes(entityText));
       if (tagHit) similarity += 0.15;
@@ -323,13 +323,13 @@ function findTopKSimilarApi(queryEmbedding: number[], topK: number = 3) {
 }
 
 // Function to find the top-k most similar table vectors
-function findTopKSimilarTable(queryEmbedding: number[], topK: number = 3) {
+function findTopKSimilarTable(queryEmbedding: number[], topK: number = 3, context?: RequestContext) {
   return vectorizedDataTable
     .map((item: any) => {
       let tags: string[] = item.tags || [];
       let summary = (item.summary || '').toLowerCase();
       let similarity = cosineSimilarity(queryEmbedding, item.embedding);
-      const entityText = (globalThis.__rag_entity || '').toLowerCase();
+      const entityText = (context?.ragEntity || '').toLowerCase();
       const tagHit = tags.some(t => entityText.includes(t.toLowerCase()) || t.toLowerCase().includes(entityText));
       const summaryHit = summary && (entityText.includes(summary) || summary.includes(entityText));
       if (tagHit) similarity += 0.15;
@@ -678,9 +678,12 @@ function sanitizePlannerResponse(response: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  // Initialize/reset global useful data structures for this request
-  globalThis.__flatUsefulDataMap = new Map();
-  globalThis.__usefulDataArray = [];
+  // Create request-local context to prevent race conditions
+  const requestContext: RequestContext = {
+    ragEntity: undefined,
+    flatUsefulDataMap: new Map(),
+    usefulDataArray: []
+  };
 
   let usefulData = new Map();
   let finalDeliverable = '';
@@ -758,13 +761,13 @@ export async function POST(request: NextRequest) {
 
 
     // 获取所有实体的匹配API（embedding检索+过滤）
-    const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey });
+    const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey, context: requestContext });
 
     // Convert Map to array and sort by similarity
     let topKResults = await getTopKResults(allMatchedApis, 20);
 
     // Serialize useful data in chronological order (earliest first)
-    const str = serializeUsefulDataInOrder();
+    const str = serializeUsefulDataInOrder(requestContext);
 
     // 调用独立planner函数
     const { actionablePlan, planResponse: plannerRawResponse } = await runPlannerWithInputs({
@@ -806,7 +809,8 @@ export async function POST(request: NextRequest) {
         finalDeliverable,
         usefulData,
         conversationContext,
-        entities
+        entities,
+        requestContext // Pass request context
       );
 
       // Check if there was an error during execution
@@ -1444,6 +1448,7 @@ async function executeIterativePlanner(
   usefulData: Map<string, any>,
   conversationContext: string,
   entities: any[] = [],
+  requestContext: RequestContext,
   maxIterations: number = 20
 ): Promise<any> {
   let currentPlanResponse = initialPlanResponse;
@@ -1852,11 +1857,8 @@ async function executeIterativePlanner(
             
             // Use a flat usefulDataMap (replace the old Map logic)
             // Also maintain an ordered array for chronological serialization
-            if (!globalThis.__flatUsefulDataMap) globalThis.__flatUsefulDataMap = new Map();
-            if (!globalThis.__usefulDataArray) globalThis.__usefulDataArray = [];
-
-            const flatUsefulDataMap: Map<string, any> = globalThis.__flatUsefulDataMap;
-            const usefulDataArray = globalThis.__usefulDataArray;
+            const flatUsefulDataMap: Map<string, any> = requestContext.flatUsefulDataMap;
+            const usefulDataArray = requestContext.usefulDataArray;
 
             const apiCallKey = getApiCallKey(apiSchema.path, apiSchema.method, parametersToUse, requestBodyToUse);
             const prevUsefulData = flatUsefulDataMap.get(apiCallKey) || '';
@@ -1946,13 +1948,13 @@ async function executeIterativePlanner(
         }
 
         // 获取所有实体的匹配API（embedding检索+过滤）
-        const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey });
+        const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey, context: requestContext });
 
         // Convert Map to array and sort by similarity
         let topKResults = await getTopKResults(allMatchedApis, 20);
 
         // Serialize useful data in chronological order (earliest first)
-        const str = serializeUsefulDataInOrder();
+        const str = serializeUsefulDataInOrder(requestContext);
 
         // 调用独立planner函数
         let { actionablePlan: actionablePlanNeo, planResponse: plannerRawResponse } = await runPlannerWithInputs({
@@ -2056,7 +2058,7 @@ IMPORTANT: If the available APIs do not include an endpoint that can provide the
 Please generate the next step in the plan, or indicate that no more steps are needed.`;
 
       // Serialize useful data in chronological order (earliest first)
-      const str = serializeUsefulDataInOrder();
+      const str = serializeUsefulDataInOrder(requestContext);
 
       currentPlanResponse = await sendToPlanner(matchedApis, plannerContext, apiKey, str);
       actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
@@ -2169,7 +2171,7 @@ Please generate the next step in the plan, or indicate that no more steps are ne
   });
 
   // Serialize useful data in chronological order (earliest first)
-  const str = serializeUsefulDataInOrder();
+  const str = serializeUsefulDataInOrder(requestContext);
 
   const finalAnswer = await generateFinalAnswer(
     refinedQuery,
