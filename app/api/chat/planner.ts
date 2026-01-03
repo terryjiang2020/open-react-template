@@ -14,7 +14,9 @@ export async function sendToPlanner(
   refinedQuery: string,
   apiKey: string,
   usefulData: string,
-  conversationContext?: string
+  conversationContext?: string,
+  planIntentType?: 'FETCH' | 'MODIFY',
+  forceFullPlan?: boolean
 ): Promise<string> {
   console.log('🚀 Planner 自主工作流程启动');
   console.log('📌 忽略传入的 apis 参数，使用自主 RAG 检索');
@@ -114,7 +116,11 @@ GOAL_NOT_COMPLETED
 
       // ==================== Intent 分析 Prompt ====================
 
-      const nextActionPrompt = `你是 API 自动化系统的【下一步操作规划器】。
+      let nextIntent = refinedQuery;
+      let intentType = planIntentType || 'FETCH';
+
+      if (!planIntentType) {
+        const nextActionPrompt = `你是 API 自动化系统的【下一步操作规划器】。
 
 你的前提条件是：  
 **用户目标尚未完成。**
@@ -149,86 +155,103 @@ ${usefulData || '无'}
 不允许输出任何解释或多余文字。
 请开始规划：`;
 
-      // ==================== STEP 1: LLM 分析下一步意图 ====================
-      console.log('📊 Step 1: 分析下一步意图...');
-      const intentRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [{ role: 'user', content: nextActionPrompt }],
-          temperature: 0.3,
-          max_tokens: 256,
-        }),
-      });
-
-      if (!intentRes.ok) {
-        console.error('Intent analysis failed:', await intentRes.text());
-        throw new Error('Failed to analyze next step intent.');
-      }
-
-      const intentData = await intentRes.json();
-      let intentJson = intentData.choices[0]?.message?.content || '';
-      console.log('✅ 意图分析响应:', intentJson);
-      let intentObj;
-      // 尝试修正和提取伪JSON
-      try {
-        try {
-          intentObj = JSON.parse(intentJson);
-        } catch {
-          // 才进入“修正伪 JSON”逻辑
-          // 1. 提取 {...} 块
-          const match = intentJson.match(/\{[\s\S]*\}/);
-          if (match) intentJson = match[0];
-          // 2. 替换中文逗号、全角引号等
-          intentJson = intentJson
-            .replace(/，/g, ',')
-            .replace(/[“”]/g, '"')
-            .replace(/：/g, ':')
-            .replace(/\s*([a-zA-Z0-9_]+)\s*:/g, '"$1":') // 补key引号
-            .replace(/:([\s]*)("[^"]*"|\d+|true|false|null)/g, ': $2');
-          // 3. 去除多余换行
-          intentJson = intentJson.replace(/\n/g, ' ');
-          intentObj = JSON.parse(intentJson);
-        }
-      } catch (e) {
-        console.error('Failed to parse intent JSON:', e, '\n原始intentJson:', intentJson);
-        throw new Error('Invalid JSON format in intent analysis response.');
-      }
-      const nextIntent = intentObj.description?.trim() || '';
-      const intentType = intentObj.type?.trim() || '';
-      console.log('✅ 下一步意图:', nextIntent);
-
-      // 如果目标已完成
-      if (nextIntent === 'GOAL_COMPLETED' || nextIntent.includes('GOAL_COMPLETED')) {
-        return JSON.stringify({
-          needs_clarification: false,
-          execution_plan: [],
-          message: 'Goal completed with existing data'
+        // ==================== STEP 1: LLM 分析下一步意图 ====================
+        console.log('📊 Step 1: 分析下一步意图...');
+        const intentRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: nextActionPrompt }],
+            temperature: 0.3,
+            max_tokens: 256,
+          }),
         });
+
+        if (!intentRes.ok) {
+          console.error('Intent analysis failed:', await intentRes.text());
+          throw new Error('Failed to analyze next step intent.');
+        }
+
+        const intentData = await intentRes.json();
+        let intentJson = intentData.choices[0]?.message?.content || '';
+        console.log('✅ 意图分析响应:', intentJson);
+        let intentObj;
+        // 尝试修正和提取伪JSON
+        try {
+          try {
+            intentObj = JSON.parse(intentJson);
+          } catch {
+            // 才进入“修正伪 JSON”逻辑
+            // 1. 提取 {...} 块
+            const match = intentJson.match(/\{[\s\S]*\}/);
+            if (match) intentJson = match[0];
+            // 2. 替换中文逗号、全角引号等
+            intentJson = intentJson
+              .replace(/，/g, ',')
+              .replace(/[“”]/g, '"')
+              .replace(/：/g, ':')
+              .replace(/\s*([a-zA-Z0-9_]+)\s*:/g, '"$1":') // 补key引号
+              .replace(/:([\s]*)("[^"]*"|\d+|true|false|null)/g, ': $2');
+            // 3. 去除多余换行
+            intentJson = intentJson.replace(/\n/g, ' ');
+            intentObj = JSON.parse(intentJson);
+          }
+        } catch (e) {
+          console.error('Failed to parse intent JSON:', e, '\n原始intentJson:', intentJson);
+          throw new Error('Invalid JSON format in intent analysis response.');
+        }
+        nextIntent = intentObj.description?.trim() || '';
+        intentType = intentObj.type?.trim() || '';
+        console.log('✅ 下一步意图:', nextIntent);
+
+        // 如果目标已完成
+        if (nextIntent === 'GOAL_COMPLETED' || nextIntent.includes('GOAL_COMPLETED')) {
+          return JSON.stringify({
+            needs_clarification: false,
+            execution_plan: [],
+            message: 'Goal completed with existing data'
+          });
+        }
+      } else {
+        console.log(`📊 Intent provided by caller: type=${planIntentType}, intent="${nextIntent}"`);
       }
 
-      // ==================== STEP 2: RAG 检索相关 API ====================
-      console.log('🔍 Step 2: RAG 检索相关 API...');
+      // ==================== STEP 2: RAG 检索相关 API 和 Table ====================
+      console.log('🔍 Step 2: RAG 检索相关 API 和 Table...');
       let ragApis: any[] = [];
       try {
-        const allMatchedApis = await getAllMatchedApis({ entities: [nextIntent], intentType, apiKey });
-        ragApis = await getTopKResults(allMatchedApis, 20);
-        console.log(`✅ 检索到 ${ragApis.length} 个相关 API`);
+        // For MODIFY intents: retrieve both tables and APIs
+        // For FETCH intents: retrieve only tables
+        if (intentType === 'MODIFY') {
+          console.log('📊 MODIFY intent: retrieving both TABLE and API resources...');
+          const allMatchedApis = await getAllMatchedApis({ entities: [nextIntent], intentType: 'MODIFY', apiKey });
+          ragApis = await getTopKResults(allMatchedApis, 20);
+          console.log(`✅ 检索到 ${ragApis.length} 个相关资源 (tables + APIs)`);
+        } else {
+          console.log('📊 FETCH intent: retrieving only TABLE resources...');
+          const allMatchedApis = await getAllMatchedApis({ entities: [nextIntent], intentType: 'FETCH', apiKey });
+          // Filter to only include table schemas (not REST APIs)
+          const allResults = await getTopKResults(allMatchedApis, 20);
+          ragApis = allResults.filter((item: any) => 
+            item.id && typeof item.id === 'string' && (item.id.startsWith('table-') || item.id === 'sql-query')
+          );
+          console.log(`✅ 检索到 ${ragApis.length} 个相关表结构 (tables only)`);
+        }
       } catch (e) {
-        console.warn('⚠️ RAG API检索失败:', e);
+        console.warn('⚠️ RAG 检索失败:', e);
         ragApis = [];
       }
 
       if (ragApis.length === 0) {
-        console.warn('⚠️ 未找到相关API，无法生成执行计划');
+        console.warn('⚠️ 未找到相关资源，无法生成执行计划');
         return JSON.stringify({
           needs_clarification: true,
-          reason: 'No relevant APIs found for the next step',
-          clarification_question: `Cannot find APIs to: ${nextIntent}. Please check if the API database is properly configured.`
+          reason: `No relevant ${intentType === 'MODIFY' ? 'APIs or tables' : 'tables'} found for the next step`,
+          clarification_question: `Cannot find ${intentType === 'MODIFY' ? 'APIs/tables' : 'tables'} to: ${nextIntent}. Please check if the database is properly configured.`
         });
       }
 
@@ -241,23 +264,42 @@ ${usefulData || '无'}
 
       const plannerSystemPrompt = await fetchPromptFile(intentType === 'FETCH' ? 'prompt-planner-table.txt' : 'prompt-planner.txt');
 
-      const plannerUserMessage = `${contextInfo}User's Ultimate Goal: ${refinedQuery}
+      const plannerUserMessage = intentType === 'MODIFY'
+        ? `${contextInfo}User's Ultimate Goal: ${refinedQuery}
 
-CRITICAL: Your ONLY task is to execute THIS specific step:
-"${nextIntent}"
+    You must produce the COMPLETE remaining execution plan (all steps) required to fulfill the goal, including any prerequisite data fetch/resolution steps followed by the modification step(s).
 
-DO NOT worry about the ultimate goal (${refinedQuery}) in this step.
-- If the next intent is FETCH (read/select/query), generate a read-only plan
-- If the next intent is MODIFY (add/delete/update), generate a modification plan
-- The ultimate goal will be achieved through multiple steps orchestrated by the system
+    Rules:
+    - Include every remaining step in order; do not stop after the first step.
+    - Use TABLE/SQL (POST /general/sql/query) for any lookups/resolution before mutation; keep REST APIs for the actual mutations.
+    - You have access to BOTH table schemas AND REST API specifications in the available resources below.
+    - Zero placeholders: all parameters must be concrete or omitted.
+    - Do not ask the user for info; rely on lookups instead.
 
-Focus ONLY on: ${nextIntent}
+    ${forceFullPlan ? '- PRIOR RESPONSE WAS RESOLUTION-ONLY. DO NOT STOP AT RESOLUTION. RETURN THE ENTIRE EXECUTION_PLAN WITH MODIFICATION STEPS INCLUDED.' : ''}
 
-Available APIs: ${ragApiDesc}
+    Available Resources (Tables + APIs): ${ragApiDesc}
 
-Useful Data: ${usefulData || '无'}
+    Useful Data: ${usefulData || '无'}
 
-IMPORTANT: Execute ONLY the "Next Step Intent" above, ignoring any conflicting implications from the ultimate goal.`;
+    Output the full execution_plan array covering resolution (SQL queries) + mutation (REST APIs) + validation (SQL queries) steps.`
+        : `${contextInfo}User's Ultimate Goal: ${refinedQuery}
+
+    CRITICAL: Your ONLY task is to execute THIS specific step:
+    "${nextIntent}"
+
+    DO NOT worry about the ultimate goal (${refinedQuery}) in this step.
+    - This is a FETCH intent - generate a read-only plan using SQL queries
+    - Use TABLE/SQL (POST /general/sql/query) for all data retrieval
+    - You have access ONLY to table schemas (no REST APIs for FETCH)
+
+    Focus ONLY on: ${nextIntent}
+
+    Available Resources (Tables only): ${ragApiDesc}
+
+    Useful Data: ${usefulData || '无'}
+
+    IMPORTANT: Execute ONLY the "Next Step Intent" above using SQL queries.`;
 
       const plannerRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -302,38 +344,31 @@ IMPORTANT: Execute ONLY the "Next Step Intent" above, ignoring any conflicting i
         validationAttempts++;
         // 让LLM自检SQL与schema一致性
         const validationPrompt = `
-You are a strict SQL/schema validator. 
-Your job is to check if the SQL query 
-and all table/field names in the 
-following plan strictly match the provided 
-table schemas. If any table or field name 
-is not present in the schemas, you MUST 
-return a clarification request, specifying 
-the missing or incorrect name. If 
-everything matches, return the plan 
-unchanged. Ignore casing regarding table schemas.
+You are a SQL/schema validator. 
+Your job is to check if the SQL query references tables and columns that exist in the provided table schemas.
 
+CRITICAL RULES:
+1. The schemas may be in different formats (table metadata, DDL, or field lists in "content")
+2. Look CAREFULLY at the "content" field of each schema entry - it often contains the full column definitions
+3. Extract table names and column lists from patterns like "table_name(col1, col2, col3)"
+4. Common columns like "id", "identifier", "user_id", "pokemon_id" are standard and likely valid
+5. CURRENT_USER_ID is a special placeholder, NOT a schema issue - IGNORE IT
+6. Only flag OBVIOUS missing tables or clearly wrong column names
 
-Available Table Schemas 
-(sources):
+Available Table Schemas:
 ${ragApiDesc}
 
-Current Plan 
-Response:
+Current Plan Response:
 ${plannerResponse}
 
-Instructions:
+VALIDATION APPROACH:
+- Parse the "content" field carefully - it contains column definitions like "pokemon(id, identifier, ...)"
+- If a table is referenced and appears in the schemas, assume standard columns (id, identifier, etc.) exist
+- ONLY return needs_clarification: true if a TABLE is completely missing or a column is clearly wrong
 
-- Only allow table/field names that exist 
-in the schemas.
-- If any name is missing, 
-return a clarification JSON: { needs_clarification: 
-true, reason: '...', 
-clarification_question: '...' }
-
-- If all names are valid, return { 
-needs_clarification: false }.
-- CURRENT_USER_ID is not a placeholder, ignore it.`;
+Output:
+{ "needs_clarification": false } if the query looks reasonable
+{ "needs_clarification": true, "reason": "...", "clarification_question": "..." } ONLY for obvious errors`;
         const validationRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -384,14 +419,6 @@ needs_clarification: false }.
         const parsed = JSON.parse(plannerResponse);
         needsClarification = parsed.needs_clarification === true;
 
-        // 验证是否只有单步
-        if (parsed.execution_plan && Array.isArray(parsed.execution_plan)) {
-          if (parsed.execution_plan.length > 1) {
-            console.warn(`⚠️ Planner 生成了 ${parsed.execution_plan.length} 步，需要修正为单步`);
-            containsAssumption = true; // 触发重试
-          }
-        }
-
         if (plannerResponse.includes('<') && plannerResponse.includes('>')) {
             containsAssumption = true;
         }
@@ -428,7 +455,7 @@ MANDATORY RULES:
 
 The available APIs can resolve these lookups. CREATE AN EXECUTION PLAN with ONLY THE FIRST STEP (step_number: 1) that starts the lookup process.
 
-Return a proper single-step execution_plan with "needs_clarification": false.`;
+If intent is MODIFY, return the full remaining execution_plan (all steps, ordered) with "needs_clarification": false.`;
 
         console.warn(`⚠️ 需要重新生成计划 (retry ${retryCount}/${maxRetries})`);
 
@@ -469,31 +496,14 @@ Return a proper single-step execution_plan with "needs_clarification": false.`;
 
         // 验证重试后的响应
         try {
-          const retryParsed = JSON.parse(plannerResponse);
-          if (retryParsed.execution_plan && retryParsed.execution_plan.length > 1) {
-            console.warn('⚠️ 重试后仍有多步，截取第一步');
-            retryParsed.execution_plan = [retryParsed.execution_plan[0]];
-            plannerResponse = JSON.stringify(retryParsed);
-          }
+          JSON.parse(plannerResponse);
         } catch (e) {
           console.error('Failed to parse retry response:', e);
         }
       }
 
-      // 最终验证：确保只有单步
-      try {
-        const finalParsed = JSON.parse(plannerResponse);
-        if (finalParsed.execution_plan && finalParsed.execution_plan.length > 1) {
-          console.warn('⚠️ 最终响应仍有多步，强制截取第一步');
-          finalParsed.execution_plan = [finalParsed.execution_plan[0]];
-          plannerResponse = JSON.stringify(finalParsed);
-        }
-      } catch (e) {
-        console.error('Failed to validate final response:', e);
-      }
-
       // 最终返回
-      console.log('🎯 最终单步执行计划已生成: ' + plannerResponse);
+      console.log('🎯 最终执行计划已生成: ' + plannerResponse);
       lastPlannerResponse = plannerResponse;
       return plannerResponse;
 

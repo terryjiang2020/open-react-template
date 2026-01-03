@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { fetchPokemonDetails } from "@/services/pokemonService";
 
 const typeColors = {
@@ -28,9 +28,8 @@ const typeColors = {
 
 const PokemonDetailPage = () => {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const id = searchParams?.get("id") || "";
-  const prevPage = searchParams?.get("prevPage") || "";
+  const params = useParams();
+  const id = params?.id ? String(params.id) : "";
   const [pokemon, setPokemon] = useState<any | null>(null);
   const [filter, setFilter] = useState("level-up");
 
@@ -53,11 +52,7 @@ const PokemonDetailPage = () => {
   }, [id]);
 
   const handleBack = () => {
-    if (prevPage) {
-      router.push(decodeURIComponent(prevPage));
-    } else {
-      router.push("/dashboard/pokemons");
-    }
+    router.back();
   };
 
   if (!pokemon) {

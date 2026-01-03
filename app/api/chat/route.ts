@@ -71,6 +71,75 @@ function generateSessionId(messages: Message[]): string {
   return `session_${Math.abs(hash)}`;
 }
 
+// Helper function to detect if a query/plan is for resolution (checking) vs execution (modifying)
+async function detectResolutionVsExecution(
+  refinedQuery: string,
+  executionPlan: any,
+  apiKey: string
+): Promise<'resolution' | 'execution'> {
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a query intent classifier.
+
+RESOLUTION queries are those that:
+- Check, verify, or confirm the current state
+- Ask "has X been done?", "is Y cleared?", "how many Z?"
+- Retrieve information to verify a previous action
+- Query the database to check current state
+- Examples: "Has the watchlist been cleared?", "Did the deletion succeed?", "Show current state", "How many items in my team?"
+
+EXECUTION queries are those that:
+- Perform actions or modifications
+- Add, delete, update, create data
+- Directly call modification APIs
+- Examples: "Clear the watchlist", "Delete this item", "Add to team"
+
+Respond with ONLY ONE WORD: either "resolution" or "execution"`,
+          },
+          {
+            role: 'user',
+            content: `Query: ${refinedQuery}
+
+Execution Plan: ${JSON.stringify(executionPlan, null, 2)}
+
+Intent:`,
+          },
+        ],
+        temperature: 0.1,
+        max_tokens: 10,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Resolution detection failed, defaulting to execution');
+      return 'execution';
+    }
+
+    const data = await response.json();
+    const intent = data.choices[0]?.message?.content?.trim().toLowerCase();
+
+    console.log(`🔍 Detected intent: ${intent} for query: "${refinedQuery}"`);
+
+    if (intent === 'resolution') {
+      return 'resolution';
+    }
+    return 'execution';
+  } catch (error) {
+    console.error('Error detecting resolution vs execution:', error);
+    return 'execution'; // Default to execution on error
+  }
+}
+
 // Helper function to serialize useful data in chronological order
 function serializeUsefulDataInOrder(context: RequestContext): string {
   if (!context.usefulDataArray || context.usefulDataArray.length === 0) {
@@ -206,44 +275,57 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
 
 // 独立函数：多实体embedding检索与API过滤
 export async function getAllMatchedApis({ entities, intentType, apiKey, context }: { entities: string[], intentType: "FETCH" | "MODIFY", apiKey: string, context?: RequestContext }): Promise<Map<string, any>> {
-  // SQL retrieval detection: Only use SQL mode for FETCH intent (pure data retrieval)
-  // MODIFY intent (add/update/delete) should always use API mode
+  // Always use TABLE embeddings for data fetch context, even when the overall task is MODIFY.
   const allMatchedApis = new Map();
-  let isSqlRetrieval = intentType === 'FETCH';
+  console.log(`🔎 Retrieval mode decision: intentType=${intentType}, always including TABLE/SQL for reads; adding API matches for MODIFY.`);
 
-  if (isSqlRetrieval) {
-    // Use vectorizedDataTable for SQL retrieval
-    for (const entity of entities) {
-      console.log(`\n--- SQL检索模式: "${entity}" ---`);
-      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'text-embedding-ada-002',
-          input: entity,
-        }),
-      });
-      if (!embeddingResponse.ok) {
-        console.warn(`Failed to generate embedding for entity "${entity}"`);
-        continue;
+  for (const entity of entities) {
+    console.log(`\n--- Embedding search for entity: "${entity}" ---`);
+    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-ada-002',
+        input: entity,
+      }),
+    });
+    if (!embeddingResponse.ok) {
+      console.warn(`Failed to generate embedding for entity "${entity}"`);
+      continue;
+    }
+    const embeddingData = await embeddingResponse.json();
+    const entityEmbedding = embeddingData.data[0].embedding;
+
+    // Table-first retrieval for all intents (used for read phases)
+    const tableResults = findTopKSimilarTable(entityEmbedding, 10, context);
+    console.log(`Found ${tableResults.length} tables for entity "${entity}"`);
+    tableResults.forEach((result: any) => {
+      const existing = allMatchedApis.get(result.id);
+      if (!existing || result.similarity > existing.similarity) {
+        allMatchedApis.set(result.id, result);
       }
-      const embeddingData = await embeddingResponse.json();
-      const entityEmbedding = embeddingData.data[0].embedding;
-      // Use vectorizedDataTable for similarity search
-      const entityResults = findTopKSimilarTable(entityEmbedding, 10, context);
-      const relevantResults = entityResults;
-      console.log(`Found ${entityResults.length} tables for entity "${entity}"`);
-      relevantResults.forEach((result: any) => {
+    });
+
+    if (intentType === 'MODIFY') {
+      // API retrieval remains available (needed for mutation steps)
+      const apiResults = findTopKSimilarApi(entityEmbedding, 10, context);
+      console.log(`Found ${apiResults.length} APIs for entity "${entity}":`,
+        apiResults.map((item: any) => ({ id: item.id, similarity: item.similarity.toFixed(3) }))
+      );
+      apiResults.forEach((result: any) => {
         const existing = allMatchedApis.get(result.id);
         if (!existing || result.similarity > existing.similarity) {
           allMatchedApis.set(result.id, result);
         }
       });
     }
-    // Add a special API spec for POST /general/sql/query
+  }
+
+  // Always add a special API spec for POST /general/sql/query to support SQL reads
+  if (!allMatchedApis.has('sql-query')) {
     allMatchedApis.set('sql-query', {
       id: 'sql-query',
       summary: 'Execute SQL query',
@@ -257,42 +339,9 @@ export async function getAllMatchedApis({ entities, intentType, apiKey, context 
       },
       similarity: 0
     });
-    return allMatchedApis;
-  } else {
-    // Default: use vectorizedDataApi for normal API retrieval
-    for (const entity of entities) {
-      console.log(`\n--- Searching for entity: "${entity}" ---`);
-      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'text-embedding-ada-002',
-          input: entity,
-        }),
-      });
-      if (!embeddingResponse.ok) {
-        console.warn(`Failed to generate embedding for entity "${entity}"`);
-        continue;
-      }
-      const embeddingData = await embeddingResponse.json();
-      const entityEmbedding = embeddingData.data[0].embedding;
-      const entityResults = findTopKSimilarApi(entityEmbedding, 10, context);
-      const relevantResults = entityResults;
-      console.log(`Found ${entityResults.length} APIs for entity "${entity}", ${relevantResults.length} after filtering:`,
-        relevantResults.map((item: any) => ({ id: item.id, similarity: item.similarity.toFixed(3) }))
-      );
-      relevantResults.forEach((result: any) => {
-        const existing = allMatchedApis.get(result.id);
-        if (!existing || result.similarity > existing.similarity) {
-          allMatchedApis.set(result.id, result);
-        }
-      });
-    }
-    return allMatchedApis;
   }
+
+  return allMatchedApis;
 }
 
 export async function getTopKResults(allMatchedApis: Map<string, any>, topK: number): Promise<any[]> {
@@ -314,6 +363,13 @@ export async function getTopKResults(allMatchedApis: Map<string, any>, topK: num
 
     if (topKResults.length === 0) {
       return [];
+    }
+
+    // Ensure the SQL entry is always available for read-phase planning
+    const sqlEntry = allMatchedApis.get('sql-query');
+    const hasSqlEntry = topKResults.some((item: any) => item.id === 'sql-query');
+    if (!hasSqlEntry && sqlEntry) {
+      topKResults.push(sqlEntry);
     }
 
     topKResults = topKResults.map((item: any) => {
@@ -412,25 +468,27 @@ async function runPlannerWithInputs({
   apiKey,
   usefulData,
   conversationContext,
-  finalDeliverable
+  finalDeliverable,
+  intentType,
+  entities,
+  requestContext
 }: {
   topKResults: any[],
   refinedQuery: string,
   apiKey: string,
   usefulData: string,
   conversationContext?: string,
-  finalDeliverable?: string
+  finalDeliverable?: string,
+  intentType: 'FETCH' | 'MODIFY',
+  entities?: string[],
+  requestContext?: RequestContext
 }): Promise<{ actionablePlan: any, planResponse: string }> {
-  let isSqlRetrieval = false;
-  for (const item of topKResults) {
-    if (item.id && typeof item.id === 'string' && (item.id.startsWith('table-') || item.id === 'sql-query')) {
-      isSqlRetrieval = true;
-      break;
-    }
-  }
+  const hasSqlCandidate = topKResults.some((item: any) => item.id && typeof item.id === 'string' && (item.id.startsWith('table-') || item.id === 'sql-query'));
+  const isSqlRetrieval = intentType === 'FETCH' && hasSqlCandidate;
+  console.log(`🔀 Planner input routing: intentType=${intentType}, hasSqlCandidate=${hasSqlCandidate}, isSqlRetrieval=${isSqlRetrieval}`);
   if (!isSqlRetrieval) {
     // 发送到planner（API模式）
-    const planResponse = await sendToPlanner(refinedQuery, apiKey, usefulData, conversationContext);
+    let planResponse = await sendToPlanner(refinedQuery, apiKey, usefulData, conversationContext, intentType);
     let actionablePlan;
     try {
       // Remove comments and sanitize the JSON string
@@ -488,6 +546,20 @@ async function runPlannerWithInputs({
       console.warn('Failed to parse planner response as JSON:', error);
       console.warn('Original Planner Response:', planResponse);
       throw new Error('Failed to parse planner response');
+    }
+    // If modify intent returned only resolution phase, force a full-plan retry with MODIFY intent to get both resolution + modification steps
+    if (intentType === 'MODIFY' && actionablePlan?.phase === 'resolution' && Array.isArray(entities) && entities.length > 0) {
+      console.log('♻️ Plan is resolution-only for MODIFY intent; re-planning with forceFullPlan=true to get complete execution plan (resolution + modification steps)...');
+      const tableMatchedApis = await getAllMatchedApis({ entities, intentType: 'MODIFY', apiKey, context: requestContext });
+      const tableTopK = await getTopKResults(tableMatchedApis, 20);
+      const tablePlanResponse = await sendToPlanner(refinedQuery, apiKey, usefulData, conversationContext, 'MODIFY', true);
+      const sanitizedPlanResponse = sanitizePlannerResponse(tablePlanResponse);
+      actionablePlan = JSON.parse(sanitizedPlanResponse);
+      planResponse = tablePlanResponse;
+      if (actionablePlan && finalDeliverable) {
+        actionablePlan.final_deliverable = finalDeliverable;
+      }
+      console.log('✅ Replanned with MODIFY intent and forceFullPlan=true for full execution plan.');
     }
     return { actionablePlan, planResponse };
   } else {
@@ -920,15 +992,53 @@ export async function POST(request: NextRequest) {
     // Serialize useful data in chronological order (earliest first)
     const str = serializeUsefulDataInOrder(requestContext);
 
-    // 调用独立planner函数
-    const { actionablePlan, planResponse: plannerRawResponse } = await runPlannerWithInputs({
+    // 调用独立planner函数 (Phase 1: Always with APIs first)
+    let { actionablePlan, planResponse: plannerRawResponse } = await runPlannerWithInputs({
       topKResults,
       refinedQuery,
       apiKey,
       usefulData: str,
       conversationContext,
-      finalDeliverable
+      finalDeliverable,
+      intentType,
+      entities,
+      requestContext
     });
+
+    // Phase 2: Detect if this is a resolution query
+    const queryIntent = await detectResolutionVsExecution(refinedQuery, actionablePlan, apiKey);
+
+    if (queryIntent === 'resolution') {
+      console.log('🔄 Resolution query detected! Switching to table-only mode and re-planning...');
+
+      // Re-fetch using only tables (filter out API results)
+      const tableOnlyResults = topKResults.filter((item: any) =>
+        item.id && typeof item.id === 'string' && (item.id.startsWith('table-') || item.id === 'sql-query')
+      );
+
+      console.log(`📊 Filtered to ${tableOnlyResults.length} table-only results for resolution`);
+
+      // Re-run planner with table-only context
+      const replanResult = await runPlannerWithInputs({
+        topKResults: tableOnlyResults,
+        refinedQuery,
+        apiKey,
+        usefulData: str,
+        conversationContext,
+        finalDeliverable,
+        intentType: 'FETCH', // Force FETCH mode for resolution
+        entities,
+        requestContext
+      });
+
+      actionablePlan = replanResult.actionablePlan;
+      plannerRawResponse = replanResult.planResponse;
+
+      console.log('✅ Re-planned with table-only context for resolution');
+    } else {
+      console.log('⚡ Execution query detected! Proceeding with API-based plan');
+    }
+
     // 保留原始finalDeliverable，不被plan覆盖
     // finalDeliverable = actionablePlan.final_deliverable || finalDeliverable;
     const planResponse = plannerRawResponse;
@@ -948,62 +1058,107 @@ export async function POST(request: NextRequest) {
 
     // Execute the plan iteratively if execution_plan exists
     if (actionablePlan.execution_plan && actionablePlan.execution_plan.length > 0) {
-      // Store plan for approval instead of executing immediately
-      console.log('📋 Plan generated, storing for user approval...');
+      // Check if plan contains non-SQL steps (REST API mutations/modifications)
+      const hasNonSqlSteps = actionablePlan.execution_plan.filter((step: any) => step.api.path != '/general/sql/query').length > 0;
       
-      pendingPlans.set(sessionId, {
-        plan: actionablePlan,
-        planResponse,
-        refinedQuery,
-        topKResults,
-        conversationContext,
-        finalDeliverable,
-        entities,
-        intentType,
-        timestamp: Date.now()
-      });
+      if (hasNonSqlSteps && intentType === 'MODIFY') {
+        // MODIFY intents with REST API calls require user approval
+        console.log('📋 Plan generated (MODIFY with REST APIs), storing for user approval...');
+        
+        pendingPlans.set(sessionId, {
+          plan: actionablePlan,
+          planResponse,
+          refinedQuery,
+          topKResults,
+          conversationContext,
+          finalDeliverable,
+          entities,
+          intentType,
+          timestamp: Date.now()
+        });
 
-      // Format plan for user review
-      const planSummary = {
-        goal: refinedQuery,
-        phase: actionablePlan.phase,
-        steps: actionablePlan.execution_plan.map((step: any) => ({
-          step_number: step.step_number,
-          description: step.description,
-          api: `${step.api.method.toUpperCase()} ${step.api.path}`,
-          parameters: step.api.parameters || {},
-          requestBody: step.api.requestBody || {}
-        })),
-        selected_apis: actionablePlan.selected_tools_spec || []
-      };
+        // Format plan for user review
+        const planSummary = {
+          goal: refinedQuery,
+          phase: actionablePlan.phase,
+          steps: actionablePlan.execution_plan.map((step: any) => ({
+            step_number: step.step_number,
+            description: step.description,
+            api: `${step.api.method.toUpperCase()} ${step.api.path}`,
+            parameters: step.api.parameters || {},
+            requestBody: step.api.requestBody || {}
+          })),
+          selected_apis: actionablePlan.selected_tools_spec || []
+        };
 
-      return NextResponse.json({
-        message: `## 📋 Execution Plan\n\n**Goal:** ${refinedQuery}\n\n**Phase:** ${actionablePlan.phase}\n\n**Planned Steps:**\n${actionablePlan.execution_plan.map((step: any) => `\n${step.step_number}. ${step.description}\n   - API: \`${step.api.method.toUpperCase()} ${step.api.path}\`\n   - Parameters: \`\`\`json\n${JSON.stringify(step.api.parameters || {}, null, 2)}\n\`\`\`\n   - Body: \`\`\`json\n${JSON.stringify(step.api.requestBody || {}, null, 2)}\n\`\`\``).join('\n')}\n\n---\n\n**Please review the plan above. Reply with "approve" to execute, or provide feedback to regenerate.**`,
-        planSummary,
-        awaitingApproval: true,
-        refinedQuery,
-        sessionId
-      });
+        console.log('📤 Returning consolidated plan after internal planning (no interim gather output).');
 
-      // OLD CODE: Execute immediately (now commented out)
-      /*
-      console.log('Starting iterative execution of the plan...');
+        return NextResponse.json({
+          message: `## 📋 Execution Plan\n\n**Goal:** ${refinedQuery}\n\n**Phase:** ${actionablePlan.phase}\n\n**Planned Steps:**\n${actionablePlan.execution_plan.map((step: any) => `\n${step.step_number}. ${step.description}\n   - API: \`${step.api.method.toUpperCase()} ${step.api.path}\`\n   - Parameters: \`\`\`json\n${JSON.stringify(step.api.parameters || {}, null, 2)}\n\`\`\`\n   - Body: \`\`\`json\n${JSON.stringify(step.api.requestBody || {}, null, 2)}\n\`\`\``).join('\n')}\n\n---\n\n**Please review the plan above. Reply with "approve" to execute, or provide feedback to regenerate.**`,
+          planSummary,
+          awaitingApproval: true,
+          refinedQuery,
+          sessionId
+        });
+      } else {
+        // FETCH-only plans (pure SQL) execute immediately without approval
+        console.log('▶️ Executing FETCH plan (SQL queries only) immediately...');
+        
+        const result = await executeIterativePlanner(
+          refinedQuery,
+          topKResults,
+          planResponse,
+          apiKey,
+          userToken,
+          finalDeliverable,
+          usefulData,
+          conversationContext,
+          entities,
+          requestContext
+        );
 
-      // Execute the plan using the iterative planner
-      const result = await executeIterativePlanner(
-        refinedQuery,
-        topKResults,
-        planResponse,
-        apiKey,
-        userToken, // Pass user token for API authentication
-        finalDeliverable,
-        usefulData,
-        conversationContext,
-        entities,
-        requestContext // Pass request context
-      );
+        // Sanitize and return result
+        const sanitizeForResponse = (obj: any): any => {
+          const seen = new WeakSet();
+          return JSON.parse(JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              if (seen.has(value)) return '[Circular]';
+              seen.add(value);
+              if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+              if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+              if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+                return Object.fromEntries(Object.entries(value));
+              }
+            }
+            return value;
+          }));
+        };
 
-      */
+        if (result.error) {
+          return NextResponse.json({
+            message: result.clarification_question || result.error,
+            error: result.error,
+            reason: result.reason,
+            refinedQuery,
+            topKResults,
+            executedSteps: sanitizeForResponse(result.executedSteps || []),
+            accumulatedResults: sanitizeForResponse(result.accumulatedResults || []),
+            isFetchPlan: true,
+            needsVerification: true,
+          });
+        }
+
+        return NextResponse.json({
+          message: result.message,
+          refinedQuery,
+          topKResults,
+          executedSteps: sanitizeForResponse(result.executedSteps),
+          accumulatedResults: sanitizeForResponse(result.accumulatedResults),
+          iterations: result.iterations,
+          isFetchPlan: true,
+          needsVerification: true,
+        });
+      }
     }
 
     // 如果plan为GOAL_COMPLETED或无execution_plan，自动进入final answer生成
@@ -2098,7 +2253,10 @@ async function executeIterativePlanner(
           apiKey,
           usefulData: str,
           conversationContext,
-          finalDeliverable
+          finalDeliverable,
+          intentType,
+          entities,
+          requestContext
         });
         actionablePlan = actionablePlanNeo;
         finalDeliverable = actionablePlan.final_deliverable || finalDeliverable;
@@ -2195,7 +2353,7 @@ Please generate the next step in the plan, or indicate that no more steps are ne
       // Serialize useful data in chronological order (earliest first)
       const str = serializeUsefulDataInOrder(requestContext);
 
-      currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str);
+      currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
       actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
       console.log('\n🔄 Generated new plan from validator feedback');
     } catch (error: any) {
