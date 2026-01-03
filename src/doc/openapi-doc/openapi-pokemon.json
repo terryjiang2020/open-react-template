@@ -369,13 +369,13 @@
         }
       }
     },
-    "/pokemon/watchlist/{id}": {
+    "/pokemon/watchlist/{pokemonId}": {
       "delete": {
         "summary": "Remove a Pokemon from the user’s watchlist by Pokemon ID.",
         "tags": ["pokemon", "watchlist", "user", "remove", "favorite", "pokemon_id"],
         "parameters": [
           {
-            "name": "id",
+            "name": "pokemonId",
             "in": "path",
             "required": true,
             "schema": {
