@@ -33,6 +33,7 @@ export async function sendToPlanner(
         ? `对话上下文:\n${conversationContext}`
         : '';
 
+        console.log('conversationContext: ', conversationContext);
         console.log('usefulData: ', usefulData);
 
       const validatorPrompt = `你是一个【目标完成校验器】。
@@ -44,7 +45,7 @@ export async function sendToPlanner(
 
 --------------------------------
 
-用户目标:
+${contextInfo ? contextInfo + '\n\n' : ''}用户目标:
 ${refinedQuery}
 
 已有数据（最高优先级，真实 API 返回）:
@@ -122,7 +123,7 @@ GOAL_NOT_COMPLETED
 
 --------------------------------
 
-用户目标:
+${contextInfo ? contextInfo + '\n\n' : ''}用户目标:
 ${refinedQuery}
 
 已有数据（真实 API 返回）:

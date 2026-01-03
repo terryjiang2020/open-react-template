@@ -517,11 +517,21 @@ Selection Reasoning: ${tableSelection.reasoning}
 
 - If a user ID is needed, always use CURRENT_USER_ID as the value.`;
     
-    const sqlPrompt = `You are an expert SQL generator. Using the relevant tables and focus columns provided, generate a valid SQL query that answers the user question.
+    const sqlPrompt = `You are an expert SQL generator for PostgreSQL. Using the relevant tables and focus columns provided, generate a valid SQL query that answers the user question.
 
 ${sqlSchema}
 
 User Question: ${userQuestion}
+
+CRITICAL SQL RULES FOR POSTGRESQL:
+1. Column aliases defined in SELECT cannot be used in HAVING clause
+2. Must repeat the aggregate expression in HAVING instead of using the alias
+3. Use single quotes (') for string literals, never smart quotes
+4. Ensure proper GROUP BY clauses include all non-aggregated columns
+
+Example:
+❌ WRONG: SELECT SUM(x) as total ... HAVING total > 10
+✅ CORRECT: SELECT SUM(x) as total ... HAVING SUM(x) > 10
 
 Generate ONLY the SQL query (no explanations):
 
@@ -554,6 +564,48 @@ SQL:`;
     // Extract SQL statement
     const sqlMatch = sqlText.match(/select[\s\S]+?;/i);
     if (sqlMatch) sqlText = sqlMatch[0];
+    
+    // Sanitize SQL: Replace smart quotes with regular quotes and normalize whitespace
+    sqlText = sqlText
+      .replace(/[\u2018\u2019]/g, "'")  // Replace smart single quotes
+      .replace(/[\u201C\u201D]/g, '"')  // Replace smart double quotes
+      .replace(/\\n/g, ' ')             // Replace literal \n with space
+      .replace(/\\t/g, ' ')             // Replace literal \t with space
+      .replace(/\s+/g, ' ')             // Normalize multiple spaces to single space
+      .trim();
+    
+    // Fix common PostgreSQL errors: Replace alias references in HAVING with actual expressions
+    // Pattern: HAVING alias_name operator value -> HAVING aggregate_expression operator value
+    const selectMatch = sqlText.match(/SELECT\s+(.*?)\s+FROM/i);
+    if (selectMatch) {
+      const selectClause = selectMatch[1];
+      // Extract all aliases and their expressions: "expression AS alias"
+      const aliasPattern = /(\S+\([^)]+\)|[\w.]+)\s+(?:AS\s+)?(\w+)/gi;
+      let match;
+      const aliases = new Map<string, string>();
+      
+      while ((match = aliasPattern.exec(selectClause)) !== null) {
+        const expression = match[1].trim();
+        const alias = match[2].trim();
+        // Only store aggregate expressions
+        if (/^(SUM|COUNT|AVG|MAX|MIN|ARRAY_AGG)\(/i.test(expression)) {
+          aliases.set(alias.toLowerCase(), expression);
+        }
+      }
+      
+      // Replace alias references in HAVING clause
+      if (aliases.size > 0) {
+        sqlText = sqlText.replace(/HAVING\s+(.+?)(?=\s+(?:ORDER|LIMIT|;|$))/gi, (havingClause: any) => {
+          let modifiedHaving = havingClause;
+          aliases.forEach((expression, alias) => {
+            // Match alias used in comparisons (e.g., "total_stats = 100")
+            const aliasRegex = new RegExp(`\\b${alias}\\b(?=\\s*[=<>!])`, 'gi');
+            modifiedHaving = modifiedHaving.replace(aliasRegex, expression);
+          });
+          return modifiedHaving;
+        });
+      }
+    }
     
     console.log('🔍 Generated SQL:', sqlText);
     // 构造只包含POST /general/sql/query的plan
