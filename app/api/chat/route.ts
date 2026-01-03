@@ -1058,107 +1058,44 @@ export async function POST(request: NextRequest) {
 
     // Execute the plan iteratively if execution_plan exists
     if (actionablePlan.execution_plan && actionablePlan.execution_plan.length > 0) {
-      // Check if plan contains non-SQL steps (REST API mutations/modifications)
-      const hasNonSqlSteps = actionablePlan.execution_plan.filter((step: any) => step.api.path != '/general/sql/query').length > 0;
+      // All plans require user approval before execution
+      console.log('📋 Plan generated, storing for user approval...');
       
-      if (hasNonSqlSteps && intentType === 'MODIFY') {
-        // MODIFY intents with REST API calls require user approval
-        console.log('📋 Plan generated (MODIFY with REST APIs), storing for user approval...');
-        
-        pendingPlans.set(sessionId, {
-          plan: actionablePlan,
-          planResponse,
-          refinedQuery,
-          topKResults,
-          conversationContext,
-          finalDeliverable,
-          entities,
-          intentType,
-          timestamp: Date.now()
-        });
+      pendingPlans.set(sessionId, {
+        plan: actionablePlan,
+        planResponse,
+        refinedQuery,
+        topKResults,
+        conversationContext,
+        finalDeliverable,
+        entities,
+        intentType,
+        timestamp: Date.now()
+      });
 
-        // Format plan for user review
-        const planSummary = {
-          goal: refinedQuery,
-          phase: actionablePlan.phase,
-          steps: actionablePlan.execution_plan.map((step: any) => ({
-            step_number: step.step_number,
-            description: step.description,
-            api: `${step.api.method.toUpperCase()} ${step.api.path}`,
-            parameters: step.api.parameters || {},
-            requestBody: step.api.requestBody || {}
-          })),
-          selected_apis: actionablePlan.selected_tools_spec || []
-        };
+      // Format plan for user review
+      const planSummary = {
+        goal: refinedQuery,
+        phase: actionablePlan.phase,
+        steps: actionablePlan.execution_plan.map((step: any) => ({
+          step_number: step.step_number,
+          description: step.description,
+          api: `${step.api.method.toUpperCase()} ${step.api.path}`,
+          parameters: step.api.parameters || {},
+          requestBody: step.api.requestBody || {}
+        })),
+        selected_apis: actionablePlan.selected_tools_spec || []
+      };
 
-        console.log('📤 Returning consolidated plan after internal planning (no interim gather output).');
+      console.log('📤 Returning plan for user approval.');
 
-        return NextResponse.json({
-          message: `## 📋 Execution Plan\n\n**Goal:** ${refinedQuery}\n\n**Phase:** ${actionablePlan.phase}\n\n**Planned Steps:**\n${actionablePlan.execution_plan.map((step: any) => `\n${step.step_number}. ${step.description}\n   - API: \`${step.api.method.toUpperCase()} ${step.api.path}\`\n   - Parameters: \`\`\`json\n${JSON.stringify(step.api.parameters || {}, null, 2)}\n\`\`\`\n   - Body: \`\`\`json\n${JSON.stringify(step.api.requestBody || {}, null, 2)}\n\`\`\``).join('\n')}\n\n---\n\n**Please review the plan above. Reply with "approve" to execute, or provide feedback to regenerate.**`,
-          planSummary,
-          awaitingApproval: true,
-          refinedQuery,
-          sessionId
-        });
-      } else {
-        // FETCH-only plans (pure SQL) execute immediately without approval
-        console.log('▶️ Executing FETCH plan (SQL queries only) immediately...');
-        
-        const result = await executeIterativePlanner(
-          refinedQuery,
-          topKResults,
-          planResponse,
-          apiKey,
-          userToken,
-          finalDeliverable,
-          usefulData,
-          conversationContext,
-          entities,
-          requestContext
-        );
-
-        // Sanitize and return result
-        const sanitizeForResponse = (obj: any): any => {
-          const seen = new WeakSet();
-          return JSON.parse(JSON.stringify(obj, (key, value) => {
-            if (typeof value === 'object' && value !== null) {
-              if (seen.has(value)) return '[Circular]';
-              seen.add(value);
-              if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
-              if (key === 'config') return { method: value.method, url: value.url, data: value.data };
-              if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
-                return Object.fromEntries(Object.entries(value));
-              }
-            }
-            return value;
-          }));
-        };
-
-        if (result.error) {
-          return NextResponse.json({
-            message: result.clarification_question || result.error,
-            error: result.error,
-            reason: result.reason,
-            refinedQuery,
-            topKResults,
-            executedSteps: sanitizeForResponse(result.executedSteps || []),
-            accumulatedResults: sanitizeForResponse(result.accumulatedResults || []),
-            isFetchPlan: true,
-            needsVerification: true,
-          });
-        }
-
-        return NextResponse.json({
-          message: result.message,
-          refinedQuery,
-          topKResults,
-          executedSteps: sanitizeForResponse(result.executedSteps),
-          accumulatedResults: sanitizeForResponse(result.accumulatedResults),
-          iterations: result.iterations,
-          isFetchPlan: true,
-          needsVerification: true,
-        });
-      }
+      return NextResponse.json({
+        message: `## 📋 Execution Plan\n\n**Goal:** ${refinedQuery}\n\n**Phase:** ${actionablePlan.phase}\n\n**Planned Steps:**\n${actionablePlan.execution_plan.map((step: any) => `\n${step.step_number}. ${step.description}\n   - API: \`${step.api.method.toUpperCase()} ${step.api.path}\`\n   - Parameters: \`\`\`json\n${JSON.stringify(step.api.parameters || {}, null, 2)}\n\`\`\`\n   - Body: \`\`\`json\n${JSON.stringify(step.api.requestBody || {}, null, 2)}\n\`\`\``).join('\n')}\n\n---\n\n**Please review the plan above. Reply with "approve" to execute, or provide feedback to regenerate.**`,
+        planSummary,
+        awaitingApproval: true,
+        refinedQuery,
+        sessionId
+      });
     }
 
     // 如果plan为GOAL_COMPLETED或无execution_plan，自动进入final answer生成
