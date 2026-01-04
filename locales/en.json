@@ -1,0 +1,6 @@
+{
+  "saveTask.cta": "Save this task",
+  "saveTask.success": "Task saved successfully",
+  "saveTask.errorMissingToken": "Please sign in before saving tasks.",
+  "saveTask.errorGeneric": "Could not save the task. Please try again."
+}

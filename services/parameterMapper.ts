@@ -145,7 +145,7 @@ export function mapArgsToRequired(
 
       // 类型校验
       const vt = guessValueType(value);
-      if ((req.type === "number" || req.type === "integer") && vt !== "number") {
+      if ((req.type === "number" || req.type === "integer") && vt !== "number" && isNaN(value)) {
         typeMismatchDetected = true;
         typeMismatchDetail.push(`参数 "${req.name}" 期望类型为 ${req.type}，但实际为 ${vt}`);
         console.warn(`⚠️ 参数类型不匹配: "${req.name}" 期望 ${req.type}，实际为 ${vt}`);

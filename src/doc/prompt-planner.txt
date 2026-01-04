@@ -176,7 +176,7 @@ If none of the provided tables/APIs can satisfy the request (e.g., no relevant t
 | Fetch/lookup data | POST /general/sql/query (SELECT) | `SELECT id FROM pokemon` | GET /pokemon/search |
 | Create new record | REST API only | ❌ NOT SQL | `POST /pokemon/teams` |
 | Add to collection | REST API only | ❌ NOT SQL | `POST /pokemon/teams/{id}/members` |
-| Remove from watchlist | REST API (DELETE) | ❌ NOT SQL | `DELETE /pokemon/watchlist/{id}` |
+| Remove from watchlist | REST API (DELETE) | ❌ NOT SQL | `DELETE /pokemon/watchlist/{pokemonId}` |
 | Verify changes | POST /general/sql/query (SELECT) | `SELECT * FROM table WHERE ...` | ✅ SELECT only |
 
 **CRITICAL**: Never use INSERT/UPDATE/DELETE in POST /general/sql/query.

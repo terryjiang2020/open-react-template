@@ -3,20 +3,119 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import en from '../locales/en.json';
+import zh from '../locales/zh.json';
+import { saveTask } from '@/services/taskService';
+
+interface PlanStep {
+  step_number?: number;
+  description?: string;
+  api?: string;
+  parameters?: Record<string, any>;
+  requestBody?: Record<string, any>;
+}
+
+interface PlanSummary {
+  goal?: string;
+  phase?: string;
+  steps?: PlanStep[];
+  selected_apis?: any[];
+}
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   awaitingApproval?: boolean;
   sessionId?: string;
+  planSummary?: PlanSummary;
+  planResponse?: string;
+  refinedQuery?: string;
 }
+
+const translations = { en, zh } as const;
+const t = (key: string) => translations.en[key as keyof typeof translations.en] || key;
+
+type TaskPayload = {
+  taskName: string;
+  taskType: number;
+  taskContent: string;
+  taskSteps: Array<{
+    stepOrder: number;
+    stepType: number;
+    stepContent: string;
+  }>;
+};
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingTask, setIsSavingTask] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const sanitizeContent = (text: string) => text.replace(/```/g, '').trim();
+
+  const isReadOperation = (apiText: string) => {
+    const lowered = apiText.toLowerCase();
+    return lowered.includes('/general/sql/query') || lowered.startsWith('get');
+  };
+
+  const inferTaskTypeFromSteps = (steps: PlanStep[] = []) => {
+    const hasWrite = steps.some((step) => {
+      const apiText = step.api?.toLowerCase() || '';
+      if (isReadOperation(apiText)) return false;
+      return apiText.startsWith('post') || apiText.startsWith('put') || apiText.startsWith('patch') || apiText.startsWith('delete');
+    });
+    return hasWrite ? 2 : 1;
+  };
+
+  const extractMethod = (api?: string) => {
+    if (!api) return '';
+    const first = api.trim().split(' ')[0];
+    return first.toUpperCase();
+  };
+
+  const stepTypeFromApi = (api?: string) => {
+    const method = extractMethod(api);
+    const normalized = api?.toLowerCase() || '';
+    if (isReadOperation(normalized)) return 1;
+    return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? 2 : 1;
+  };
+
+  const convertPlanToTaskPayload = (message: Message): TaskPayload => {
+    const plan = message.planSummary;
+    const text = message.content || '';
+
+    const taskName = (plan?.goal || text.split('\n')[0] || 'Untitled task').slice(0, 120).trim() || 'Untitled task';
+    const steps = plan?.steps || [];
+    const taskType = inferTaskTypeFromSteps(steps);
+
+    const mappedSteps = (steps.length ? steps : [{ description: text, api: 'GET' }]).map((step, idx) => {
+      const apiPart = step.api ? step.api.trim() : '';
+      const stepType = stepTypeFromApi(apiPart);
+
+      // Prefer logical description, avoid leaking raw SQL/placeholder details
+      const logicalDesc = (step.description || '').split('(')[0].trim() || 'Step';
+      const content = apiPart ? `${logicalDesc} — ${apiPart}` : logicalDesc;
+
+      return {
+        stepOrder: idx + 1,
+        stepType,
+        stepContent: sanitizeContent(content),
+      };
+    });
+
+    const logicalSummary = mappedSteps.map((s) => `- ${s.stepContent}`).join('\n');
+    const taskContent = sanitizeContent(`Goal: ${taskName}\nSteps:\n${logicalSummary}`);
+
+    return {
+      taskName,
+      taskType,
+      taskContent,
+      taskSteps: mappedSteps,
+    };
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,6 +180,9 @@ export default function ChatWidget() {
         content: data.message || 'I apologize, but I was unable to process your request.',
         awaitingApproval: data.awaitingApproval,
         sessionId: data.sessionId,
+        planSummary: data.planSummary,
+        planResponse: data.planResponse,
+        refinedQuery: data.refinedQuery,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
@@ -99,6 +201,27 @@ export default function ChatWidget() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  const handleSaveTask = async (message: Message) => {
+    if (!message.planSummary) return;
+    setIsSavingTask(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert(t('saveTask.errorMissingToken'));
+        return;
+      }
+
+      const payload = convertPlanToTaskPayload(message);
+      await saveTask(payload, token);
+      alert(t('saveTask.success'));
+    } catch (err) {
+      console.warn('Error saving task', err);
+      alert(t('saveTask.errorGeneric'));
+    } finally {
+      setIsSavingTask(false);
     }
   };
 
@@ -138,6 +261,9 @@ export default function ChatWidget() {
           content: data.message || 'I apologize, but I was unable to process your request.',
           awaitingApproval: data.awaitingApproval,
           sessionId: data.sessionId,
+          planSummary: data.planSummary,
+          planResponse: data.planResponse,
+          refinedQuery: data.refinedQuery,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       } catch (error: any) {
@@ -180,6 +306,11 @@ export default function ChatWidget() {
         const assistantMessage: Message = {
           role: 'assistant',
           content: data.message || 'Plan rejected. Please tell me what you would like to change.',
+          awaitingApproval: data.awaitingApproval,
+          sessionId: data.sessionId,
+          planSummary: data.planSummary,
+          planResponse: data.planResponse,
+          refinedQuery: data.refinedQuery,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       } catch (error: any) {
@@ -283,6 +414,17 @@ export default function ChatWidget() {
                       {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
                     </ReactMarkdown>
                   </div>
+                  {message.role === 'assistant' && message.planSummary && (
+                    <div className="mt-3 flex flex-col gap-2">
+                      <button
+                        onClick={() => handleSaveTask(message)}
+                        disabled={isSavingTask}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {t('saveTask.cta')}
+                      </button>
+                    </div>
+                  )}
                   {message.awaitingApproval && index === messages.length - 1 && (
                     <div className="mt-3 flex gap-2">
                       <button

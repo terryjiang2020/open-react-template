@@ -442,32 +442,44 @@
         }
       }
     },
-    "/pokemon/watchlist/{id}": {
+    "/pokemon/watchlist/{pokemonId}": {
       "delete": {
-        "summary": "Remove a Pokémon from the user’s watchlist by watchlist item ID.",
-        "tags": ["pokemon", "watchlist", "user", "remove", "favorite"],
+        "summary": "Remove a Pokémon from the watchlist",
+        "description": "Removes a specific Pokémon from the authenticated user's watchlist using the Pokémon ID.",
+        "tags": ["Watchlist"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
-            "name": "id",
+            "name": "pokemonId",
             "in": "path",
             "required": true,
+            "description": "The ID of the Pokémon to remove from the watchlist.",
             "schema": {
-              "type": "integer"
-            },
-            "description": "The watchlist item ID of the Pokémon to remove from the watchlist."
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Pokémon removed from watchlist"
+            "description": "Pokémon removed from watchlist successfully."
+          },
+          "401": {
+            "description": "Unauthorized. Token is invalid or expired."
+          },
+          "500": {
+            "description": "Internal server error."
           }
         }
       }
     },
     "/pokemon/allwatchlist": {
       "delete": {
-        "summary": "Delete all Pokémon from watchlist. Clear entire watchlist collection. Remove all watched Pokémon.",
-        "tags": ["pokemon", "watchlist", "delete", "remove", "clear", "all", "user", "batch"],
+        "summary": "Remove all Pokémon from the user's watchlist.",
+        "tags": ["pokemon", "watchlist", "delete", "user"],
         "responses": {
           "200": {
             "description": "All Pokémon removed from the user's watchlist successfully."
@@ -872,9 +884,9 @@
     },
     "/pokemon/allteams": {
       "delete": {
-        "summary": "Delete all Pokémon teams. Clear all teams collection. Remove all user teams at once.",
-        "description": "Deletes all Pokémon teams associated with the authenticated user. This removes the entire teams collection.",
-        "tags": ["pokemon", "teams", "delete", "remove", "clear", "all", "user", "batch"],
+        "summary": "Delete all Pokémon teams for the authenticated user",
+        "description": "Deletes all Pokémon teams associated with the authenticated user.",
+        "tags": ["Teams"],
         "security": [
           {
             "bearerAuth": []
