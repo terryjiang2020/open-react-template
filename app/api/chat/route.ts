@@ -1784,6 +1784,10 @@ async function executeIterativePlanner(
       // CRITICAL: Execute ALL steps in the current plan before validating
       // This prevents premature validation and ensures complete plan execution
       console.log(`\n📋 Executing complete plan with ${actionablePlan.execution_plan.length} steps`);
+      console.log(`📌 Execution mode: ${intentType === 'MODIFY' ? 'MODIFY (execute all, validate once at end)' : 'FETCH (execute and validate)'}`);
+
+      // Track if any API call resulted in an error for MODIFY flows
+      let hasApiError = false;
 
       while (actionablePlan.execution_plan?.length > 0) {
         const step = actionablePlan.execution_plan.shift(); // Remove first step
@@ -1985,10 +1989,52 @@ async function executeIterativePlanner(
                 userToken // Pass user token for authentication
               );
             } catch (err: any) {
-              // CRITICAL: Treat errors as part of the response, not as failures
-              // Many HTTP status codes (404, 409, 403, etc.) are informative responses
-              console.warn(`⚠️  API call encountered an error (this may be expected):`, err.message);
+              // CRITICAL: Treat errors differently based on intent type
+              console.warn(`⚠️  API call encountered an error (statusCode: ${err.statusCode}):`, err.message);
               
+              // For MODIFY flows: Stop execution immediately on HTTP errors (403, 404, etc.)
+              if (intentType === 'MODIFY' && err.statusCode && [400, 403, 404, 409, 422, 500].includes(err.statusCode)) {
+                console.error(`❌ MODIFY flow encountered critical error (${err.statusCode}): ${err.message}`);
+                hasApiError = true;
+                
+                // Stop executing remaining steps and return early for re-planning
+                actionablePlan.execution_plan = []; // Clear remaining steps to exit loop
+                
+                // Construct error response for re-planning
+                apiResponse = {
+                  success: false,
+                  error: true,
+                  statusCode: err.statusCode,
+                  message: err.message || 'API request failed',
+                  details: err.response || err.data || null,
+                  _originalError: {
+                    name: err.name,
+                    message: err.message,
+                  }
+                };
+                
+                // Store the failed step's response
+                const sanitizedResponse = sanitizeForSerialization(apiResponse);
+                executedSteps.push({
+                  step: stepToExecute,
+                  response: sanitizedResponse,
+                  error: true,
+                  errorMessage: err.message,
+                });
+                
+                accumulatedResults.push({
+                  step: stepToExecute.step_number || executedSteps.length,
+                  description: stepToExecute.description || 'API call',
+                  response: sanitizedResponse,
+                  error: true,
+                  errorMessage: err.message,
+                });
+                
+                console.log(`📤 Error recorded. Exiting execution loop to re-plan.`);
+                break; // Exit the step execution loop
+              }
+              
+              // For FETCH flows or non-critical errors: Continue with error as response
               // 参数类型不匹配是特殊情况，需要重新规划
               if (typeof err?.message === 'string' && err.message.includes('参数类型不匹配')) {
                 console.warn('参数类型不匹配，打回AI重写:', err.message);
@@ -2231,102 +2277,202 @@ async function executeIterativePlanner(
           // Don't add invalid steps to executedSteps since no API was actually called
           // The validator will detect that the goal is not met and request proper API steps
         }
+      } // End of while loop - all steps in the plan have been executed
 
-        // 获取所有实体的匹配API（embedding检索+过滤）
+      console.log(`\n✅ Completed all planned steps. Total executed: ${executedSteps.length - progressBeforeExecution}`);
+
+      // For MODIFY flows: Skip validation during step execution, only validate once after all steps complete
+      // For FETCH flows: Validate after each step (via the original flow)
+      if (intentType === 'MODIFY' && !hasApiError) {
+        console.log('📌 MODIFY flow: All steps executed without errors. Validating goal completion...');
+        
+        // Get updated planner context with execution results
         const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey, context: requestContext });
-
-        // Convert Map to array and sort by similarity
         let topKResults = await getTopKResults(allMatchedApis, 20);
-
-        // Serialize useful data in chronological order (earliest first)
         const str = serializeUsefulDataInOrder(requestContext);
-
-        // 调用独立planner函数
-        let { actionablePlan: actionablePlanNeo, planResponse: plannerRawResponse } = await runPlannerWithInputs({
-          topKResults,
-          refinedQuery,
-          apiKey,
-          usefulData: str,
-          conversationContext,
-          finalDeliverable,
-          intentType,
-          entities,
-          requestContext
-        });
-        actionablePlan = actionablePlanNeo;
-        finalDeliverable = actionablePlan.final_deliverable || finalDeliverable;
-        const planResponse = plannerRawResponse;
-        console.log('Generated Plan:', planResponse);
-      }
-
-      // All steps in the current plan have been executed
-      console.log(`\n✅ Completed all ${executedSteps.length - progressBeforeExecution} steps in current plan`);
-
-      // Check if we made progress (executed any new steps)
-      const progressMade = accumulatedResults.length > progressBeforeExecution;
-
-      if (!progressMade) {
-        stuckCount++;
-        console.warn(`⚠️  No progress made in this iteration (stuck count: ${stuckCount})`);
-
-        if (stuckCount >= 2) {
-          console.warn('Detected stuck state: no new API calls in 2 consecutive iterations');
-          console.log('Generating answer with available information.');
-          break;
-        }
-      } else {
-        stuckCount = 0; // Reset stuck count if we made progress
-      }
-
-      // Now validate if we have sufficient information
-      console.log('\n🔍 Validating if more actions are needed...');
-      
-      // Create a sanitization helper at the top level to reuse
-      const sanitizeForValidation = (obj: any): any => {
-        const seen = new WeakSet();
-        return JSON.parse(JSON.stringify(obj, (key, value) => {
-          if (typeof value === 'object' && value !== null) {
-            if (seen.has(value)) return '[Circular]';
-            seen.add(value);
-            if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
-            if (key === 'config') return { method: value.method, url: value.url, data: value.data };
-            if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
-              return Object.fromEntries(Object.entries(value));
+        
+        // Validate if goal is complete
+        const sanitizeForValidation = (obj: any): any => {
+          const seen = new WeakSet();
+          return JSON.parse(JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              if (seen.has(value)) return '[Circular]';
+              seen.add(value);
+              if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+              if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+              if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+                return Object.fromEntries(Object.entries(value));
+              }
             }
+            return value;
+          }));
+        };
+        
+        const validationResult = await validateNeedMoreActions(
+          refinedQuery,
+          sanitizeForValidation(executedSteps),
+          sanitizeForValidation(accumulatedResults),
+          apiKey,
+          actionablePlan
+        );
+        
+        console.log('Post-execution validation result:', validationResult);
+        
+        if (!validationResult.needsMoreActions) {
+          console.log('✅ MODIFY validation confirmed: goal is complete');
+          if (validationResult.item_not_found) {
+            stoppedReason = 'item_not_found';
           }
-          return value;
-        }));
-      };
-      
-      const validationResult = await validateNeedMoreActions(
-        refinedQuery,
-        sanitizeForValidation(executedSteps),
-        sanitizeForValidation(accumulatedResults),
-        apiKey,
-        actionablePlan // Pass the last execution plan
-      );
-
-      console.log('Validation result:', validationResult);
-
-      if (!validationResult.needsMoreActions) {
-        console.log('✅ Validator confirmed: sufficient information gathered');
-        
-        // Check if it's because the item was not found
-        if (validationResult.item_not_found) {
-          console.log('❌ Item not found - will generate answer explaining this');
-          stoppedReason = 'item_not_found';
-        }
-        
-        break;
-      }
-
-      console.log(`⚠️  Validator says more actions needed: ${validationResult.reason}`);
-
-      // Send the accumulated context back to the planner for next step
-      const plannerContext = `
+          // Break to generate final answer
+          break;
+        } else {
+          // Goal not complete - need to re-plan
+          console.log(`⚠️  MODIFY validation failed: ${validationResult.reason}`);
+          console.log('Re-planning based on validation feedback...');
+          
+          const plannerContext = `
 Original Query: ${refinedQuery}
 
-Matched APIs Available: ${JSON.stringify(matchedApis, null, 2)}
+Executed Actions:
+${JSON.stringify(executedSteps, null, 2)}
+
+Results from Execution:
+${JSON.stringify(accumulatedResults, null, 2)}
+
+Goal Completion Status:
+The user's goal has NOT been fully completed. Here's why:
+${validationResult.reason}
+
+Missing Requirements:
+${JSON.stringify(validationResult.missing_requirements, null, 2)}
+
+Suggested Next Action:
+${validationResult.suggested_next_action || 'Generate a new plan to complete the goal'}
+
+Available APIs:
+${JSON.stringify(topKResults.slice(0, 10), null, 2)}
+
+Please generate a NEW PLAN to complete the user's goal. Explain:
+1. Why the previous plan didn't fully complete the goal
+2. What additional actions are needed
+3. The full list of new steps to execute`;
+
+          currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
+          actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
+          console.log('✅ Generated new plan from validation feedback (MODIFY re-plan)');
+          console.log('New plan:', JSON.stringify(actionablePlan, null, 2));
+          
+          // Continue to next planning cycle with new plan
+          continue;
+        }
+      } else if (intentType === 'MODIFY' && hasApiError) {
+        // MODIFY flow encountered an error - trigger re-planning
+        console.log('🔄 MODIFY flow error detected. Re-planning with error feedback...');
+        
+        const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey, context: requestContext });
+        let topKResults = await getTopKResults(allMatchedApis, 20);
+        const str = serializeUsefulDataInOrder(requestContext);
+        
+        const lastExecutedStep = executedSteps[executedSteps.length - 1];
+        const errorDetails = lastExecutedStep?.response?.message || 'Unknown error';
+        
+        const plannerContext = `
+Original Query: ${refinedQuery}
+
+Previous Plan Failed:
+The following action encountered an error and was not completed:
+Step ${lastExecutedStep?.step?.step_number}: ${lastExecutedStep?.step?.description}
+API: ${lastExecutedStep?.step?.api?.method?.toUpperCase()} ${lastExecutedStep?.step?.api?.path}
+Error: ${errorDetails} (Status: ${lastExecutedStep?.response?.statusCode})
+
+Executed Steps Before Error:
+${JSON.stringify(executedSteps.slice(0, -1), null, 2)}
+
+Available APIs:
+${JSON.stringify(topKResults.slice(0, 10), null, 2)}
+
+Please generate a NEW PLAN that:
+1. Avoids the failed action (${lastExecutedStep?.step?.api?.method?.toUpperCase()} ${lastExecutedStep?.step?.api?.path})
+2. Finds an alternative approach to complete the user's goal
+3. Lists all steps needed`;
+
+        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
+        actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
+        console.log('✅ Generated new plan after error (MODIFY recovery)');
+        
+        // Continue to next planning cycle
+        continue;
+      }
+      
+      // For FETCH flows: Validate after each batch of steps
+      if (intentType === 'FETCH') {
+        // Check if we made progress (executed any new steps)
+        const progressMade = accumulatedResults.length > progressBeforeExecution;
+
+        if (!progressMade) {
+          stuckCount++;
+          console.warn(`⚠️  No progress made in this iteration (stuck count: ${stuckCount})`);
+
+          if (stuckCount >= 2) {
+            console.warn('Detected stuck state: no new API calls in 2 consecutive iterations');
+            break;
+          }
+        } else {
+          stuckCount = 0; // Reset stuck count if we made progress
+        }
+
+        // Now validate if we have sufficient information
+        console.log('\n🔍 FETCH flow: Validating if more actions are needed...');
+        
+        const sanitizeForValidation = (obj: any): any => {
+          const seen = new WeakSet();
+          return JSON.parse(JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              if (seen.has(value)) return '[Circular]';
+              seen.add(value);
+              if (key === 'request' || key === 'socket' || key === 'agent' || key === 'res') return '[Omitted]';
+              if (key === 'config') return { method: value.method, url: value.url, data: value.data };
+              if (key === 'headers' && value.constructor?.name === 'AxiosHeaders') {
+                return Object.fromEntries(Object.entries(value));
+              }
+            }
+            return value;
+          }));
+        };
+        
+        const validationResult = await validateNeedMoreActions(
+          refinedQuery,
+          sanitizeForValidation(executedSteps),
+          sanitizeForValidation(accumulatedResults),
+          apiKey,
+          actionablePlan
+        );
+
+        console.log('Validation result:', validationResult);
+
+        if (!validationResult.needsMoreActions) {
+          console.log('✅ Validator confirmed: sufficient information gathered');
+          
+          // Check if it's because the item was not found
+          if (validationResult.item_not_found) {
+            console.log('❌ Item not found - will generate answer explaining this');
+            stoppedReason = 'item_not_found';
+          }
+          
+          break;
+        }
+
+        console.log(`⚠️  Validator says more actions needed: ${validationResult.reason}`);
+
+        // Send the accumulated context back to the planner for next step
+        const allMatchedApis = await getAllMatchedApis({ entities, intentType, apiKey, context: requestContext });
+        let topKResults = await getTopKResults(allMatchedApis, 20);
+        const str = serializeUsefulDataInOrder(requestContext);
+        
+        const plannerContext = `
+Original Query: ${refinedQuery}
+
+Matched APIs Available: ${JSON.stringify(topKResults.slice(0, 10), null, 2)}
 
 Executed Steps So Far: ${JSON.stringify(executedSteps, null, 2)}
 
@@ -2345,12 +2491,10 @@ IMPORTANT: If the available APIs do not include an endpoint that can provide the
 
 Please generate the next step in the plan, or indicate that no more steps are needed.`;
 
-      // Serialize useful data in chronological order (earliest first)
-      const str = serializeUsefulDataInOrder(requestContext);
-
-      currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
-      actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
-      console.log('\n🔄 Generated new plan from validator feedback');
+        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
+        actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
+        console.log('\n🔄 Generated new plan from validator feedback (FETCH mode)');
+      }
     } catch (error: any) {
       console.error('Error during iterative planner execution:', error);
       return {

@@ -466,8 +466,8 @@
     },
     "/pokemon/allwatchlist": {
       "delete": {
-        "summary": "Remove all Pokémon from the user's watchlist.",
-        "tags": ["pokemon", "watchlist", "delete", "user"],
+        "summary": "Delete all Pokémon from watchlist. Clear entire watchlist collection. Remove all watched Pokémon.",
+        "tags": ["pokemon", "watchlist", "delete", "remove", "clear", "all", "user", "batch"],
         "responses": {
           "200": {
             "description": "All Pokémon removed from the user's watchlist successfully."
@@ -872,9 +872,9 @@
     },
     "/pokemon/allteams": {
       "delete": {
-        "summary": "Delete all Pokémon teams for the authenticated user",
-        "description": "Deletes all Pokémon teams associated with the authenticated user.",
-        "tags": ["Teams"],
+        "summary": "Delete all Pokémon teams. Clear all teams collection. Remove all user teams at once.",
+        "description": "Deletes all Pokémon teams associated with the authenticated user. This removes the entire teams collection.",
+        "tags": ["pokemon", "teams", "delete", "remove", "clear", "all", "user", "batch"],
         "security": [
           {
             "bearerAuth": []
