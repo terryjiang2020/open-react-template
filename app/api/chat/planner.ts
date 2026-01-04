@@ -248,10 +248,13 @@ ${usefulData || '无'}
 
       if (ragApis.length === 0) {
         console.warn('⚠️ 未找到相关资源，无法生成执行计划');
+        const sorryMessage = `I'm sorry, but there are no relevant ${intentType === 'MODIFY' ? 'APIs, tables, or columns' : 'tables or columns'} in the database schema that can provide information about "${refinedQuery}". Therefore, I am unable to generate a ${intentType === 'MODIFY' ? 'plan or API call' : 'SQL query'} for this request.`;
         return JSON.stringify({
-          needs_clarification: true,
-          reason: `No relevant ${intentType === 'MODIFY' ? 'APIs or tables' : 'tables'} found for the next step`,
-          clarification_question: `Cannot find ${intentType === 'MODIFY' ? 'APIs/tables' : 'tables'} to: ${nextIntent}. Please check if the database is properly configured.`
+          impossible: true,
+          needs_clarification: false,
+          message: sorryMessage,
+          reason: 'No relevant database resources found',
+          execution_plan: []
         });
       }
 
@@ -259,8 +262,8 @@ ${usefulData || '无'}
 
       const ragApiDesc = JSON.stringify(ragApis, null, 2);
 
-      // ==================== STEP 3: LLM 生成单步执行计划 ====================
-      console.log('📝 Step 3: 生成单步执行计划...');
+      // ==================== STEP 3: LLM 生成执行计划 ====================
+      console.log('📝 Step 3: 生成执行计划...');
 
       const plannerSystemPrompt = await fetchPromptFile(intentType === 'FETCH' ? 'prompt-planner-table.txt' : 'prompt-planner.txt');
 

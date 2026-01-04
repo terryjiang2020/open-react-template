@@ -542,6 +542,11 @@ async function runPlannerWithInputs({
       if (actionablePlan && finalDeliverable) {
         actionablePlan.final_deliverable = finalDeliverable;
       }
+
+      if (actionablePlan?.impossible) {
+        console.log('🚫 Planner marked task as impossible with current database resources.');
+        return { actionablePlan, planResponse };
+      }
     } catch (error) {
       console.warn('Failed to parse planner response as JSON:', error);
       console.warn('Original Planner Response:', planResponse);
@@ -622,6 +627,10 @@ Output:`;
     
     const tableSelection = JSON.parse(jsonMatch[0]);
     console.log('📋 Table Selection Result:', tableSelection);
+
+    if (!tableSelection.selected_tables || tableSelection.selected_tables.length === 0) {
+      throw new Error('No tables selected for SQL generation', { cause: tableSelection.reasoning || 'No reasoning provided' });
+    }
     
     // Filter topKResults to only include selected tables
     const shortlistedTables = topKResults.filter((table: any) => 
@@ -732,6 +741,9 @@ SQL:`;
     }
     
     console.log('🔍 Generated SQL:', sqlText);
+    if (!sqlText.toLowerCase().startsWith('select')) {
+      
+    }
     // 构造只包含POST /general/sql/query的plan
     const planObj = {
       needs_clarification: false,
@@ -798,6 +810,191 @@ function sanitizePlannerResponse(response: string): string {
   } catch (error) {
     console.error('Error sanitizing planner response:', error);
     throw error;
+  }
+}
+
+// Helper function to detect placeholder references like "resolved_from_step_X"
+function containsPlaceholderReference(obj: any): boolean {
+  const placeholderPattern = /resolved_from_step_\d+/i;
+  
+  const checkValue = (value: any): boolean => {
+    if (typeof value === 'string') {
+      return placeholderPattern.test(value);
+    }
+    if (typeof value === 'object' && value !== null) {
+      if (Array.isArray(value)) {
+        return value.some(checkValue);
+      }
+      return Object.values(value).some(checkValue);
+    }
+    return false;
+  };
+  
+  return checkValue(obj);
+}
+
+// Helper function to resolve placeholder references and extract actual data from executed steps
+async function resolvePlaceholders(
+  stepToExecute: any,
+  executedSteps: any[],
+  apiKey: string
+): Promise<{ resolved: boolean; reason?: string }> {
+  const placeholderPattern = /resolved_from_step_(\d+)/i;
+  let foundPlaceholder = false;
+  let placeholderStepNum: number | null = null;
+  
+  // Check parameters for placeholders
+  if (stepToExecute.api?.parameters) {
+    for (const [key, value] of Object.entries(stepToExecute.api.parameters)) {
+      if (typeof value === 'string') {
+        const match = value.match(placeholderPattern);
+        if (match) {
+          foundPlaceholder = true;
+          placeholderStepNum = parseInt(match[1]);
+          console.log(`🔍 Detected placeholder in parameters.${key}: "${value}" (references step ${placeholderStepNum})`);
+        }
+      }
+    }
+  }
+  
+  // Check request body for placeholders
+  if (stepToExecute.api?.requestBody) {
+    const checkBody = (obj: any, path: string = ''): boolean => {
+      for (const [key, value] of Object.entries(obj || {})) {
+        const fullPath = path ? `${path}.${key}` : key;
+        
+        if (typeof value === 'string') {
+          const match = value.match(placeholderPattern);
+          if (match) {
+            foundPlaceholder = true;
+            placeholderStepNum = parseInt(match[1]);
+            console.log(`🔍 Detected placeholder in requestBody.${fullPath}: "${value}" (references step ${placeholderStepNum})`);
+            return true;
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          if (checkBody(value, fullPath)) return true;
+        }
+      }
+      return false;
+    };
+    
+    checkBody(stepToExecute.api.requestBody);
+  }
+  
+  // If no placeholder found, return success
+  if (!foundPlaceholder || placeholderStepNum === null) {
+    return { resolved: true };
+  }
+  
+  // Find the referenced step in executed steps
+  const referencedStep = executedSteps.find(
+    (s) =>
+      s.step === placeholderStepNum ||
+      s.stepNumber === placeholderStepNum ||
+      s.step?.step_number === placeholderStepNum
+  );
+  
+  if (!referencedStep) {
+    const reason = `Referenced step ${placeholderStepNum} has not been executed yet`;
+    console.error(`❌ ${reason}`);
+    return { resolved: false, reason };
+  }
+  
+  console.log(`\n📋 RESOLVING PLACEHOLDER: resolved_from_step_${placeholderStepNum}`);
+  console.log(`   Referenced step response:`, JSON.stringify(referencedStep.response, null, 2));
+  
+  // Extract the appropriate data from the referenced step's response
+  const apiKey_local = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  if (!apiKey_local) {
+    return { resolved: false, reason: 'OpenAI API key not configured' };
+  }
+  
+  try {
+    const llmResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey_local}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a data extraction expert. Given a previous API response and the current step's requirements, extract the correct value to replace a "resolved_from_step_X" placeholder.
+
+RULES:
+1. Analyze the current step's API call to understand what value is needed
+2. Look at the referenced step's response to find the matching data
+3. Return ONLY the extracted value (no explanation, no JSON wrapping)
+4. Common patterns:
+   - If current step deletes by ID, extract the "id" field from previous step
+   - If current step modifies a resource, extract the "id" that identifies that resource
+   - If previous step returned multiple results, extract the first one's ID
+5. If the data cannot be found, return "ERROR: [reason]"
+
+Current Step Analysis:
+- API Path: ${stepToExecute.api?.path}
+- API Method: ${stepToExecute.api?.method}
+- Parameters: ${JSON.stringify(stepToExecute.api?.parameters || {})}
+- Request Body: ${JSON.stringify(stepToExecute.api?.requestBody || {})}
+
+Previous Step (Step ${placeholderStepNum}) Response:
+${JSON.stringify(referencedStep.response, null, 2)}
+
+What value should replace "resolved_from_step_${placeholderStepNum}"? Return ONLY the value:`,
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 100,
+      }),
+    });
+    
+    if (!llmResponse.ok) {
+      const errorText = await llmResponse.text();
+      console.error('LLM extraction failed:', errorText);
+      return { resolved: false, reason: `LLM extraction failed: ${errorText}` };
+    }
+    
+    const data = await llmResponse.json();
+    const extractedValue = data.choices[0]?.message?.content?.trim();
+    
+    console.log(`✅ LLM extracted value: "${extractedValue}"`);
+    
+    if (!extractedValue || extractedValue.startsWith('ERROR:')) {
+      return { resolved: false, reason: `Failed to extract value: ${extractedValue}` };
+    }
+    
+    // Replace placeholders in parameters
+    if (stepToExecute.api?.parameters) {
+      for (const [key, value] of Object.entries(stepToExecute.api.parameters)) {
+        if (typeof value === 'string' && value.includes(`resolved_from_step_${placeholderStepNum}`)) {
+          stepToExecute.api.parameters[key] = extractedValue;
+          console.log(`   ✅ Replaced parameters.${key}: "${value}" → "${extractedValue}"`);
+        }
+      }
+    }
+    
+    // Replace placeholders in request body
+    if (stepToExecute.api?.requestBody) {
+      const replaceInBody = (obj: any): void => {
+        for (const [key, value] of Object.entries(obj || {})) {
+          if (typeof value === 'string' && value.includes(`resolved_from_step_${placeholderStepNum}`)) {
+            obj[key] = obj[key].replace(`resolved_from_step_${placeholderStepNum}`, extractedValue);
+            console.log(`   ✅ Replaced requestBody.${key}: "${value}" → "${extractedValue}"`);
+          } else if (typeof value === 'object' && value !== null) {
+            replaceInBody(value);
+          }
+        }
+      };
+      
+      replaceInBody(stepToExecute.api.requestBody);
+    }
+    
+    return { resolved: true };
+  } catch (error: any) {
+    console.error(`❌ Error resolving placeholder:`, error);
+    return { resolved: false, reason: error.message };
   }
 }
 
@@ -1003,7 +1200,95 @@ export async function POST(request: NextRequest) {
       intentType,
       entities,
       requestContext
+    })
+    .catch(async (err) => {
+      console.error('❌ Error during planning phase:', err);
+      
+      // Handle "No tables selected for SQL generation" error
+      if (err.message && err.message.includes('No tables selected for SQL generation')) {
+        const reason = err.cause || 'No relevant tables found for this query';
+        console.log('📝 Generating LLM response for no tables selected error:', reason);
+        
+        // Generate a human-friendly response via LLM
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a helpful assistant. The user asked a question, but the database doesn't have the necessary information to answer it. Politely explain why the database cannot fulfill their request.`
+              },
+              {
+                role: 'user',
+                content: `User's question: "${refinedQuery}"
+                
+The database schema analysis shows: "${reason}"
+
+Please provide a friendly explanation of why this question cannot be answered with the current database.`
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 512,
+          }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const llmMessage = data.choices[0]?.message?.content || reason;
+          return {
+            actionablePlan: {
+              impossible: true,
+              needs_clarification: false,
+              message: llmMessage,
+              reason: reason,
+              execution_plan: []
+            },
+            planResponse: JSON.stringify({
+              impossible: true,
+              needs_clarification: false,
+              message: llmMessage,
+              reason: reason,
+              execution_plan: []
+            })
+          };
+        } else {
+          // Fallback if LLM call fails
+          return {
+            actionablePlan: {
+              impossible: true,
+              needs_clarification: false,
+              message: reason,
+              reason: reason,
+              execution_plan: []
+            },
+            planResponse: JSON.stringify({
+              impossible: true,
+              needs_clarification: false,
+              message: reason,
+              reason: reason,
+              execution_plan: []
+            })
+          };
+        }
+      }
+      
+      throw err;
     });
+
+    if (actionablePlan?.impossible) {
+      console.log('🚫 Returning impossible response from planner (no relevant DB resources).');
+      return NextResponse.json({
+        message: actionablePlan.message,
+        refinedQuery,
+        final: true,
+        reason: actionablePlan.reason || 'No relevant database resources found'
+      });
+    }
 
     // Phase 2: Detect if this is a resolution query
     const queryIntent = await detectResolutionVsExecution(refinedQuery, actionablePlan, apiKey);
@@ -1033,6 +1318,16 @@ export async function POST(request: NextRequest) {
 
       actionablePlan = replanResult.actionablePlan;
       plannerRawResponse = replanResult.planResponse;
+
+      if (actionablePlan?.impossible) {
+        console.log('🚫 Replanned in table-only mode and still impossible (no relevant DB resources).');
+        return NextResponse.json({
+          message: actionablePlan.message,
+          refinedQuery,
+          final: true,
+          reason: actionablePlan.reason || 'No relevant database resources found'
+        });
+      }
 
       console.log('✅ Re-planned with table-only context for resolution');
     } else {
@@ -1967,6 +2262,49 @@ async function executeIterativePlanner(
               }
             }
 
+            // ⚠️  CRITICAL: Check for placeholder references (resolved_from_step_X) BEFORE executing
+            console.log(`\n🔎 Checking for placeholder references in step ${stepToExecute.step_number || executedSteps.length + 1}...`);
+            
+            // Create a temporary step object to check for placeholders
+            const stepToCheck = {
+              api: {
+                path: stepToExecute.api.path,
+                method: stepToExecute.api.method,
+                parameters: parametersToUse,
+                requestBody: requestBodyToUse,
+              }
+            };
+            
+            // Check if step contains any placeholder references
+            if (containsPlaceholderReference(stepToCheck)) {
+              console.log(`⚠️  Step contains placeholder reference(s), attempting resolution...`);
+              
+              const resolutionResult = await resolvePlaceholders(stepToCheck, executedSteps, apiKey);
+              
+              if (!resolutionResult.resolved) {
+                console.error(`❌ CRITICAL: Failed to resolve placeholder - ${resolutionResult.reason}`);
+                
+                // Return error response for re-planning
+                return NextResponse.json({
+                  error: 'Placeholder resolution failed',
+                  reason: resolutionResult.reason,
+                  stepNumber: stepToExecute.step_number || executedSteps.length + 1,
+                  step: stepToCheck,
+                  executedSteps,
+                  accumulatedResults,
+                  message: `Cannot proceed: ${resolutionResult.reason}. Please review the plan and ensure all referenced steps have been executed.`,
+                }, { status: 400 });
+              }
+              
+              // Update the parameters and request body with resolved values
+              parametersToUse = stepToCheck.api.parameters;
+              requestBodyToUse = stepToCheck.api.requestBody;
+              
+              console.log(`✅ Placeholders resolved successfully`);
+            } else {
+              console.log(`✅ No placeholder references detected`);
+            }
+
             // 从 OpenAPI schema 中查找 parameters 定义（用于参数映射）
             const parametersSchema = findApiParameters(stepToExecute.api.path, stepToExecute.api.method);
 
@@ -2018,6 +2356,7 @@ async function executeIterativePlanner(
                 executedSteps.push({
                   step: stepToExecute,
                   response: sanitizedResponse,
+                  stepNumber: stepToExecute.step_number || executedSteps.length,
                   error: true,
                   errorMessage: err.message,
                 });
@@ -2256,6 +2595,7 @@ async function executeIterativePlanner(
             const sanitizedProcessedResponse = sanitizeForSerialization(processedResponse);
             
             executedSteps.push({
+              stepNumber: stepToExecute.step_number || executedSteps.length + 1,
               step: stepToExecute,
               response: sanitizedProcessedResponse,
             });
