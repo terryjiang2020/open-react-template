@@ -1089,8 +1089,66 @@ export async function POST(request: NextRequest) {
 
       console.log('📤 Returning plan for user approval.');
 
+      // Create a human-readable summary for business operators
+      const humanReadableSteps = actionablePlan.execution_plan.map((step: any, index: number) => {
+        // Extract meaningful description from step
+        const stepDesc = step.description || `Execute step ${step.step_number}`;
+        const apiPath = step.api.path || '';
+        const apiMethod = step.api.method?.toUpperCase() || 'API CALL';
+        
+        // Create a simple business-friendly explanation
+        let businessExplanation = stepDesc;
+        
+        // Add context based on API endpoint
+        if (apiPath.includes('watchlist')) {
+          if (apiMethod === 'DELETE') businessExplanation = 'Remove Pokémon from your watchlist';
+          else if (apiMethod === 'POST') businessExplanation = 'Add Pokémon to your watchlist';
+          else if (apiMethod === 'GET') businessExplanation = 'Retrieve your watchlist';
+        } else if (apiPath.includes('teams')) {
+          if (apiMethod === 'DELETE') businessExplanation = 'Delete a team';
+          else if (apiMethod === 'POST') businessExplanation = 'Create a new team or add team member';
+          else if (apiMethod === 'GET') businessExplanation = 'Retrieve team information';
+        } else if (apiPath.includes('/pokemon/') && apiMethod === 'POST') {
+          businessExplanation = 'Search for Pokémon information';
+        } else if (apiPath.includes('search')) {
+          businessExplanation = 'Search for Pokémon data';
+        } else if (apiPath.includes('/general/sql/query')) {
+          businessExplanation = 'Query the database for information';
+        }
+        
+        return `**Step ${index + 1}:** ${businessExplanation}\n   *(Technical: ${apiMethod} ${apiPath})*`;
+      }).join('\n\n');
+
+      const humanReadableMessage = `## 📋 Execution Plan
+
+**What You're About To Do:**
+${refinedQuery}
+
+**Action Breakdown:**
+${humanReadableSteps}
+
+**Phase:** ${actionablePlan.phase.charAt(0).toUpperCase() + actionablePlan.phase.slice(1)} (${actionablePlan.phase === 'resolution' ? 'checking current state' : 'performing changes'})
+
+---
+
+## ✅ Next Steps
+**Please review the plan above:**
+- Reply with **"approve"** to proceed with the execution
+- Reply with **"no"** or **"reject"** to cancel
+- Or provide **specific feedback** if you'd like any adjustments
+
+**Technical Details:**
+${actionablePlan.execution_plan.map((step: any) => `
+**Step ${step.step_number}:** ${step.description}
+\`\`\`
+${step.api.method.toUpperCase()} ${step.api.path}
+\`\`\`
+${step.api.parameters && Object.keys(step.api.parameters).length > 0 ? `Parameters: \`\`\`json\n${JSON.stringify(step.api.parameters, null, 2)}\n\`\`\`` : ''}
+${step.api.requestBody && Object.keys(step.api.requestBody).length > 0 ? `Body: \`\`\`json\n${JSON.stringify(step.api.requestBody, null, 2)}\n\`\`\`` : ''}
+`).join('\n')}`;
+
       return NextResponse.json({
-        message: `## 📋 Execution Plan\n\n**Goal:** ${refinedQuery}\n\n**Phase:** ${actionablePlan.phase}\n\n**Planned Steps:**\n${actionablePlan.execution_plan.map((step: any) => `\n${step.step_number}. ${step.description}\n   - API: \`${step.api.method.toUpperCase()} ${step.api.path}\`\n   - Parameters: \`\`\`json\n${JSON.stringify(step.api.parameters || {}, null, 2)}\n\`\`\`\n   - Body: \`\`\`json\n${JSON.stringify(step.api.requestBody || {}, null, 2)}\n\`\`\``).join('\n')}\n\n---\n\n**Please review the plan above. Reply with "approve" to execute, or provide feedback to regenerate.**`,
+        message: humanReadableMessage,
         planSummary,
         awaitingApproval: true,
         refinedQuery,
