@@ -96,19 +96,6 @@ On “resume” / “continue”:
 
 ---
 
-## I18N RULES (STRICT)
-
-* NEVER hardcode user-facing text
-* ALWAYS use `t("key.path")`
-* ALWAYS update BOTH:
-
-  * `locales/en.json`
-  * `locales/zh.json`
-* Reuse existing keys when possible
-* Follow existing nesting structure
-
----
-
 ## TECH RULES
 
 * Next.js 13+: use `next/navigation`

@@ -2,5 +2,7 @@
   "saveTask.cta": "保存此任务",
   "saveTask.success": "任务已成功保存",
   "saveTask.errorMissingToken": "请先登录后再保存任务。",
-  "saveTask.errorGeneric": "无法保存任务，请稍后重试。"
+  "saveTask.errorGeneric": "无法保存任务，请稍后重试。",
+  "chatWidget.placeholder.default": "问我任何问题...",
+  "chatWidget.placeholder.withHistory": "继续你的对话..."
 }

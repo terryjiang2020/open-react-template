@@ -1352,17 +1352,27 @@ export async function POST(request: NextRequest) {
     // Summarize conversation history for context (if messages > 10)
     const summarizedMessages = await summarizeMessages(messages, apiKey);
 
+    // Detect if this is a follow-up query or an independent query
+    const isFollowUpQuery = /^(what about|how about|and|also|more|details?|show me|tell me more|what else|the same|similarly|like that)/i.test(userMessage.content.trim()) ||
+      userMessage.content.trim().length < 20; // Very short queries likely need context
+
     // Build conversation context for query refinement
+    // Only use context for follow-up/clarification queries to prevent mixing conditions
     let conversationContext = '';
-    if (summarizedMessages.length > 1) {
-      // Include previous messages for context (exclude the latest user message)
-      const previousMessages = summarizedMessages.slice(0, -1);
-      conversationContext = previousMessages
-        .map(msg => `${msg.role}: ${msg.content}`)
-        .join('\n');
+    if (isFollowUpQuery && summarizedMessages.length > 1) {
+      // Only include the immediate previous message for follow-ups
+      const previousMessage = summarizedMessages[summarizedMessages.length - 2];
+      if (previousMessage) {
+        conversationContext = `${previousMessage.role}: ${previousMessage.content}`;
+      }
     }
 
-    // Clarify and refine user input WITH conversation context
+    console.log(`🔍 Query type: ${isFollowUpQuery ? 'FOLLOW-UP (with context)' : 'INDEPENDENT (no context)'}`);
+    if (conversationContext) {
+      console.log(`📝 Using context: ${conversationContext.substring(0, 100)}...`);
+    }
+
+    // Clarify and refine user input WITH conversation context (only for follow-ups)
     const queryWithContext = conversationContext
       ? `Previous context:\n${conversationContext}\n\nCurrent query: ${userMessage.content}`
       : userMessage.content;

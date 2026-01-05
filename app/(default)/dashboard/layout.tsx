@@ -1,11 +1,11 @@
 "use client";
 
-import ChatWidget from '@/components/chat-widget';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { ReactNode } from 'react';
+import ChatWidget2 from '@/components/chat-widget-2';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -44,7 +44,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         <main style={{ flex: 1, padding: '1rem' }}>
             {children}
         </main>
-        <ChatWidget />
+        <ChatWidget2 />
     </div>
   );
 };
