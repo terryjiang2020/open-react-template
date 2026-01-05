@@ -11,6 +11,9 @@ importers:
       '@headlessui/react':
         specifier: ^2.2.0
         version: 2.2.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@livechat/widget-react':
+        specifier: ^1.3.5
+        version: 1.3.5(react@19.2.3)
       '@types/node':
         specifier: ^22.13.0
         version: 22.13.0
@@ -29,6 +32,9 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      jaison:
+        specifier: ^2.0.2
+        version: 2.0.2
       next:
         specifier: 15.1.11
         version: 15.1.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -211,6 +217,14 @@ packages:
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [win32]
+
+  '@livechat/widget-core@1.3.5':
+    resolution: {integrity: sha512-EaNTrKBOjBEkRJzxJPTgeTXEXB8t0ZoHV1H3lkjMzZFeXQZVz90GQGgi8dL71HDlzRiQ+HOjnB8/sjrhuAk9fw==}
+
+  '@livechat/widget-react@1.3.5':
+    resolution: {integrity: sha512-j1TnyNBw8Yfv5YgMxbWRZftBgU7A4d5/oHX/KSE7UKl5vyhqNXEfWWvKpWi/P8+QKfUE4305qvbm58bgtP2tMQ==}
+    peerDependencies:
+      react: ^16.8 || 17 || 18 || 19
 
   '@next/env@15.1.11':
     resolution: {integrity: sha512-yp++FVldfLglEG5LoS2rXhGypPyoSOyY0kxZQJ2vnlYJeP8o318t5DrDu5Tqzr03qAhDWllAID/kOCsXNLcwKw==}
@@ -653,6 +667,9 @@ packages:
     resolution: {integrity: sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg==}
     engines: {node: '>=12'}
 
+  jaison@2.0.2:
+    resolution: {integrity: sha512-aDko6D0+EXarmfVG736LP5VH7r/9gpFfWG5yA1/fBW0elrUVrS5K22zkEb2/7oopJN2JztSWx7vgbRsYIyOX2Q==}
+
   jiti@2.4.2:
     resolution: {integrity: sha512-rg9zJN+G4n2nfJl5MW3BMygZX56zKPNVEYYqq7adpmMh4Jn2QNEwhvQlFy6jPVdcod7txZtKHWnyZiA3a0zP7A==}
     hasBin: true
@@ -877,6 +894,9 @@ packages:
   mini-svg-data-uri@1.4.4:
     resolution: {integrity: sha512-r9deDe9p5FJUPZAk3A59wGH7Ii9YrjjWw0jmw/liSbHl2CHiyXj6FcDXDu2K3TjVAXqiJdaw3xxwlZZr9E6nHg==}
     hasBin: true
+
+  mitt@3.0.0:
+    resolution: {integrity: sha512-7dX2/10ITVyqh4aOSVI9gdape+t9l2/8QxHrFmUXu4EEUpdlxl6RudZUPZoc+zuY2hk1j7XxVroIVIan/pD/SQ==}
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -1231,6 +1251,15 @@ snapshots:
 
   '@img/sharp-win32-x64@0.33.5':
     optional: true
+
+  '@livechat/widget-core@1.3.5':
+    dependencies:
+      mitt: 3.0.0
+
+  '@livechat/widget-react@1.3.5(react@19.2.3)':
+    dependencies:
+      '@livechat/widget-core': 1.3.5
+      react: 19.2.3
 
   '@next/env@15.1.11': {}
 
@@ -1644,6 +1673,8 @@ snapshots:
 
   is-plain-obj@4.1.0: {}
 
+  jaison@2.0.2: {}
+
   jiti@2.4.2: {}
 
   lightningcss-darwin-arm64@1.29.1:
@@ -2052,6 +2083,8 @@ snapshots:
       mime-db: 1.52.0
 
   mini-svg-data-uri@1.4.4: {}
+
+  mitt@3.0.0: {}
 
   ms@2.1.3: {}
 
