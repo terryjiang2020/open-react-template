@@ -1,4 +1,19 @@
-export async function clarifyAndRefineUserInput(userInput: string, apiKey: string): Promise<{ refinedQuery: string; language: string; concepts: string[]; apiNeeds: string[]; entities: string[], intentType: "FETCH" | "MODIFY" }> {
+import { selectReferenceTask } from "@/app/api/chat/route";
+import { fetchTaskList, SavedTask } from "@/services/taskService";
+
+export async function clarifyAndRefineUserInput(
+  userInput: string,
+  apiKey: string,
+  userToken?: string
+): Promise<{ 
+  refinedQuery: string,
+  language: string,
+  concepts: string[],
+  apiNeeds: string[],
+  entities: string[],
+  intentType: "FETCH" | "MODIFY",
+  referenceTask?: SavedTask
+}> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -121,9 +136,30 @@ IntentType: ["FETCH"/"MODIFY"]`,
   const entities = entitiesMatch ? entitiesMatch[1].split(',').map((e: any) => e.trim().replace(/['"]/g, '')) : [userInput];
   const intentType = intentTypeMatch ? intentTypeMatch[1].trim() as "FETCH" | "MODIFY" : "FETCH";
 
-  console.log('✅ Query Refinement Result:', { refinedQuery, language, concepts, apiNeeds, entities, intentType });
+  // Attempt to reuse a saved task as reference BEFORE first planner call
+  // Use refined intentType as key indicator for LLM to locate best matching task
+  let referenceTask: SavedTask | undefined;
+  try {
+    if (userToken) {
+      console.log(`\n🔍 Fetching saved tasks for reference matching (intent: ${intentType})...`);
+      const tasks = await fetchTaskList(userToken);
+      console.log('Fetched tasks: ', tasks);
+      const match = await selectReferenceTask(refinedQuery, tasks, apiKey, intentType);
+      console.log('Reference task matching result: ', match);
+      if (match.task && typeof match.score === 'number') {
+        referenceTask = match.task;
+        console.log(`📎 Reference task selected (id=${match.task.id}, name=${match.task.taskName}) with score=${match.score} (intent-aligned)`);
+      } else {
+        console.log('📎 No suitable reference task found (below threshold or intent mismatch).');
+      }
+    }
+  } catch (e) {
+    console.warn('Task reuse flow skipped due to error:', e instanceof Error ? e.message : e);
+  }
 
-  return { refinedQuery, language, concepts, apiNeeds, entities, intentType };
+  console.log('✅ Query Refinement Result:', { refinedQuery, language, concepts, apiNeeds, entities, intentType, referenceTask });
+
+  return { refinedQuery, language, concepts, apiNeeds, entities, intentType, referenceTask };
 }
 
 export function handleQueryConceptsAndNeeds(concepts: string[], apiNeeds: string[]): { requiredApis: string[]; skippedApis: string[] } {

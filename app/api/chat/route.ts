@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+const jaison = require('jaison');
 import { cosineSimilarity } from '@/src/utils/cosineSimilarity';
 import { dynamicApiRequest, FanOutRequest } from '@/services/apiService';
 import { findApiParameters } from '@/services/apiSchemaLoader';
 import { clarifyAndRefineUserInput, handleQueryConceptsAndNeeds } from '@/utils/queryRefinement';
+import { SavedTask } from '@/services/taskService';
 import { sendToPlanner } from './planner';
 
 // In-memory plan storage for approval workflow
@@ -19,6 +21,7 @@ const pendingPlans = new Map<string, {
   entities: any[];
   intentType: 'FETCH' | 'MODIFY';
   timestamp: number;
+  referenceTask?: SavedTask;
 }>();
 
 // Clean up old pending plans (older than 1 hour)
@@ -41,6 +44,84 @@ interface RequestContext {
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
+}
+
+interface ReferenceTaskMatch {
+  task?: SavedTask;
+  score?: number;
+}
+
+export async function selectReferenceTask(refinedQuery: string, tasks: SavedTask[], apiKey: string, intentType?: 'FETCH' | 'MODIFY'): Promise<ReferenceTaskMatch> {
+  if (!tasks || tasks.length === 0) return {};
+
+  const shortlist = tasks.slice(0, 20).map(t => ({
+    id: t.id,
+    taskName: t.taskName,
+    taskType: t.taskType,
+    taskSteps: t.taskSteps || t.steps || [],
+    taskContent: t.taskContent,
+  }));
+
+  const intentStr = intentType ? `Intent: ${intentType === 'FETCH' ? 'FETCH/READ (query, retrieve, check state)' : 'MODIFY (create, update, delete, add, remove)'}\n` : '';
+  const prompt = `You are selecting a reusable task for the current user request.
+
+Return STRICT JSON only:
+{
+  "taskId": number | null,
+  "score": number, // 0.0-1.0 similarity
+  "reason": string
+}
+
+Rules:
+- Primary match: intent (${intentType || 'unspecified'}) MUST align with task type.
+- Secondary match: query semantics (entities, actions, operations).
+- Pick the closest task only if similarity >= 0.6.
+- If nothing is close enough, return taskId=null and score=0.
+- Strongly favor tasks with matching intent over semantic similarity alone.
+- Use task steps/content semantically; do not rely on exact strings.
+
+${intentStr}User request: ${refinedQuery}
+
+Candidate tasks:
+${JSON.stringify(shortlist, null, 2)}
+`;
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'Respond with JSON only. No prose.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 200,
+    }),
+  });
+
+  if (!res.ok) {
+    console.warn('Task similarity LLM failed:', await res.text());
+    return {};
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content?.trim() || '';
+  try {
+    const parsed = JSON.parse(content.replace(/```json|```/g, ''));
+    const taskId = parsed.taskId;
+    const score = parsed.score;
+    if (typeof taskId === 'number' && typeof score === 'number' && score >= 0.6) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) return { task, score };
+    }
+  } catch (e) {
+    console.warn('Failed to parse task similarity response:', content);
+  }
+  return {};
 }
 
 // Generate a session ID from messages to track pending plans
@@ -312,9 +393,10 @@ export async function getAllMatchedApis({ entities, intentType, apiKey, context 
     if (intentType === 'MODIFY') {
       // API retrieval remains available (needed for mutation steps)
       const apiResults = findTopKSimilarApi(entityEmbedding, 10, context);
-      console.log(`Found ${apiResults.length} APIs for entity "${entity}":`,
-        apiResults.map((item: any) => ({ id: item.id, similarity: item.similarity.toFixed(3) }))
-      );
+      console.log(`Found ${apiResults.length} APIs for entity "${entity}"`);
+      // console.log(`Found ${apiResults.length} APIs for entity "${entity}":`,
+      //   apiResults.map((item: any) => ({ id: item.id, similarity: item.similarity.toFixed(3) }))
+      // );
       apiResults.forEach((result: any) => {
         const existing = allMatchedApis.get(result.id);
         if (!existing || result.similarity > existing.similarity) {
@@ -461,6 +543,50 @@ export async function fetchPromptFile(fileName: string): Promise<string> {
   }
 };
 
+function detectEntityName(refinedQuery: string): string | undefined {
+  const text = refinedQuery || '';
+  const quoted = text.match(/['"]([^'"]+)['"]/);
+  if (quoted) return quoted[1];
+  const verbNoun = text.match(/\b(?:add|remove|delete|drop|clear)\s+([A-Za-z0-9_-]+)/i);
+  if (verbNoun) return verbNoun[1];
+  const lastToken = text.trim().split(/\s+/).pop();
+  return lastToken && lastToken.length > 1 ? lastToken : undefined;
+}
+
+function deepClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj || {}));
+}
+
+function replaceInObject(obj: any, search: string, replacement: string) {
+  if (typeof obj !== 'object' || obj === null) return;
+  Object.keys(obj).forEach((key) => {
+    if (typeof obj[key] === 'string') {
+      obj[key] = obj[key].replace(new RegExp(search, 'gi'), replacement);
+    } else if (typeof obj[key] === 'object') {
+      replaceInObject(obj[key], search, replacement);
+    }
+  });
+}
+
+function substituteApiPlaceholders(api: any, refinedQuery: string, fallback: { path: string, method: string }) {
+  const entityName = detectEntityName(refinedQuery);
+  const method = (api?.method || fallback.method || 'post').toLowerCase();
+  let path = api?.path || fallback.path || '/general/sql/query';
+  const parameters = deepClone(api?.parameters || {});
+  const requestBody = deepClone(api?.requestBody || {});
+
+  const namePlaceholder = path.includes('team') ? '{TEAM_NAME}' : '{POKEMON_NAME}';
+
+  // Replace placeholders with available values
+  if (entityName) {
+    path = path.replace(new RegExp(namePlaceholder, 'g'), entityName);
+    replaceInObject(parameters, namePlaceholder, entityName);
+    replaceInObject(requestBody, namePlaceholder, entityName);
+  }
+
+  return { path, method, parameters, requestBody };
+}
+
 // 独立planner函数：负责准备输入、调用sendToPlanner、处理响应
 async function runPlannerWithInputs({
   topKResults,
@@ -471,7 +597,8 @@ async function runPlannerWithInputs({
   finalDeliverable,
   intentType,
   entities,
-  requestContext
+  requestContext,
+  referenceTask
 }: {
   topKResults: any[],
   refinedQuery: string,
@@ -481,14 +608,71 @@ async function runPlannerWithInputs({
   finalDeliverable?: string,
   intentType: 'FETCH' | 'MODIFY',
   entities?: string[],
-  requestContext?: RequestContext
+  requestContext?: RequestContext,
+  referenceTask?: SavedTask
 }): Promise<{ actionablePlan: any, planResponse: string }> {
   const hasSqlCandidate = topKResults.some((item: any) => item.id && typeof item.id === 'string' && (item.id.startsWith('table-') || item.id === 'sql-query'));
   const isSqlRetrieval = intentType === 'FETCH' && hasSqlCandidate;
   console.log(`🔀 Planner input routing: intentType=${intentType}, hasSqlCandidate=${hasSqlCandidate}, isSqlRetrieval=${isSqlRetrieval}`);
+  
+  // OPTIMIZATION: If a reference task exists, use its plan directly to reduce LLM calls
+  if (referenceTask && referenceTask.steps && Array.isArray(referenceTask.steps) && referenceTask.steps.length > 0) {
+    console.log(`\n✨ FAST PATH: Using reference task plan directly (${referenceTask.steps.length} steps)`);
+    console.log(`🧭 Reference task: ${referenceTask.id} (${referenceTask.taskName}, type=${referenceTask.taskType})`);
+    
+    // Convert reference task steps into execution plan format
+    // Steps have format: { stepOrder, stepType, stepContent: "Description — METHOD /path/with/{params}" }
+    const executionPlan = referenceTask.steps.map((step: any) => {
+      // Parse stepContent to extract API method and path
+      // Format: "Description — METHOD /path"
+      const contentMatch = step.stepContent?.match(/—\s*(\w+)\s+(.+?)$/);
+      const method = contentMatch ? contentMatch[1].toLowerCase() : 'post';
+      const path = contentMatch ? contentMatch[2].trim() : '/general/sql/query';
+      
+      return {
+        step_number: step.stepOrder || 1,
+        description: step.stepContent || `Step ${step.stepOrder}`,
+        api: {
+          path: path,
+          method: method,
+          parameters: {},
+          requestBody: {}
+        },
+        stepType: step.stepType // 1=FETCH, 2=MODIFY
+      };
+    });
+    
+    const actionablePlan = {
+      needs_clarification: false,
+      phase: referenceTask.taskType === 1 ? 'resolution' : 'execution',
+      final_deliverable: finalDeliverable || '',
+      execution_plan: executionPlan,
+      selected_tools_spec: [],
+      _from_reference_task: true,
+      _reference_task_id: referenceTask.id
+    };
+    
+    console.log(`📋 Converted reference task to execution plan:`, JSON.stringify(executionPlan.map(s => ({
+      step: s.step_number,
+      description: s.description,
+      api: `${s.api.method.toUpperCase()} ${s.api.path}`,
+      type: s.stepType === 1 ? 'FETCH' : 'MODIFY'
+    })), null, 2));
+
+    const planResponse = JSON.stringify(actionablePlan);
+    console.log('🪄 Using refetched reference plan:', planResponse);
+    return { actionablePlan, planResponse };
+  }
+  
+  const referenceTaskContext = referenceTask ? `\n\nReference task (reuse if similar):\n${JSON.stringify({ id: referenceTask.id, taskName: referenceTask.taskName, taskType: referenceTask.taskType, steps: referenceTask.steps }, null, 2)}\nIf this task fits, adapt its steps instead of creating a brand-new plan. If not a good fit, continue with normal planning.` : '';
+  const mergedConversationContext = referenceTaskContext ? `${conversationContext || ''}${referenceTaskContext}` : conversationContext;
+  if (referenceTask) {
+    console.log(`🧭 Planner received reference task ${referenceTask.id} (${referenceTask.taskName}) for reuse consideration.`);
+  }
   if (!isSqlRetrieval) {
     // 发送到planner（API模式）
-    let planResponse = await sendToPlanner(refinedQuery, apiKey, usefulData, conversationContext, intentType);
+    let planResponse = await sendToPlanner(refinedQuery, apiKey, usefulData, mergedConversationContext, intentType);
+
     let actionablePlan;
     try {
       // Remove comments and sanitize the JSON string
@@ -543,6 +727,12 @@ async function runPlannerWithInputs({
         actionablePlan.final_deliverable = finalDeliverable;
       }
 
+      // Ensure no stale replan flags exist in fresh plans
+      if (actionablePlan) {
+        delete actionablePlan._replanned;
+        delete actionablePlan._replan_reason;
+      }
+
       if (actionablePlan?.impossible) {
         console.log('🚫 Planner marked task as impossible with current database resources.');
         return { actionablePlan, planResponse };
@@ -564,6 +754,7 @@ async function runPlannerWithInputs({
       if (actionablePlan && finalDeliverable) {
         actionablePlan.final_deliverable = finalDeliverable;
       }
+      // Note: This replanning happens BEFORE user approval, so no explanation message needed
       console.log('✅ Replanned with MODIFY intent and forceFullPlan=true for full execution plan.');
     }
     return { actionablePlan, planResponse };
@@ -777,33 +968,50 @@ SQL:`;
 // Enhanced JSON sanitization to handle comments and invalid trailing characters
 function sanitizePlannerResponse(response: string): string {
   try {
-    // First, remove code block markers
-    let cleaned = response.replace(/```json|```/g, '').trim();
+    // // First, remove code block markers
+    // let cleaned = response.replace(/```json|```/g, '').trim();
 
-    // Remove inline comments (// style)
-    cleaned = cleaned.replace(/\/\/.*(?=[\n\r])/g, '');
+    // // Remove inline comments (// style)
+    // cleaned = cleaned.replace(/\/\/.*(?=[\n\r])/g, '');
 
-    // Remove block comments (/* */ style) more carefully
-    // Replace comments with null to maintain valid JSON structure
-    cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, 'null');
+    // // Remove block comments (/* */ style) more carefully
+    // // Replace comments with null to maintain valid JSON structure
+    // cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, 'null');
 
-    // Replace angle bracket placeholders (e.g., <WATER_TYPE_ID>, <resolved_id>) with null
-    // These are not valid JSON and indicate the planner is using placeholders
-    cleaned = cleaned.replace(/<[^>]+>/g, 'null');
+    // // Replace angle bracket placeholders (e.g., <WATER_TYPE_ID>, <resolved_id>) with null
+    // // These are not valid JSON and indicate the planner is using placeholders
+    // cleaned = cleaned.replace(/<[^>]+>/g, 'null');
 
-    // Fix common issues after placeholder/comment removal
-    // Fix multiple commas: ,, or , null,
-    cleaned = cleaned.replace(/,\s*null\s*,/g, ',');
-    cleaned = cleaned.replace(/,\s*,/g, ',');
-    // Fix comma before closing bracket/brace
-    cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
-    // Fix missing values before comma (e.g., "key": ,)
-    cleaned = cleaned.replace(/:\s*,/g, ': null,');
+    // // Fix common issues after placeholder/comment removal
+    // // Fix multiple commas: ,, or , null,
+    // cleaned = cleaned.replace(/,\s*null\s*,/g, ',');
+    // cleaned = cleaned.replace(/,\s*,/g, ',');
+    // // Fix comma before closing bracket/brace
+    // cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
+    // // Fix missing values before comma (e.g., "key": ,)
+    // cleaned = cleaned.replace(/:\s*,/g, ': null,');
+
+    // // Patch known SQL string issues that break JSON parsing
+    // // e.g., "ps.base_stat null 100" -> "ps.base_stat > 100"
+    // cleaned = cleaned.replace(/base_stat\s+null\s+(\d+)/gi, 'base_stat > $1');
+    // // e.g., stray escaped quotes before semicolon: ";\" -> ";
+    // cleaned = cleaned.replace(/;\\"/g, ';');
+    // // e.g., ORDER BY ...;\" -> ORDER BY ...;
+    // cleaned = cleaned.replace(/(ORDER BY [^;]+);\\"/gi, '$1;');
 
     // Extract the first valid JSON object or array
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return jsonMatch[0];
+    console.log('response to sanitize:', response);
+    const firstMatch = response.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (!firstMatch) {
+      throw new Error('No JSON object or array found in the response.');
+    }
+    console.log('firstMatch:', firstMatch[0]);
+    let cleaned = firstMatch[0];
+
+    const jsonFixed = jaison(cleaned);
+    console.log('jsonFixed:', jsonFixed);
+    if (jsonFixed) {
+      return JSON.stringify(jsonFixed);
     }
 
     throw new Error('No valid JSON found in the response.');
@@ -1159,7 +1367,7 @@ export async function POST(request: NextRequest) {
       ? `Previous context:\n${conversationContext}\n\nCurrent query: ${userMessage.content}`
       : userMessage.content;
 
-    const { refinedQuery, language, concepts, apiNeeds, entities, intentType } = await clarifyAndRefineUserInput(queryWithContext, apiKey);
+    const { refinedQuery, language, concepts, apiNeeds, entities, intentType, referenceTask } = await clarifyAndRefineUserInput(queryWithContext, apiKey);
     // 设置原始finalDeliverable为refinedQuery，保证不被中间依赖覆盖
     if (!finalDeliverable) finalDeliverable = refinedQuery;
     console.log('\n📝 QUERY REFINEMENT RESULTS:');
@@ -1190,18 +1398,26 @@ export async function POST(request: NextRequest) {
     const str = serializeUsefulDataInOrder(requestContext);
 
     // 调用独立planner函数 (Phase 1: Always with APIs first)
-    let { actionablePlan, planResponse: plannerRawResponse } = await runPlannerWithInputs({
-      topKResults,
-      refinedQuery,
-      apiKey,
-      usefulData: str,
-      conversationContext,
-      finalDeliverable,
-      intentType,
-      entities,
-      requestContext
-    })
-    .catch(async (err) => {
+    const planningStart = Date.now();
+    let actionablePlan;
+    let plannerRawResponse;
+
+    try {
+      const plannerResult = await runPlannerWithInputs({
+        topKResults,
+        refinedQuery,
+        apiKey,
+        usefulData: str,
+        conversationContext,
+        finalDeliverable,
+        intentType,
+        entities,
+        requestContext,
+        referenceTask
+      });
+      actionablePlan = plannerResult.actionablePlan;
+      plannerRawResponse = plannerResult.planResponse;
+    } catch (err: any) {
       console.error('❌ Error during planning phase:', err);
       
       // Handle "No tables selected for SQL generation" error
@@ -1278,7 +1494,10 @@ Please provide a friendly explanation of why this question cannot be answered wi
       }
       
       throw err;
-    });
+    }
+
+    const planningDurationMs = Date.now() - planningStart;
+    console.log(`⏱️ Planning duration (initial): ${planningDurationMs}ms intent=${intentType} refined="${refinedQuery}"`);
 
     if (actionablePlan?.impossible) {
       console.log('🚫 Returning impossible response from planner (no relevant DB resources).');
@@ -1304,6 +1523,7 @@ Please provide a friendly explanation of why this question cannot be answered wi
       console.log(`📊 Filtered to ${tableOnlyResults.length} table-only results for resolution`);
 
       // Re-run planner with table-only context
+      const replanStart = Date.now();
       const replanResult = await runPlannerWithInputs({
         topKResults: tableOnlyResults,
         refinedQuery,
@@ -1313,8 +1533,10 @@ Please provide a friendly explanation of why this question cannot be answered wi
         finalDeliverable,
         intentType: 'FETCH', // Force FETCH mode for resolution
         entities,
-        requestContext
+        requestContext,
+        referenceTask
       });
+      const replanDurationMs = Date.now() - replanStart;
 
       actionablePlan = replanResult.actionablePlan;
       plannerRawResponse = replanResult.planResponse;
@@ -1329,6 +1551,7 @@ Please provide a friendly explanation of why this question cannot be answered wi
         });
       }
 
+      console.log(`⏱️ Planning duration (replan resolution): ${replanDurationMs}ms refined="${refinedQuery}"`);
       console.log('✅ Re-planned with table-only context for resolution');
     } else {
       console.log('⚡ Execution query detected! Proceeding with API-based plan');
@@ -1365,7 +1588,8 @@ Please provide a friendly explanation of why this question cannot be answered wi
         finalDeliverable,
         entities,
         intentType,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        referenceTask
       });
 
       // Format plan for user review
@@ -1385,30 +1609,29 @@ Please provide a friendly explanation of why this question cannot be answered wi
       console.log('📤 Returning plan for user approval.');
 
       // Create a human-readable summary for business operators
+      const entityNameForSummary = detectEntityName(refinedQuery) || 'the item you mentioned';
       const humanReadableSteps = actionablePlan.execution_plan.map((step: any, index: number) => {
         // Extract meaningful description from step
         const stepDesc = step.description || `Execute step ${step.step_number}`;
         const apiPath = step.api.path || '';
         const apiMethod = step.api.method?.toUpperCase() || 'API CALL';
         
-        // Create a simple business-friendly explanation
+        // Create a simple business-friendly explanation using refined intent context
         let businessExplanation = stepDesc;
         
-        // Add context based on API endpoint
         if (apiPath.includes('watchlist')) {
-          if (apiMethod === 'DELETE') businessExplanation = 'Remove Pokémon from your watchlist';
-          else if (apiMethod === 'POST') businessExplanation = 'Add Pokémon to your watchlist';
-          else if (apiMethod === 'GET') businessExplanation = 'Retrieve your watchlist';
+          if (apiMethod === 'DELETE') businessExplanation = `Remove ${entityNameForSummary} from your watchlist`;
+          else if (apiMethod === 'POST') businessExplanation = `Add ${entityNameForSummary} to your watchlist`;
+          else if (apiMethod === 'GET') businessExplanation = 'See your watchlist';
         } else if (apiPath.includes('teams')) {
-          if (apiMethod === 'DELETE') businessExplanation = 'Delete a team';
-          else if (apiMethod === 'POST') businessExplanation = 'Create a new team or add team member';
-          else if (apiMethod === 'GET') businessExplanation = 'Retrieve team information';
-        } else if (apiPath.includes('/pokemon/') && apiMethod === 'POST') {
-          businessExplanation = 'Search for Pokémon information';
-        } else if (apiPath.includes('search')) {
-          businessExplanation = 'Search for Pokémon data';
+          if (apiMethod === 'DELETE') businessExplanation = `Delete the team for ${entityNameForSummary}`;
+          else if (apiMethod === 'POST') businessExplanation = `Create or update a team involving ${entityNameForSummary}`;
+          else if (apiMethod === 'GET') businessExplanation = 'Get team details';
         } else if (apiPath.includes('/general/sql/query')) {
-          businessExplanation = 'Query the database for information';
+          // SQL queries: make it intent-aware and natural
+          businessExplanation = `Look up information about ${entityNameForSummary}`;
+        } else if (apiPath.includes('search') || apiPath.includes('/pokemon/')) {
+          businessExplanation = `Search details for ${entityNameForSummary}`;
         }
         
         return `**Step ${index + 1}:** ${businessExplanation}\n   *(Technical: ${apiMethod} ${apiPath})*`;
@@ -1416,7 +1639,20 @@ Please provide a friendly explanation of why this question cannot be answered wi
 
       const humanReadableMessage = `## 📋 Execution Plan
 
-**What You're About To Do:**
+    **Reference Task Used:** ${actionablePlan._from_reference_task ? 'Yes (reused saved plan)' : 'No (new plan)'}
+
+${actionablePlan._replanned ? `
+## ⚠️ Plan Updated
+
+**Why the plan was regenerated:**
+${actionablePlan._replan_reason}
+
+**What changed:**
+The plan now includes complete execution steps with both lookup and modification operations to fulfill your request.
+
+---
+
+` : ''}**What You're About To Do:**
 ${refinedQuery}
 
 **Action Breakdown:**
@@ -1447,7 +1683,9 @@ ${step.api.requestBody && Object.keys(step.api.requestBody).length > 0 ? `Body: 
         planSummary,
         awaitingApproval: true,
         refinedQuery,
-        sessionId
+        sessionId,
+        planningDurationMs,
+        usedReferencePlan: actionablePlan._from_reference_task || false
       });
     }
 
@@ -1470,7 +1708,9 @@ ${step.api.requestBody && Object.keys(step.api.requestBody).length > 0 ? `Body: 
         refinedQuery,
         topKResults,
         planResponse,
-        final: true
+        final: true,
+        planningDurationMs,
+        usedReferencePlan: actionablePlan._from_reference_task || false
       });
     }
     // 否则返回plan does not include an execution plan
@@ -1479,6 +1719,8 @@ ${step.api.requestBody && Object.keys(step.api.requestBody).length > 0 ? `Body: 
       refinedQuery,
       topKResults,
       planResponse,
+      planningDurationMs,
+      usedReferencePlan: actionablePlan._from_reference_task || false
     });
   } catch (error: any) {
     console.warn('Error in chat API:', error);
@@ -2029,7 +2271,8 @@ async function executeIterativePlanner(
   conversationContext: string,
   entities: any[] = [],
   requestContext: RequestContext,
-  maxIterations: number = 20
+  maxIterations: number = 50,
+  referenceTask?: SavedTask | null
 ): Promise<any> {
   let currentPlanResponse = initialPlanResponse;
   let accumulatedResults: any[] = [];
@@ -2040,13 +2283,25 @@ async function executeIterativePlanner(
   let stuckCount = 0; // Track how many times we get the same validation reason
   let stoppedReason = '';
 
+  const referenceTaskContext = referenceTask
+    ? `\n\nReference task (reuse if similar):\n${JSON.stringify({ id: referenceTask.id, taskName: referenceTask.taskName, taskType: referenceTask.taskType, steps: referenceTask.steps }, null, 2)}\nPrefer adapting this task's steps if it aligns with the current goal.`
+    : '';
+  const conversationContextWithReference = referenceTaskContext ? `${conversationContext}${referenceTaskContext}` : conversationContext;
+
+  if (referenceTask) {
+    console.log(`🧭 Iterative executor using reference task ${referenceTask.id} (${referenceTask.taskName}) for replanning context.`);
+  } else {
+    console.log('🧭 Iterative executor running without reference task.');
+  }
+
   console.log('\n' + '='.repeat(80));
   console.log('🔄 STARTING ITERATIVE PLANNER');
   console.log(`Max API calls allowed: ${maxIterations}`);
   console.log('='.repeat(80));
 
   // Sanitize and parse the current plan response
-  let sanitizedPlanResponse = sanitizePlannerResponse(currentPlanResponse);
+  let sanitizedPlanResponse = currentPlanResponse;
+  console.log('sanitizedPlanResponse: ', sanitizedPlanResponse);
   let actionablePlan = JSON.parse(sanitizedPlanResponse);
 
   while (planIteration < 20) { // Max 20 planning cycles (separate from API call limit)
@@ -2087,6 +2342,33 @@ async function executeIterativePlanner(
       while (actionablePlan.execution_plan?.length > 0) {
         const step = actionablePlan.execution_plan.shift(); // Remove first step
         console.log(`\nExecuting step ${step.step_number || executedSteps.length + 1}:`, JSON.stringify(step, null, 2));
+
+        // OPTIMIZATION: If from reference task and encountering MODIFY step, pause for approval
+        if (actionablePlan._from_reference_task && referenceTask) {
+          // Check stepType field (1=FETCH, 2=MODIFY) from reference task
+          const isModifyStep = step.stepType === 2;
+          const stepMethod = step.api?.method?.toLowerCase();
+          const isModifyByMethod = ['post', 'put', 'patch', 'delete'].includes(stepMethod);
+          
+          if (isModifyStep || isModifyByMethod) {
+            console.log(`\n⏸️  MODIFY step detected in reference task flow. Pausing for user approval.`);
+            console.log(`   Step ${step.step_number}: ${step.description}`);
+            console.log(`   API: ${step.api.method.toUpperCase()} ${step.api.path}`);
+            
+            // Return partial results with remaining steps
+            return {
+              message: `Reference task execution paused before MODIFY action. Review the gathered data and approve to proceed.`,
+              reason: 'modify_step_reached',
+              executedSteps,
+              accumulatedResults,
+              remainingPlan: {
+                steps: [step, ...actionablePlan.execution_plan],
+                description: 'Remaining steps to execute after user approval'
+              },
+              iterations: iteration,
+            };
+          }
+        }
 
         // Check if this is a valid API call step (not a computation step)
         if (step.api && step.api.path && step.api.method) {
@@ -2669,6 +2951,9 @@ async function executeIterativePlanner(
           // Goal not complete - need to re-plan
           console.log(`⚠️  MODIFY validation failed: ${validationResult.reason}`);
           console.log('Re-planning based on validation feedback...');
+          if (referenceTask) {
+            console.log(`🧭 Reference task still in context for re-plan: ${referenceTask.id} (${referenceTask.taskName})`);
+          }
           
           const plannerContext = `
 Original Query: ${refinedQuery}
@@ -2692,12 +2977,17 @@ ${validationResult.suggested_next_action || 'Generate a new plan to complete the
 Available APIs:
 ${JSON.stringify(topKResults.slice(0, 10), null, 2)}
 
+Reference task (reuse if similar): ${referenceTask ? JSON.stringify({ id: referenceTask.id, taskName: referenceTask.taskName }) : 'N/A'}
+
 Please generate a NEW PLAN to complete the user's goal. Explain:
 1. Why the previous plan didn't fully complete the goal
 2. What additional actions are needed
 3. The full list of new steps to execute`;
 
-          currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
+          currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContextWithReference, intentType);
+          if (referenceTask) {
+            console.log(`🧭 Re-plan (error recovery) kept reference task ${referenceTask.id} (${referenceTask.taskName}).`);
+          }
           actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
           console.log('✅ Generated new plan from validation feedback (MODIFY re-plan)');
           console.log('New plan:', JSON.stringify(actionablePlan, null, 2));
@@ -2731,12 +3021,17 @@ ${JSON.stringify(executedSteps.slice(0, -1), null, 2)}
 Available APIs:
 ${JSON.stringify(topKResults.slice(0, 10), null, 2)}
 
+Reference task (reuse if similar): ${referenceTask ? JSON.stringify({ id: referenceTask.id, taskName: referenceTask.taskName }) : 'N/A'}
+
 Please generate a NEW PLAN that:
 1. Avoids the failed action (${lastExecutedStep?.step?.api?.method?.toUpperCase()} ${lastExecutedStep?.step?.api?.path})
 2. Finds an alternative approach to complete the user's goal
 3. Lists all steps needed`;
 
-        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
+        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContextWithReference, intentType);
+        if (referenceTask) {
+          console.log(`🧭 Re-plan (validator feedback) kept reference task ${referenceTask.id} (${referenceTask.taskName}).`);
+        }
         actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
         console.log('✅ Generated new plan after error (MODIFY recovery)');
         
@@ -2752,6 +3047,13 @@ Please generate a NEW PLAN that:
         if (!progressMade) {
           stuckCount++;
           console.warn(`⚠️  No progress made in this iteration (stuck count: ${stuckCount})`);
+
+          // If we already have a reference task and still made no progress, short-circuit to avoid loops
+          if (referenceTask && stuckCount >= 1) {
+            console.warn('⏹️  Short-circuiting iterative loop: reference task provided but no progress made.');
+            stoppedReason = 'stuck_state';
+            break;
+          }
 
           if (stuckCount >= 2) {
             console.warn('Detected stuck state: no new API calls in 2 consecutive iterations');
@@ -2824,6 +3126,8 @@ The validator says more actions are needed: ${validationResult.suggested_next_ac
 
 Useful data from execution history that could help: ${validationResult.useful_data ? validationResult.useful_data : 'N/A'}
 
+Reference task (reuse if similar): ${referenceTask ? JSON.stringify({ id: referenceTask.id, taskName: referenceTask.taskName }) : 'N/A'}
+
 IMPORTANT: If the available APIs do not include an endpoint that can provide the required information:
 1. Check if any of the accumulated results contain the information in a different format
 2. Consider if the data can be derived or inferred from existing results
@@ -2831,7 +3135,7 @@ IMPORTANT: If the available APIs do not include an endpoint that can provide the
 
 Please generate the next step in the plan, or indicate that no more steps are needed.`;
 
-        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContext, intentType);
+        currentPlanResponse = await sendToPlanner(plannerContext, apiKey, str, conversationContextWithReference, intentType);
         actionablePlan = JSON.parse(sanitizePlannerResponse(currentPlanResponse));
         console.log('\n🔄 Generated new plan from validator feedback (FETCH mode)');
       }

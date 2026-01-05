@@ -13,6 +13,7 @@ interface PlanStep {
   api?: string;
   parameters?: Record<string, any>;
   requestBody?: Record<string, any>;
+  depends_on_step?: number;
 }
 
 interface PlanSummary {
@@ -30,6 +31,8 @@ interface Message {
   planSummary?: PlanSummary;
   planResponse?: string;
   refinedQuery?: string;
+  planningDurationMs?: number;
+  usedReferencePlan?: boolean;
 }
 
 const translations = { en, zh } as const;
@@ -43,6 +46,13 @@ type TaskPayload = {
     stepOrder: number;
     stepType: number;
     stepContent: string;
+    api?: {
+      path: string;
+      method: string;
+      parameters?: Record<string, any>;
+      requestBody?: Record<string, any>;
+    };
+    depends_on_step?: number;
   }>;
 };
 
@@ -83,11 +93,132 @@ export default function ChatWidget() {
     return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? 2 : 1;
   };
 
+  const extractTaskTemplateName = (refinedQuery: string, goal: string): string => {
+    // Remove specific values like names, IDs to create a generic template name
+    // E.g., "Remove Abomasnow from my watchlist" → "Remove from watchlist"
+    // E.g., "Add Pikachu to my team New" → "Add to team"
+    // E.g., "Clear my watchlist" → "Clear watchlist"
+    
+    const text = (refinedQuery || goal || '').trim();
+    
+    // Remove possessive pronouns and articles
+    let cleaned = text.replace(/\b(my|a|an|the)\s+/gi, '');
+    
+    // Remove quoted items and common naming patterns
+    cleaned = cleaned.replace(/'[^']+'/g, '');
+    cleaned = cleaned.replace(/"[^"]+"/g, '');
+    cleaned = cleaned.replace(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g, (match) => {
+      // Remove proper nouns (Pokemon names, team names) but keep verbs/prepositions
+      return /^(add|remove|clear|delete|update|get|create|list)$/i.test(match) ? match : '';
+    });
+    
+    // Clean up extra spaces
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    // Fallback: use first 50 chars if cleaning didn't work well
+    return cleaned.length > 3 ? cleaned : text.slice(0, 50).trim();
+  };
+
+  const detectEntityFromQuery = (refinedQuery: string) => {
+    const text = refinedQuery || '';
+    const quoted = text.match(/['"]([^'"]+)['"]/);
+    if (quoted) return quoted[1];
+    const verbNoun = text.match(/\b(?:add|remove|delete|drop|clear)\s+([A-Za-z0-9_-]+)/i);
+    if (verbNoun) return verbNoun[1];
+    const lastToken = text.trim().split(/\s+/).pop();
+    return lastToken && lastToken.length > 1 ? lastToken : undefined;
+  };
+
+  const parameterizeApiDetails = (step: PlanStep, refinedQuery: string): any => {
+    if (!step.api) return undefined;
+
+    const apiStr = step.api.trim();
+    const parts = apiStr.split(' ');
+    if (parts.length < 2) return undefined;
+
+    const method = parts[0].toUpperCase();
+    let path = parts.slice(1).join(' ');
+    const parameters = step.parameters ? { ...step.parameters } : {};
+    const requestBody = step.requestBody ? JSON.parse(JSON.stringify(step.requestBody)) : {};
+
+    const primaryEntity = detectEntityFromQuery(refinedQuery);
+    const namePlaceholder = path.includes('team') ? '{TEAM_NAME}' : '{POKEMON_NAME}';
+
+    // Parameterize path IDs
+    path = path.replace(/\/pokemon\/\d+/gi, '/pokemon/{POKEMON_ID}');
+    path = path.replace(/\/teams\/\d+/gi, '/teams/{TEAM_ID}');
+    path = path.replace(/\/\d+\b/g, '/{ID}');
+
+    // Parameterize entity names in path
+    if (primaryEntity) {
+      path = path.replace(new RegExp(primaryEntity, 'gi'), namePlaceholder);
+    }
+
+    // Parameterize parameters object
+    Object.keys(parameters || {}).forEach((key) => {
+      if (typeof parameters[key] === 'string' && primaryEntity && parameters[key].toLowerCase() === primaryEntity.toLowerCase()) {
+        parameters[key] = namePlaceholder;
+      }
+      if (typeof parameters[key] === 'number') {
+        parameters[key] = key.toLowerCase().includes('pokemon') ? '{POKEMON_ID}' : '{ID}';
+      }
+    });
+
+    // Parameterize requestBody recursively
+    if (primaryEntity) {
+      parameterizeValue(requestBody, primaryEntity, namePlaceholder);
+    }
+    parameterizeNumericIds(requestBody);
+
+    // Parameterize SQL queries
+    if (requestBody.query && typeof requestBody.query === 'string') {
+      if (primaryEntity) {
+        requestBody.query = requestBody.query.replace(new RegExp(primaryEntity, 'gi'), namePlaceholder);
+      }
+      requestBody.query = requestBody.query.replace(/=\s*\d+/g, (m: string) => m.replace(/\d+/, '{ID}'));
+      requestBody.query = requestBody.query.replace(/IN\s*\([^)]+\)/gi, 'IN ({ID_LIST})');
+    }
+
+    return {
+      path,
+      method: method.toLowerCase(),
+      parameters,
+      requestBody,
+    };
+  };
+
+  const parameterizeValue = (obj: any, searchValue: string, placeholder: string) => {
+    if (typeof obj !== 'object' || obj === null) return;
+    
+    for (const key in obj) {
+      if (typeof obj[key] === 'string') {
+        obj[key] = obj[key].replace(new RegExp(searchValue, 'gi'), placeholder);
+      } else if (typeof obj[key] === 'object') {
+        parameterizeValue(obj[key], searchValue, placeholder);
+      }
+    }
+  };
+
+  const parameterizeNumericIds = (obj: any) => {
+    if (typeof obj !== 'object' || obj === null) return;
+    for (const key in obj) {
+      if (typeof obj[key] === 'number') {
+        obj[key] = key.toLowerCase().includes('pokemon') ? '{POKEMON_ID}' : '{ID}';
+      } else if (typeof obj[key] === 'string' && /\b\d+\b/.test(obj[key])) {
+        obj[key] = obj[key].replace(/\b\d+\b/g, '{ID}');
+      } else if (typeof obj[key] === 'object') {
+        parameterizeNumericIds(obj[key]);
+      }
+    }
+  };
+
   const convertPlanToTaskPayload = (message: Message): TaskPayload => {
     const plan = message.planSummary;
     const text = message.content || '';
+    const refinedQuery = message.refinedQuery || text;
 
-    const taskName = (plan?.goal || text.split('\n')[0] || 'Untitled task').slice(0, 120).trim() || 'Untitled task';
+    // Extract generic template name from refined query
+    const taskName = extractTaskTemplateName(refinedQuery ?? '', plan?.goal ?? '');
     const steps = plan?.steps || [];
     const taskType = inferTaskTypeFromSteps(steps);
 
@@ -99,10 +230,15 @@ export default function ChatWidget() {
       const logicalDesc = (step.description || '').split('(')[0].trim() || 'Step';
       const content = apiPart ? `${logicalDesc} — ${apiPart}` : logicalDesc;
 
+      // Extract and parameterize API details
+      const apiDetails = parameterizeApiDetails(step, refinedQuery);
+
       return {
         stepOrder: idx + 1,
         stepType,
         stepContent: sanitizeContent(content),
+        api: apiDetails,
+        depends_on_step: step.depends_on_step,
       };
     });
 
@@ -183,6 +319,8 @@ export default function ChatWidget() {
         planSummary: data.planSummary,
         planResponse: data.planResponse,
         refinedQuery: data.refinedQuery,
+        planningDurationMs: data.planningDurationMs,
+        usedReferencePlan: data.usedReferencePlan,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
@@ -264,6 +402,8 @@ export default function ChatWidget() {
           planSummary: data.planSummary,
           planResponse: data.planResponse,
           refinedQuery: data.refinedQuery,
+          planningDurationMs: data.planningDurationMs,
+          usedReferencePlan: data.usedReferencePlan,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       } catch (error: any) {
@@ -311,6 +451,8 @@ export default function ChatWidget() {
           planSummary: data.planSummary,
           planResponse: data.planResponse,
           refinedQuery: data.refinedQuery,
+          planningDurationMs: data.planningDurationMs,
+          usedReferencePlan: data.usedReferencePlan,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       } catch (error: any) {
@@ -414,7 +556,13 @@ export default function ChatWidget() {
                       {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
                     </ReactMarkdown>
                   </div>
-                  {message.role === 'assistant' && message.planSummary && (
+                  {message.role === 'assistant' && (message.planningDurationMs !== undefined || message.usedReferencePlan) && (
+                    <div className="mt-2 text-xs text-gray-400 border-t border-gray-700 pt-2">
+                      {message.usedReferencePlan && <div>🪄 Used reference plan</div>}
+                      {message.planningDurationMs !== undefined && <div>⏱️ Planning: {message.planningDurationMs}ms</div>}
+                    </div>
+                  )}
+                  {message.role === 'assistant' && message.planSummary && message.planSummary.steps && message.planSummary.steps.length > 0 && (
                     <div className="mt-3 flex flex-col gap-2">
                       <button
                         onClick={() => handleSaveTask(message)}
