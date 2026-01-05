@@ -38,14 +38,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   ]
 
   return (
-    <div className="flex min-h-screen">
-        <aside className="flex w-64 flex-col border-r border-border bg-card">
+    <div className="flex h-screen overflow-hidden">
+        <aside className="fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-border bg-card">
           <div className="p-6">
             <h1 className="font-mono text-xl font-bold text-primary">PokéPanel</h1>
             <p className="mt-1 text-xs text-muted-foreground">Data Interface v2.0</p>
           </div>
 
-          <nav className="flex-1 space-y-1 px-3">
+          <nav className="flex-1 space-y-1 overflow-y-auto px-3">
             {navItems.map((item) => {
               const isActive = pathname === item.href
 
@@ -77,7 +77,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <p className="mt-3 font-mono text-xs text-muted-foreground">Active Database: Gen I-II</p>
           </div>
         </aside>
-        <main className="min-h-screen flex-1 p-4">
+        <main className="ml-64 h-screen overflow-y-auto p-4 flex-1">
             {children}
         </main>
         <ChatWidget2 />
