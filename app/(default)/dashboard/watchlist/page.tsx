@@ -47,7 +47,13 @@ const WatchlistPage = () => {
   }
 
   if (watchlist.length === 0) {
-    return <div>Your watchlist is empty.</div>;
+    return <div className="space-y-6">
+      <div className="pb-6">
+        <h1 className="text-4xl font-semibold text-foreground">Your Watchlist</h1>
+        <p className="mt-2 text-muted-foreground">Keep track of your favorite Pokémon. View details and manage your collection.</p>
+      </div>
+      <div>Your watchlist is empty.</div>
+    </div>;
   }
 
   return (
