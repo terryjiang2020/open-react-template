@@ -530,7 +530,7 @@ export default function ChatWidget2() {
                     )}
 
                     {/* Save Task button */}
-                    {msg.role === 'assistant' && msg.planSummary && msg.planSummary.steps && msg.planSummary.steps.length > 0 && (
+                    {/* {msg.role === 'assistant' && msg.planSummary && msg.planSummary.steps && msg.planSummary.steps.length > 0 && (
                         <div className="mt-3 flex flex-col gap-2">
                         <button
                             onClick={() => handleSaveTask(msg)}
@@ -540,7 +540,7 @@ export default function ChatWidget2() {
                             Save this task
                         </button>
                         </div>
-                    )}
+                    )} */}
 
                     {/* Approve/Reject buttons */}
                     {msg.awaitingApproval && index === messages.length - 1 && (
@@ -548,14 +548,14 @@ export default function ChatWidget2() {
                         <button
                             onClick={() => handleApproval(true, msg.sessionId)}
                             disabled={isLoading}
-                            className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-green-700 disabled:opacity-50"
+                            className="flex-1 rounded-lg bg-green-100 px-4 py-2 text-sm font-medium text-green-700 transition-all hover:bg-green-200 disabled:opacity-50"
                         >
                             ✓ Approve
                         </button>
                         <button
                             onClick={() => handleApproval(false, msg.sessionId)}
                             disabled={isLoading}
-                            className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                            className="flex-1 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 transition-all hover:bg-red-200 disabled:opacity-50"
                         >
                             ✗ Reject
                         </button>

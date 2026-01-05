@@ -597,7 +597,7 @@ export default function ChatWidget() {
                       {message.planningDurationMs !== undefined && <div>⏱️ Planning: {message.planningDurationMs}ms</div>}
                     </div>
                   )}
-                  {message.role === 'assistant' && message.planSummary && message.planSummary.steps && message.planSummary.steps.length > 0 && (
+                  {/* {message.role === 'assistant' && message.planSummary && message.planSummary.steps && message.planSummary.steps.length > 0 && (
                     <div className="mt-3 flex flex-col gap-2">
                       <button
                         onClick={() => handleSaveTask(message)}
@@ -607,20 +607,20 @@ export default function ChatWidget() {
                         Save this task
                       </button>
                     </div>
-                  )}
+                  )} */}
                   {message.awaitingApproval && index === messages.length - 1 && (
                     <div className="mt-3 flex gap-2">
                       <button
                         onClick={() => handleApproval(true, message.sessionId)}
                         disabled={isLoading}
-                        className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-green-700 disabled:opacity-50"
+                        className="flex-1 rounded-lg bg-green-100 px-4 py-2 text-sm font-medium text-green-700 transition-all hover:bg-green-200 disabled:opacity-50"
                       >
                         ✓ Approve
                       </button>
                       <button
                         onClick={() => handleApproval(false, message.sessionId)}
                         disabled={isLoading}
-                        className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                        className="flex-1 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 transition-all hover:bg-red-200 disabled:opacity-50"
                       >
                         ✗ Reject
                       </button>

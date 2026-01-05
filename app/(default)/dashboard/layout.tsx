@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 
 import { ReactNode } from 'react';
 import ChatWidget2 from '@/components/chat-widget-2';
+import { LiveChatWidget } from '@livechat/widget-react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -45,6 +46,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             {children}
         </main>
         <ChatWidget2 />
+        <LiveChatWidget license="12332502" group="0" /> 
     </div>
   );
 };
