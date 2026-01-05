@@ -38,7 +38,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   ]
 
   return (
-    <div style={{ display: 'flex' }}>
+    <div className="flex min-h-screen">
         <aside className="flex w-64 flex-col border-r border-border bg-card">
           <div className="p-6">
             <h1 className="font-mono text-xl font-bold text-primary">PokéPanel</h1>
@@ -65,10 +65,19 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </nav>
 
           <div className="border-t border-border p-4">
-            <p className="font-mono text-xs text-muted-foreground">Active Database: Gen I-II</p>
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-400"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+              </svg>
+              Log Out
+            </button>
+            <p className="mt-3 font-mono text-xs text-muted-foreground">Active Database: Gen I-II</p>
           </div>
         </aside>
-        <main style={{ flex: 1, padding: '1rem' }}>
+        <main className="min-h-screen flex-1 p-4">
             {children}
         </main>
         <ChatWidget2 />
