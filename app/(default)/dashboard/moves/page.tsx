@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { searchMove } from "@/services/pokemonService";
+import { typeClasses } from "../pokemons/[id]/page";
 
 const MovePage = () => {
   const [moves, setMoves] = useState<any[]>([]);
@@ -46,6 +47,11 @@ const MovePage = () => {
     handleSearch(new Event("submit")); // Trigger search on start without any search term
   }, []);
 
+  const getTypeClass = (type: string) => {
+    const key = (type || "normal").toLowerCase();
+    return typeClasses[key] || typeClasses.normal;
+  };
+
   return (
     <div>
       <h1>Moves</h1>
@@ -59,24 +65,46 @@ const MovePage = () => {
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
       </form>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
-        <thead>
-          <tr>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {moves.map((move, index) => (
-            <tr key={index}>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{move.identifier}</td>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                <button style={{ marginRight: "8px" }}>View Detail</button>
-              </td>
-            </tr>
+      <div className="max-h-[600px] overflow-y-auto">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {moves.map((move: any, index: number) => (
+            <div key={index} className="flex flex-col gap-2 rounded-lg border border-border/50 p-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold capitalize">{move.localized_name}</span>
+                {
+                  <span
+                    key={index}
+                    className={`text-xs capitalize ${getTypeClass(move.type_name)}`}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      borderRadius: "12px",
+                      fontWeight: "bold",
+                      display: "inline-block",
+                      minWidth: "80px",
+                      textAlign: "center",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {move.type_name || "Unknown"}
+                  </span>
+                }
+              </div>
+              <div className="grid grid-cols-2 gap-2 font-mono text-xs text-muted-foreground">
+                <div>
+                  Power: <span className="text-foreground">{move.power ?? "-"}</span>
+                </div>
+                <div>
+                  Accuracy: <span className="text-foreground">{move.accuracy ?? "-"}%</span>
+                </div>
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
+          {moves.length === 0 && (
+            <div className="col-span-2 text-sm text-muted-foreground">No moves for this filter.</div>
+          )}
+        </div>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
         <button
           onClick={() => handlePageChange(currentPage - 1)}

@@ -12,6 +12,11 @@
   --font-inter: var(--font-inter), sans-serif;
   --font-nacelle: var(--font-nacelle), sans-serif;
 
+  --color-primary: #007e60;
+  --color-primary-foreground: #ffffff;
+  --color-green: #22c55e;
+  --color-green-foreground: #ffffff;
+
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.5384;
   --text-sm: 0.875rem;
@@ -167,6 +172,78 @@
   
   & > *:last-child {
     margin-bottom: 0;
+  }
+}
+
+/* Global input styles - excluding chat widget */
+input[type="text"]:not(.chat-input):not(.chat-widget input),
+input[type="email"]:not(.chat-input):not(.chat-widget input),
+input[type="password"]:not(.chat-input):not(.chat-widget input),
+input[type="search"]:not(.chat-input):not(.chat-widget input),
+input[type="number"]:not(.chat-input):not(.chat-widget input),
+input[type="tel"]:not(.chat-input):not(.chat-widget input),
+input[type="url"]:not(.chat-input):not(.chat-widget input),
+textarea:not(.chat-input):not(.chat-widget textarea),
+select:not(.chat-input):not(.chat-widget select) {
+  background-color: #000000;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  transition: border-color 0.2s ease;
+}
+
+input[type="text"]:not(.chat-input):not(.chat-widget input):hover,
+input[type="email"]:not(.chat-input):not(.chat-widget input):hover,
+input[type="password"]:not(.chat-input):not(.chat-widget input):hover,
+input[type="search"]:not(.chat-input):not(.chat-widget input):hover,
+input[type="number"]:not(.chat-input):not(.chat-widget input):hover,
+input[type="tel"]:not(.chat-input):not(.chat-widget input):hover,
+input[type="url"]:not(.chat-input):not(.chat-widget input):hover,
+textarea:not(.chat-input):not(.chat-widget textarea):hover,
+select:not(.chat-input):not(.chat-widget select):hover,
+input[type="text"]:not(.chat-input):not(.chat-widget input):focus,
+input[type="email"]:not(.chat-input):not(.chat-widget input):focus,
+input[type="password"]:not(.chat-input):not(.chat-widget input):focus,
+input[type="search"]:not(.chat-input):not(.chat-widget input):focus,
+input[type="number"]:not(.chat-input):not(.chat-widget input):focus,
+input[type="tel"]:not(.chat-input):not(.chat-widget input):focus,
+input[type="url"]:not(.chat-input):not(.chat-widget input):focus,
+textarea:not(.chat-input):not(.chat-widget textarea):focus,
+select:not(.chat-input):not(.chat-widget select):focus {
+  border-color: #007e60;
+  outline: none;
+}
+
+/* Scrollbar styling for better appearance */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 126, 96, 0.5);
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 126, 96, 0.8);
+  }
+
+  /* Firefox scrollbar styling */
+  * {
+    scrollbar-color: rgba(0, 126, 96, 0.5) transparent;
+    scrollbar-width: thin;
+  }
+
+  *:hover {
+    scrollbar-color: rgba(0, 126, 96, 0.8) transparent;
   }
 }
 

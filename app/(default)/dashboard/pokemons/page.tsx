@@ -8,6 +8,7 @@ import {
   addToWatchlist,
   removeFromWatchlist,
 } from "@/services/pokemonService";
+import { typeColors } from "./[id]/page";
 
 const PokemonPage = () => {
   const router = useRouter();
@@ -137,70 +138,86 @@ const PokemonPage = () => {
           Search
         </button>
       </form>
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          marginTop: "1rem",
-        }}
-      >
-        <thead>
-          <tr>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Image</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pokemons.map((pokemon: any, index: number) => (
-            <tr key={index}>
-              <td
-                style={{
-                  border: "1px solid #ddd",
-                  padding: "8px",
-                  textAlign: "center",
-                }}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {pokemons.map((pokemon) => (
+          <div
+            key={pokemon.id}
+            className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card p-4 transition-colors hover:border-white/50"
+          >
+            {/* Pokemon Info */}
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="font-mono text-xs text-muted-foreground">
+                  #{pokemon.id.toString().padStart(3, "0")}
+                </div>
+                <h3 className="text-lg font-semibold text-foreground">{pokemon.identifier}</h3>
+              </div>
+              <img
+                src={pokemon.sprite}
+                alt={pokemon.identifier}
+                className="size-16 object-contain"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {pokemon.types && pokemon.types.length > 0 ? (
+                pokemon.types.map((type: string, index: number) => {
+                  const typeIdentifier = type || "";
+                  const typeName = type || typeIdentifier;
+                  const typeKey = typeIdentifier.toLowerCase();
+                  const chipColor = typeColors[typeKey as keyof typeof typeColors] || "#ccc";
+                  const chipBg = `${chipColor}26`; // light tint of the type color
+
+                  return (
+                    <span
+                      key={index}
+                      style={{
+                        backgroundColor: chipBg,
+                        color: chipColor,
+                        border: `1px solid ${chipColor}`,
+                        padding: "0.5rem 1rem",
+                        borderRadius: "12px",
+                        fontWeight: "bold",
+                        display: "inline-block",
+                        minWidth: "80px",
+                        textAlign: "center",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {typeName || "Unknown"}
+                    </span>
+                  );
+                })
+              ) : (
+                <p>No type information available</p>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleViewDetail(pokemon)}
+                className="flex-1 gap-1.5 border border-white rounded-lg text-base h-10 hover:bg-white/10"
               >
-                <img
-                  src={pokemon.sprite}
-                  alt={pokemon.identifier}
-                  style={{ width: "50px", height: "50px" }}
-                />
-              </td>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                {pokemon.identifier}
-              </td>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                <button
-                  style={{ marginRight: "8px" }}
-                  onClick={() => handleViewDetail(pokemon)}
-                >
-                  View Detail
-                </button>
-                <button
-                  onClick={() => toggleWatchlist(pokemon.id)}
-                  style={{
-                    backgroundColor: watchlist.some(
-                      (item) => item.pokemonId === pokemon.id
-                    )
-                      ? "red"
-                      : "green",
-                    color: "white",
-                    padding: "0.5rem 1rem",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {watchlist.some((item) => item.pokemonId === pokemon.id)
-                    ? "Remove from Watchlist"
-                    : "Add to Watchlist"}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                View Details
+              </button>
+              <button
+                onClick={() => toggleWatchlist(pokemon.id)}
+                className={`flex-1 gap-1.5 text-base h-10 ${
+                  watchlist.some(item => item.pokemonId === pokemon.id)
+                    ? "border border-primary bg-primary/10 text-primary rounded-lg hover:bg-primary/20"
+                    : "border border-white rounded-lg hover:bg-white/10"
+                }`}
+              >
+                {watchlist.some((item) => item.pokemonId === pokemon.id)
+                  ? "Remove from Watchlist"
+                  : "Add to Watchlist"}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div
         style={{
           display: "flex",
@@ -232,3 +249,7 @@ const PokemonPage = () => {
 };
 
 export default PokemonPage;
+
+/*
+Let's say tomorrow
+*/

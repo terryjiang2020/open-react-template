@@ -28,7 +28,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh' }}>
+    <div style={{ display: 'flex' }}>
         <aside style={{ width: '250px', background: 'black', padding: '1rem', boxShadow: '2px 0 5px rgba(0, 0, 0, 0.1)' }}>
             <nav>
             <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -37,7 +37,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 {/* <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/berries">Berries</Link></li> */}
                 <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/abilities">Abilities</Link></li>
                 <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/watchlist">Watchlist</Link></li>
-                <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/teams">Teams</Link></li>
+                {/* <li style={{ marginBottdom: '1rem' }}><Link href="/dashboard/teams">Teams</Link></li> */}
             </ul>
             </nav>
             <button onClick={handleLogout} style={{ marginTop: 'auto', display: 'block', background: '#ff4d4d', color: '#fff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer', borderRadius: '4px' }}>Log Out</button>
