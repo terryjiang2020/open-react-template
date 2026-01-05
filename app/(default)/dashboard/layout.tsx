@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { ReactNode } from 'react';
@@ -14,6 +14,7 @@ interface DashboardLayoutProps {
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -27,20 +28,45 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     router.push('/signin');
   };
 
+  const navItems = [
+    { label: 'Pokémons', href: '/dashboard/pokemons', icon: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" /></svg> },
+    { label: 'Moves', href: '/dashboard/moves', icon: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" /></svg> },
+    // { label: 'Berries', href: '/dashboard/berries', icon: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" /></svg> },
+    { label: 'Abilities', href: '/dashboard/abilities', icon: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" /></svg> },
+    { label: 'Watchlist', href: '/dashboard/watchlist', icon: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" /></svg> },
+    // { label: 'Teams', href: '/dashboard/teams', icon: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" /></svg> },
+  ]
+
   return (
     <div style={{ display: 'flex' }}>
-        <aside style={{ width: '250px', background: 'black', padding: '1rem', boxShadow: '2px 0 5px rgba(0, 0, 0, 0.1)' }}>
-            <nav>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-                <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/pokemons">Pokémons</Link></li>
-                <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/moves">Moves</Link></li>
-                {/* <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/berries">Berries</Link></li> */}
-                <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/abilities">Abilities</Link></li>
-                <li style={{ marginBottom: '1rem' }}><Link href="/dashboard/watchlist">Watchlist</Link></li>
-                {/* <li style={{ marginBottdom: '1rem' }}><Link href="/dashboard/teams">Teams</Link></li> */}
-            </ul>
-            </nav>
-            <button onClick={handleLogout} style={{ marginTop: 'auto', display: 'block', background: '#ff4d4d', color: '#fff', border: 'none', padding: '0.5rem 1rem', cursor: 'pointer', borderRadius: '4px' }}>Log Out</button>
+        <aside className="flex w-64 flex-col border-r border-border bg-card">
+          <div className="p-6">
+            <h1 className="font-mono text-xl font-bold text-primary">PokéPanel</h1>
+            <p className="mt-1 text-xs text-muted-foreground">Data Interface v2.0</p>
+          </div>
+
+          <nav className="flex-1 space-y-1 px-3">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors" +
+                    (isActive ? " bg-primary/10 text-primary" : " text-muted-foreground hover:bg-accent hover:text-foreground")
+                  }
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+
+          <div className="border-t border-border p-4">
+            <p className="font-mono text-xs text-muted-foreground">Active Database: Gen I-II</p>
+          </div>
         </aside>
         <main style={{ flex: 1, padding: '1rem' }}>
             {children}
