@@ -10,7 +10,6 @@ import Features from "@/components/features";
 import Testimonials from "@/components/testimonials";
 import Cta from "@/components/cta";
 import ChatWidget2 from "@/components/chat-widget-2";
-import { LiveChatWidget } from "@livechat/widget-react";
 
 export default function Home() {
   return (
@@ -22,7 +21,6 @@ export default function Home() {
       <Testimonials />
       <Cta />
       <ChatWidget2 />
-      <LiveChatWidget license="12332502" group="0" />
     </>
   );
 }

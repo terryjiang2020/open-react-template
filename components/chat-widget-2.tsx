@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { saveTask } from '@/services/taskService';
 import '../app/css/additional-styles/chat-widget.css';
+import Logo from './ui/logo';
 
 interface PlanStep {
   step_number?: number;
@@ -486,11 +487,10 @@ export default function ChatWidget2() {
           <div className="chat-header">
             <div className="chat-header-content">
               <div className="chat-avatar">
-                <span>💬</span>
+                <Logo className="h-6" />
               </div>
               <div className="chat-header-text">
-                <h3>Chat Support</h3>
-                <p>We're here to help</p>
+                <h3>New Chat</h3>
               </div>
             </div>
             <button className="close-button" onClick={toggleWidget} aria-label="Close chat">
@@ -613,19 +613,12 @@ export default function ChatWidget2() {
         </div>
 
         <button
-          className={`chat-toggle-button ${isExpanded ? 'expanded' : ''}`}
+          className={`chat-toggle-button font-semibold ${isExpanded ? 'expanded' : ''}`}
           onClick={toggleWidget}
           aria-label="Toggle chat"
         >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <path
-                d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                />
-            </svg>
+            <Logo className="h-6" />
+            AI Assistant
         </button>
       </div>
     </>

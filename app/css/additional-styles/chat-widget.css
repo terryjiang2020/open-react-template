@@ -8,10 +8,12 @@
 }
 
 .chat-toggle-button {
-    width: 60px;
+    /* width: 60px; */
     height: 60px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 60px;
+    padding: 0 16px 0 8px;
+    background: #007E60;
+    /* background: #000; */
     border: none;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -33,13 +35,13 @@
     transform: scale(0.95);
 }
 
-.chat-toggle-button svg {
+/* .chat-toggle-button svg {
     transition: all 0.3s ease;
 }
 
 .chat-toggle-button.expanded svg {
     transform: rotate(180deg);
-}
+} */
 
 .chat-toggle-button.expanded {
     transform: translateY(8px);
@@ -52,7 +54,7 @@
     bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
-    width: min(90vw, 420px);
+    width: min(90vw, 600px);
     height: 600px;
     background: white;
     border-radius: 16px;
@@ -76,9 +78,9 @@
 }
 
 .chat-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #007E60;
     color: white;
-    padding: 20px;
+    padding: 12px 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -231,7 +233,7 @@
 }
 
 .message.user .message-content {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #007E60;
     color: white;
     border-bottom-right-radius: 4px;
 }
@@ -273,7 +275,8 @@
 }
 
 .chat-input:focus {
-    border-color: #667eea;
+    border-color: #007E60;
+    --tw-ring-color: #007E60;
 }
 
 .chat-input::placeholder {
@@ -281,10 +284,11 @@
 }
 
 .send-button {
+    margin: 5px 0;
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #007E60;
     border: none;
     cursor: pointer;
     display: flex;
