@@ -60,7 +60,7 @@ const AbilityPage = () => {
           onChange={(e) => setSearch(e.target.value)}
           style={{ padding: "0.5rem", marginRight: "0.5rem", color: "white" }} // Set text color to black
         />
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
+        <button type="submit" style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}>Search</button>
       </form>
       {
         abilities.length === 0 && (
@@ -71,7 +71,7 @@ const AbilityPage = () => {
         abilities.length > 0 && (       
           <div className="border-border/50 bg-card">
             <div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {abilities.map((ability) => (
                   <div
                     key={ability.id}

@@ -66,10 +66,10 @@ const MovePage = () => {
           onChange={(e) => setSearch(e.target.value)}
           style={{ padding: "0.5rem", marginRight: "0.5rem", color: "white" }} // Set text color to black
         />
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
+        <button type="submit" style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}>Search</button>
       </form>
       <div className="max-h-[600px] overflow-y-auto">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {moves.map((move: any, index: number) => (
             <div key={index} className="flex flex-col gap-2 rounded-lg border border-border/50 p-3">
               <div className="flex items-center justify-between">

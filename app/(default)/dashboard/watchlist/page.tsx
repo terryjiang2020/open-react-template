@@ -120,9 +120,7 @@ const WatchlistPage = () => {
               </button>
               <button
                 onClick={() => handleRemove(pokemon.pokemonId)}
-                className={`flex-1 gap-1.5 text-base h-10 ${
-                  "border border-primary bg-primary/10 text-primary rounded-lg hover:bg-primary/20"
-                }`}
+                className="flex-1 gap-1.5 text-base h-10 border border-red-500 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20"
               >
                 Remove from Watchlist
               </button>

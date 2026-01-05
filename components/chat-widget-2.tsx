@@ -61,35 +61,35 @@ export default function ChatWidget2() {
   const [isSavingTask, setIsSavingTask] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load chat history from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedMessages = localStorage.getItem('chatWidget2_messages');
-      if (savedMessages) {
-        const parsed = (JSON.parse(savedMessages)).map((msg: any) => ({
-          ...msg,
-          content: typeof msg.content === 'string'
-            ? msg.content.replace(/```[a-zA-Z]*/g, '\n```')
-            : msg.content
-        }));
-        console.log('savedMessages:', savedMessages);
-        setMessages(parsed);
-      }
-    } catch (error) {
-      console.warn('Failed to load chat history:', error);
-    }
-  }, []);
+  // // Load chat history from localStorage on mount
+  // useEffect(() => {
+  //   try {
+  //     const savedMessages = localStorage.getItem('chatWidget2_messages');
+  //     if (savedMessages) {
+  //       const parsed = (JSON.parse(savedMessages)).map((msg: any) => ({
+  //         ...msg,
+  //         content: typeof msg.content === 'string'
+  //           ? msg.content.replace(/```[a-zA-Z]*/g, '\n```')
+  //           : msg.content
+  //       }));
+  //       console.log('savedMessages:', savedMessages);
+  //       setMessages(parsed);
+  //     }
+  //   } catch (error) {
+  //     console.warn('Failed to load chat history:', error);
+  //   }
+  // }, []);
 
-  // Save chat history to localStorage whenever messages change
-  useEffect(() => {
-    try {
-      if (messages.length > 0) {
-        localStorage.setItem('chatWidget2_messages', JSON.stringify(messages));
-      }
-    } catch (error) {
-      console.warn('Failed to save chat history:', error);
-    }
-  }, [messages]);
+  // // Save chat history to localStorage whenever messages change
+  // useEffect(() => {
+  //   try {
+  //     if (messages.length > 0) {
+  //       localStorage.setItem('chatWidget2_messages', JSON.stringify(messages));
+  //     }
+  //   } catch (error) {
+  //     console.warn('Failed to save chat history:', error);
+  //   }
+  // }, [messages]);
 
   const sanitizeContent = (text: string) => text.replace(/```/g, '').trim();
 

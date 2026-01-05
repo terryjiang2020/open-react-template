@@ -16,6 +16,7 @@ const PokemonPage = () => {
   const [pokemons, setPokemons] = useState<any[]>([]);
   const [watchlist, setWatchlist] = useState<any[]>([]);
   const [search, setSearch] = useState(searchParams?.get("searchTerm") || "");
+  const [lastSearch, setLastSearch] = useState<string | null>(null); // Track the last search term
   const [currentPage, setCurrentPage] = useState(
     parseInt(searchParams?.get("page") || "0", 10)
   );
@@ -64,6 +65,7 @@ const PokemonPage = () => {
     e.preventDefault();
     updateUrl(search, 0);
     try {
+      setLastSearch(search);
       const data = await searchPokemon({ searchterm: search, page: 0 });
       let pokemonList = [];
       let totalPages = 1;
@@ -80,9 +82,9 @@ const PokemonPage = () => {
 
   const handlePageChange = async (newPage: number) => {
     if (newPage < 0 || newPage >= totalPages) return;
-    updateUrl(search, newPage);
+    updateUrl(lastSearch || "", newPage);
     try {
-      const data = await searchPokemon({ searchterm: search, page: newPage });
+      const data = await searchPokemon({ searchterm: lastSearch || "", page: newPage });
       let pokemonList = [];
       if (data.success) {
         pokemonList = data.result.results;
@@ -142,7 +144,7 @@ const PokemonPage = () => {
             color: "white",
           }}
         />
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>
+        <button type="submit" style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}>
           Search
         </button>
       </form>
@@ -206,14 +208,14 @@ const PokemonPage = () => {
               </button>
               <button
                 onClick={() => toggleWatchlist(pokemon.id)}
-                className={`flex-1 gap-1.5 text-base h-10 ${
+                className={`flex-1 gap-1.5 text-base h-10 rounded-lg ${
                   watchlist.some(item => item.pokemonId === pokemon.id)
-                    ? "border border-primary bg-primary/10 text-primary rounded-lg hover:bg-primary/20"
-                    : "border border-white rounded-lg hover:bg-white/10"
+                    ? "bg-green-500 text-black border-none hover:bg-green-600"
+                    : "border border-green-500 bg-green-500/10 text-green-500 hover:bg-green-500/20"
                 }`}
               >
                 {watchlist.some((item) => item.pokemonId === pokemon.id)
-                  ? "Remove from Watchlist"
+                  ? "In Watchlist"
                   : "Add to Watchlist"}
               </button>
             </div>
