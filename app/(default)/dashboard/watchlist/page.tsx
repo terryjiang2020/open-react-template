@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { getWatchlist, removeFromWatchlist } from '@/services/pokemonService';
 import { useRouter } from 'next/navigation';
-import { typeClasses, typeColors } from '../pokemons/[id]/page';
+import { getTypeClass } from '@/services/typeStyleService';
 
 const WatchlistPage = () => {
   const [watchlist, setWatchlist] = useState<any[]>([]);
@@ -41,11 +41,6 @@ const WatchlistPage = () => {
   useEffect(() => {
     fetchWatchlist();
   }, []);
-    
-  const getTypeClass = (type: string) => {
-    const key = (type || "normal").toLowerCase();
-    return typeClasses[key] || typeClasses.normal;
-  };
 
   if (loading) {
     return <div>Loading...</div>;

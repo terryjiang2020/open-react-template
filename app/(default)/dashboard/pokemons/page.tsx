@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   searchPokemon,
@@ -8,9 +8,9 @@ import {
   addToWatchlist,
   removeFromWatchlist,
 } from "@/services/pokemonService";
-import { typeClasses, typeColors } from "./[id]/page";
+import { getTypeClass } from "@/services/typeStyleService";
 
-const PokemonPage = () => {
+const PokemonPageContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pokemons, setPokemons] = useState<any[]>([]);
@@ -119,11 +119,6 @@ const PokemonPage = () => {
     } catch (error) {
       console.error("Failed to update watchlist:", error);
     }
-  };
-  
-  const getTypeClass = (type: string) => {
-    const key = (type || "normal").toLowerCase();
-    return typeClasses[key] || typeClasses.normal;
   };
 
   return (
@@ -250,6 +245,14 @@ const PokemonPage = () => {
         </button>
       </div>
     </div>
+  );
+};
+
+const PokemonPage = () => {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <PokemonPageContent />
+    </Suspense>
   );
 };
 

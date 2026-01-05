@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { searchMove } from "@/services/pokemonService";
-import { typeClasses } from "../pokemons/[id]/page";
+import { getTypeClass } from "@/services/typeStyleService";
 
 const MovePage = () => {
   const [moves, setMoves] = useState<any[]>([]);
@@ -46,11 +46,6 @@ const MovePage = () => {
   useEffect(() => {
     handleSearch(new Event("submit")); // Trigger search on start without any search term
   }, []);
-
-  const getTypeClass = (type: string) => {
-    const key = (type || "normal").toLowerCase();
-    return typeClasses[key] || typeClasses.normal;
-  };
 
   return (
     <div className="space-y-6">
