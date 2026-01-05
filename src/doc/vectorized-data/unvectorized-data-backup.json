@@ -1,0 +1,267 @@
+[
+  {
+    "id": "api-/pokemon/search-POST",
+    "summary": "Search for Pokémon by ID or name, with optional filters (height, weight, types, stats) and sorting options.",
+    "tags": [
+      "pokemon",
+      "search",
+      "filter",
+      "sort",
+      "id",
+      "name"
+    ],
+    "content": "path: /pokemon/search\nmethod: POST\ntags: pokemon, search, filter, sort, id, name\nsummary: Search for Pokémon by ID or name, with optional filters (height, weight, types, stats) and sorting options.\ndescription: \nparameters: \nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"searchterm\":{\"type\":\"string\",\"description\":\"Search keyword for Pokémon name or ID.\"},\"filter\":{\"type\":\"object\",\"description\":\"Optional filters for Pokémon search, including height, weight, types, moves, and stats.\",\"properties\":{\"height\":{\"type\":\"object\",\"description\":\"Filter Pokémon by height range (in decimeters, 10 cm).\",\"properties\":{\"min\":{\"type\":\"integer\",\"description\":\"Minimum height in decimeters.\"},\"max\":{\"type\":\"integer\",\"description\":\"Maximum height in decimeters.\"}}},\"weight\":{\"type\":\"object\",\"description\":\"Filter Pokémon by weight range (in hectograms, 100 g).\",\"properties\":{\"min\":{\"type\":\"integer\",\"description\":\"Minimum weight in hectograms.\"},\"max\":{\"type\":\"integer\",\"description\":\"Maximum weight in hectograms.\"}}},\"mustHaveTypes\":{\"type\":\"array\",\"description\":\"List of type IDs that Pokémon must have.\",\"items\":{\"type\":\"integer\",\"description\":\"Type ID.\"}},\"mustNotHaveTypes\":{\"type\":\"array\",\"description\":\"List of type IDs that Pokémon must NOT have.\",\"items\":{\"type\":\"integer\",\"description\":\"Type ID.\"}},\"canLearnMoves\":{\"type\":\"array\",\"description\":\"List of moves (with method) that Pokémon can learn.\",\"items\":{\"type\":\"object\",\"properties\":{\"moveId\":{\"type\":\"integer\",\"description\":\"Move ID.\"},\"moveMethodId\":{\"type\":\"integer\",\"description\":\"Move method ID (e.g., level-up, TM, etc.).\"}}}},\"stats\":{\"type\":\"array\",\"description\":\"Filter Pokémon by stat ranges.\",\"items\":{\"type\":\"object\",\"properties\":{\"statId\":{\"type\":\"integer\",\"description\":\"Stat ID (e.g., HP, Attack, etc.).\"},\"min\":{\"type\":\"integer\",\"description\":\"Minimum stat value.\"},\"max\":{\"type\":\"integer\",\"description\":\"Maximum stat value.\"}}}}}},\"page\":{\"type\":\"integer\",\"default\":0,\"description\":\"Page number for paginated results (default: 0).\"},\"sortby\":{\"type\":\"integer\",\"default\":0,\"description\":\"Sorting option for results: 0 (A-Z), 1 (Z-A), 2 (Total stats high-low), 3 (Total stats low-high), 4 (HP high-low), 5 (HP low-high), 6 (Attack high-low), 7 (Attack low-high), 8 (Defense high-low), 9 (Defense low-high), 10 (Special Attack high-low), 11 (Special Attack low-high), 12 (Special Defense high-low), 13 (Special Defense low-high), 14 (Speed high-low), 15 (Speed low-high), 16 (Height high-low), 17 (Height low-high), 18 (Weight high-low), 19 (Weight low-high).\"}}}\nresponses: 200: Pokémon details retrieved {\"type\":\"object\",\"properties\":{\"results\":{\"type\":\"array\",\"description\":\"List of Pokémon matching the search criteria.\",\"items\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Pokémon ID. Unique identifier for the Pokémon.\"},\"name\":{\"type\":\"string\",\"description\":\"Pokémon name. The English name of the Pokémon.\"},\"type\":{\"type\":\"string\",\"description\":\"Primary type of the Pokémon. For example: 'Fire', 'Water', etc.\"},\"abilities\":{\"type\":\"array\",\"description\":\"List of ability names for the Pokémon. Each ability describes a special trait or power.\",\"items\":{\"type\":\"string\",\"description\":\"Ability name. For example: 'Overgrow', 'Blaze', etc.\"}},\"sprite\":{\"type\":\"string\",\"description\":\"URL to the Pokémon sprite image. This is a direct link to the official artwork.\",\"example\":\"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png\"}}}},\"totalCount\":{\"type\":\"integer\",\"description\":\"Total number of Pokémon found. Indicates the total number of results matching the search criteria.\"},\"totalPage\":{\"type\":\"integer\",\"description\":\"Total number of pages for paginated results. Calculated based on totalCount and page size.\"}}}; 404: Pokémon not found"
+  },
+  {
+    "id": "api-/pokemon/move/search-POST",
+    "summary": "Search for Pokémon moves by ID or name, with optional filters (type, power, pp, damage class, priority) and ordering.",
+    "tags": [
+      "pokemon",
+      "move",
+      "search",
+      "filter",
+      "order",
+      "id",
+      "name"
+    ],
+    "content": "path: /pokemon/move/search\nmethod: POST\ntags: pokemon, move, search, filter, order, id, name\nsummary: Search for Pokémon moves by ID or name, with optional filters (type, power, pp, damage class, priority) and ordering.\ndescription: \nparameters: \nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"searchterm\":{\"type\":\"string\",\"description\":\"Search keyword for move name or ID.\"},\"page\":{\"type\":\"integer\",\"default\":0,\"description\":\"Page number for paginated results (default: 0).\"},\"filters\":{\"type\":\"object\",\"description\":\"Optional filters for move search, including type, power, PP, damage class, and priority.\",\"properties\":{\"type\":{\"type\":\"integer\",\"description\":\"Filter by move type ID (e.g., 1 for Normal, 10 for Fire).\"},\"power\":{\"type\":\"object\",\"description\":\"Filter moves by power range. Power indicates the base damage of the move.\",\"properties\":{\"min\":{\"type\":\"integer\",\"description\":\"Minimum power value.\"},\"max\":{\"type\":\"integer\",\"description\":\"Maximum power value.\"}}},\"pp\":{\"type\":\"object\",\"description\":\"Filter moves by PP (Power Points) range. PP indicates how many times a move can be used.\",\"properties\":{\"min\":{\"type\":\"integer\",\"description\":\"Minimum PP value.\"},\"max\":{\"type\":\"integer\",\"description\":\"Maximum PP value.\"}}},\"damageClass\":{\"type\":\"integer\",\"description\":\"Filter by damage class ID: 1 for status moves, 2 for physical moves, 3 for special moves.\"},\"priority\":{\"type\":\"object\",\"description\":\"Filter moves by priority range. Priority determines move order in battle (higher priority moves go first).\",\"properties\":{\"min\":{\"type\":\"integer\",\"description\":\"Minimum priority value (can be negative).\"},\"max\":{\"type\":\"integer\",\"description\":\"Maximum priority value.\"}}}}},\"order\":{\"type\":\"integer\",\"default\":0,\"description\":\"Ordering options: 0 (A-Z), 1 (Z-A), 2 (Power high-low), 3 (Power low-high), 4 (PP high-low), 5 (PP low-high), 6 (Accuracy high-low), 7 (Accuracy low-high)\"}}}\nresponses: 200: Move details retrieved {\"type\":\"object\",\"properties\":{\"results\":{\"type\":\"array\",\"description\":\"List of moves matching the search criteria.\",\"items\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Unique move ID.\"},\"identifier\":{\"type\":\"string\",\"description\":\"Move identifier (internal name in lowercase with hyphens).\"},\"type_id\":{\"type\":\"number\",\"description\":\"Type ID of the move (e.g., 1 for Normal, 10 for Fire).\"},\"type_name\":{\"type\":\"string\",\"description\":\"Localized name of the move's type.\"},\"power\":{\"type\":\"integer\",\"description\":\"Base power/damage of the move. Null for status moves.\"},\"pp\":{\"type\":\"integer\",\"description\":\"Power Points - the number of times this move can be used.\"},\"accuracy\":{\"type\":\"integer\",\"description\":\"Move accuracy as a percentage (0-100). Null for moves that never miss.\"},\"priority\":{\"type\":\"integer\",\"description\":\"Priority level in battle. Higher values move first. Range typically -7 to +5.\"},\"damage_class_id\":{\"type\":\"number\",\"description\":\"Damage class ID: 1 (status), 2 (physical), 3 (special).\"},\"damage_class_name\":{\"type\":\"string\",\"description\":\"Localized name of the damage class (e.g., 'Physical', 'Special', 'Status').\"},\"localized_name\":{\"type\":\"string\",\"description\":\"Localized/translated name of the move in the user's language.\"}}}},\"totalCount\":{\"type\":\"integer\",\"description\":\"Total number of moves found matching the criteria.\"},\"totalPage\":{\"type\":\"integer\",\"description\":\"Total number of pages available for pagination.\"}}}; 404: Move not found"
+  },
+  {
+    "id": "api-/pokemon/ability/search-POST",
+    "summary": "Search for Pokémon abilities by ID or name.",
+    "tags": [
+      "pokemon",
+      "ability",
+      "search",
+      "id",
+      "name"
+    ],
+    "content": "path: /pokemon/ability/search\nmethod: POST\ntags: pokemon, ability, search, id, name\nsummary: Search for Pokémon abilities by ID or name.\ndescription: \nparameters: \nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"searchterm\":{\"type\":\"string\",\"description\":\"Search keyword for ability name or ID.\"},\"page\":{\"type\":\"integer\",\"default\":0,\"description\":\"Page number for paginated results (default: 0).\"}}}\nresponses: 200: Ability details retrieved {\"type\":\"object\",\"properties\":{\"results\":{\"type\":\"array\",\"description\":\"List of Pokémon abilities matching the search criteria.\",\"items\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Unique ability ID.\"},\"name\":{\"type\":\"string\",\"description\":\"Localized name of the ability.\"},\"effect\":{\"type\":\"string\",\"description\":\"Detailed description of the ability's effect in battle and outside of battle.\"}}}},\"totalCount\":{\"type\":\"integer\",\"description\":\"Total number of abilities found matching the criteria.\"},\"totalPage\":{\"type\":\"integer\",\"description\":\"Total number of pages available for pagination.\"}}}; 404: Ability not found"
+  },
+  {
+    "id": "api-/pokemon/watchlist-POST",
+    "summary": "Add a Pokémon to the user's watchlist by Pokémon ID.",
+    "tags": [
+      "pokemon",
+      "watchlist",
+      "user",
+      "add",
+      "favorite"
+    ],
+    "content": "path: /pokemon/watchlist\nmethod: POST\ntags: pokemon, watchlist, user, add, favorite\nsummary: Add a Pokémon to the user's watchlist by Pokémon ID.\ndescription: \nparameters: \nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"pokemonId\":{\"type\":\"number\",\"description\":\"The ID of the Pokémon to add to the user's watchlist.\"}}}\nresponses: 201: Pokémon added to watchlist or existing record returned {\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"integer\",\"description\":\"Unique watchlist entry ID.\"},\"user_id\":{\"type\":\"integer\",\"description\":\"ID of the user who owns this watchlist entry.\"},\"pokemon_id\":{\"type\":\"integer\",\"description\":\"ID of the Pokémon added to the watchlist.\"},\"created_at\":{\"type\":\"string\",\"format\":\"date-time\",\"description\":\"Timestamp when the Pokémon was added to the watchlist.\"},\"deleted\":{\"type\":\"boolean\",\"description\":\"Soft delete flag. False indicates the entry is active.\"}}}"
+  },
+  {
+    "id": "api-/pokemon/watchlist-GET",
+    "summary": "Retrieve the current user's Pokémon watchlist.",
+    "tags": [
+      "pokemon",
+      "watchlist",
+      "user",
+      "get",
+      "favorite"
+    ],
+    "content": "path: /pokemon/watchlist\nmethod: GET\ntags: pokemon, watchlist, user, get, favorite\nsummary: Retrieve the current user's Pokémon watchlist.\ndescription: \nparameters: \nrequestBody: \nresponses: 200: User's watchlist retrieved {\"type\":\"array\",\"description\":\"List of Pokémon in the user's watchlist with detailed information.\",\"items\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"integer\",\"description\":\"Unique watchlist entry ID.\"},\"user_id\":{\"type\":\"integer\",\"description\":\"ID of the user who owns this watchlist entry.\"},\"pokemon_id\":{\"type\":\"integer\",\"description\":\"ID of the Pokémon in the watchlist.\"},\"created_at\":{\"type\":\"string\",\"format\":\"date-time\",\"description\":\"Timestamp when the Pokémon was added to the watchlist.\"},\"deleted\":{\"type\":\"boolean\",\"description\":\"Soft delete flag. False indicates the entry is active.\"},\"identifier\":{\"type\":\"string\",\"description\":\"Pokémon identifier (internal name in lowercase with hyphens).\"},\"height\":{\"type\":\"integer\",\"description\":\"Height of the Pokémon in decimeters (10 cm).\"},\"weight\":{\"type\":\"integer\",\"description\":\"Weight of the Pokémon in hectograms (100 g).\"},\"total_stats\":{\"type\":\"integer\",\"description\":\"Sum of all base stats (HP + Attack + Defense + Special Attack + Special Defense + Speed).\"},\"hp\":{\"type\":\"integer\",\"description\":\"Base HP (Hit Points) stat value.\"},\"attack\":{\"type\":\"integer\",\"description\":\"Base Attack stat value.\"},\"defense\":{\"type\":\"integer\",\"description\":\"Base Defense stat value.\"},\"special_attack\":{\"type\":\"integer\",\"description\":\"Base Special Attack stat value.\"},\"special_defense\":{\"type\":\"integer\",\"description\":\"Base Special Defense stat value.\"},\"speed\":{\"type\":\"integer\",\"description\":\"Base Speed stat value.\"},\"types\":{\"type\":\"array\",\"description\":\"List of types the Pokémon has (e.g., Fire, Water, Grass).\",\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"description\":\"Type identifier.\"},\"type_name\":{\"type\":\"string\",\"description\":\"Localized type name.\"}}}},\"sprite\":{\"type\":\"string\",\"format\":\"url\",\"description\":\"URL to the Pokémon's sprite image.\"}}}}"
+  },
+  {
+    "id": "api-/pokemon/type/search-POST",
+    "summary": "Search for Pokémon types by name or ID.",
+    "tags": [
+      "pokemon",
+      "type",
+      "search"
+    ],
+    "content": "path: /pokemon/type/search\nmethod: POST\ntags: pokemon, type, search\nsummary: Search for Pokémon types by name or ID.\ndescription: \nparameters: \nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"searchterm\":{\"type\":\"string\",\"description\":\"The search keyword for the type name or ID.\"},\"page\":{\"type\":\"integer\",\"description\":\"The page number for paginated results (default: 0).\",\"default\":0}},\"required\":[\"searchterm\"]}\nresponses: 200: Type details retrieved successfully. {\"type\":\"object\",\"properties\":{\"results\":{\"type\":\"array\",\"description\":\"List of Pokémon types matching the search criteria.\",\"items\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"number\",\"description\":\"Unique type ID.\"},\"name\":{\"type\":\"string\",\"description\":\"Localized name of the type.\"}}}},\"totalCount\":{\"type\":\"integer\",\"description\":\"Total number of types found matching the criteria.\"},\"totalPage\":{\"type\":\"integer\",\"description\":\"Total number of pages available for pagination.\"}}}; 400: Invalid request parameters.; 500: Internal server error."
+  },
+  {
+    "id": "api-/pokemon/watchlist/{pokemonId}-DELETE",
+    "summary": "Remove a Pokémon from the watchlist",
+    "tags": [
+      "Watchlist"
+    ],
+    "content": "path: /pokemon/watchlist/{pokemonId}\nmethod: DELETE\ntags: Watchlist\nsummary: Remove a Pokémon from the watchlist\ndescription: Removes a specific Pokémon from the authenticated user's watchlist using the Pokémon ID.\nparameters: pokemonId (path): string\nrequestBody: \nresponses: 200: Pokémon removed from watchlist successfully.; 401: Unauthorized. Token is invalid or expired.; 500: Internal server error."
+  },
+  {
+    "id": "api-/pokemon/allwatchlist-DELETE",
+    "summary": "Remove all Pokémon from the user's watchlist.",
+    "tags": [
+      "pokemon",
+      "watchlist",
+      "delete",
+      "user"
+    ],
+    "content": "path: /pokemon/allwatchlist\nmethod: DELETE\ntags: pokemon, watchlist, delete, user\nsummary: Remove all Pokémon from the user's watchlist.\ndescription: \nparameters: \nrequestBody: \nresponses: 200: All Pokémon removed from the user's watchlist successfully.; 401: Unauthorized. The user is not logged in or the token has expired.; 500: Internal server error."
+  },
+  {
+    "id": "api-/pokemon/teams-POST",
+    "summary": "Create a new Pokémon team for the user by specifying a team name.",
+    "tags": [
+      "pokemon",
+      "teams",
+      "team",
+      "create",
+      "user"
+    ],
+    "content": "path: /pokemon/teams\nmethod: POST\ntags: pokemon, teams, team, create, user\nsummary: Create a new Pokémon team for the user by specifying a team name.\ndescription: \nparameters: \nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"teamName\":{\"type\":\"string\",\"description\":\"The name for the new Pokémon team (e.g., 'My Competitive Team', 'Fire Types').\"}}}\nresponses: 201: Team created successfully"
+  },
+  {
+    "id": "api-/pokemon/teams-GET",
+    "summary": "Retrieve all Pokémon teams created by the user.",
+    "tags": [
+      "pokemon",
+      "teams",
+      "team",
+      "get",
+      "user"
+    ],
+    "content": "path: /pokemon/teams\nmethod: GET\ntags: pokemon, teams, team, get, user\nsummary: Retrieve all Pokémon teams created by the user.\ndescription: \nparameters: \nrequestBody: \nresponses: 200: User's teams retrieved successfully {\"type\":\"array\",\"description\":\"List of all teams created by the user.\",\"items\":{\"type\":\"object\",\"properties\":{\"teamId\":{\"type\":\"number\",\"description\":\"Unique team ID.\"},\"teamName\":{\"type\":\"string\",\"description\":\"Name of the team.\"},\"createdAt\":{\"type\":\"string\",\"format\":\"date-time\",\"description\":\"Timestamp when the team was created.\"}}}}"
+  },
+  {
+    "id": "api-/pokemon/teams/{teamId}/members-POST",
+    "summary": "Add a Pokémon to a team",
+    "tags": [],
+    "content": "path: /pokemon/teams/{teamId}/members\nmethod: POST\ntags: \nsummary: Add a Pokémon to a team\ndescription: Adds a Pokémon to the specified team with details like nickname, level, moves, etc.\nparameters: teamId (path): string\nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"pokemonId\":{\"type\":\"string\"},\"nickname\":{\"type\":\"string\"},\"level\":{\"type\":\"integer\"},\"moves\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"shiny\":{\"type\":\"boolean\"},\"orderIndex\":{\"type\":\"integer\"}},\"required\":[\"pokemonId\"]}\nresponses: 200: Pokémon added successfully.; 400: Bad request.; 401: Unauthorized."
+  },
+  {
+    "id": "api-/pokemon/teams/{teamId}/members-GET",
+    "summary": "Get all Pokémon in a team",
+    "tags": [],
+    "content": "path: /pokemon/teams/{teamId}/members\nmethod: GET\ntags: \nsummary: Get all Pokémon in a team\ndescription: Retrieves all Pokémon in the specified team.\nparameters: teamId (path): string\nrequestBody: \nresponses: 200: List of Pokémon in the team. {\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"pokemonId\":{\"type\":\"string\"},\"nickname\":{\"type\":\"string\"},\"level\":{\"type\":\"integer\"},\"moves\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"shiny\":{\"type\":\"boolean\"},\"orderIndex\":{\"type\":\"integer\"}}}}; 400: Bad request.; 401: Unauthorized."
+  },
+  {
+    "id": "api-/pokemon/teams/members/{memberId}-DELETE",
+    "summary": "Remove a Pokémon from a team",
+    "tags": [],
+    "content": "path: /pokemon/teams/members/{memberId}\nmethod: DELETE\ntags: \nsummary: Remove a Pokémon from a team\ndescription: Removes the specified Pokémon from the team.\nparameters: memberId (path): string\nrequestBody: \nresponses: 200: Pokémon removed successfully.; 400: Bad request.; 401: Unauthorized."
+  },
+  {
+    "id": "api-/pokemon/details/{id}-GET",
+    "summary": "Get detailed information for a specific Pokémon by its ID, including stats, types, abilities, and moves.",
+    "tags": [
+      "pokemon",
+      "details",
+      "id",
+      "info",
+      "get"
+    ],
+    "content": "path: /pokemon/details/{id}\nmethod: GET\ntags: pokemon, details, id, info, get\nsummary: Get detailed information for a specific Pokémon by its ID, including stats, types, abilities, and moves.\ndescription: \nparameters: id (path): integer\nrequestBody: \nresponses: 200: Pokémon details retrieved successfully {\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"integer\",\"description\":\"Unique Pokémon ID.\"},\"name\":{\"type\":\"string\",\"description\":\"Localized name of the Pokémon.\"},\"identifier\":{\"type\":\"string\",\"description\":\"Pokémon identifier (internal name in lowercase with hyphens).\"},\"order\":{\"type\":\"integer\",\"description\":\"Order index for sorting (matches National Pokédex order).\"},\"height\":{\"type\":\"integer\",\"description\":\"Height of the Pokémon in decimeters (10 cm).\"},\"weight\":{\"type\":\"integer\",\"description\":\"Weight of the Pokémon in hectograms (100 g).\"},\"baseExperience\":{\"type\":\"integer\",\"description\":\"Base experience points gained when defeating this Pokémon.\"},\"flavorText\":{\"type\":\"string\",\"description\":\"Pokédex flavor text / description of the Pokémon.\"},\"speciesId\":{\"type\":\"integer\",\"description\":\"ID of the Pokémon species.\"},\"speciesName\":{\"type\":\"string\",\"description\":\"Name of the Pokémon species.\"},\"isDefault\":{\"type\":\"boolean\",\"description\":\"Whether this is the default form of the species.\"},\"totalStats\":{\"type\":\"string\",\"description\":\"Sum of all base stats as a string.\"},\"hp\":{\"type\":\"integer\",\"description\":\"Base HP (Hit Points) stat value.\"},\"attack\":{\"type\":\"integer\",\"description\":\"Base Attack stat value.\"},\"defense\":{\"type\":\"integer\",\"description\":\"Base Defense stat value.\"},\"speed\":{\"type\":\"integer\",\"description\":\"Base Speed stat value.\"},\"specialAttack\":{\"type\":\"integer\",\"description\":\"Base Special Attack stat value.\"},\"specialDefense\":{\"type\":\"integer\",\"description\":\"Base Special Defense stat value.\"},\"types\":{\"type\":\"array\",\"description\":\"List of types the Pokémon has (primary and secondary types).\",\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"description\":\"Type identifier.\"},\"type_name\":{\"type\":\"string\",\"description\":\"Localized type name.\"}}}},\"pokemonTypeNames\":{\"type\":\"array\",\"description\":\"Array of type names as strings (e.g., ['Fire', 'Flying']).\",\"items\":{\"type\":\"string\",\"description\":\"Type name.\"}},\"abilities\":{\"type\":\"array\",\"description\":\"List of abilities the Pokémon can have.\",\"items\":{\"type\":\"object\",\"properties\":{\"ability\":{\"type\":\"string\",\"description\":\"Ability identifier.\"},\"ability_name\":{\"type\":\"string\",\"description\":\"Localized ability name.\"}}}},\"moves\":{\"type\":\"array\",\"description\":\"List of moves the Pokémon can learn, with details about each move.\",\"items\":{\"type\":\"object\",\"properties\":{\"move\":{\"type\":\"string\",\"description\":\"Move identifier.\"},\"type_id\":{\"type\":\"integer\",\"description\":\"Type ID of the move.\"},\"power\":{\"type\":\"integer\",\"description\":\"Base power of the move. Null for status moves.\"},\"accuracy\":{\"type\":\"integer\",\"description\":\"Accuracy percentage (0-100). Null for moves that never miss.\"},\"pp\":{\"type\":\"integer\",\"description\":\"Power Points - number of times the move can be used.\"},\"priority\":{\"type\":\"integer\",\"description\":\"Priority level in battle. Higher values move first.\"},\"name\":{\"type\":\"string\",\"description\":\"Localized move name.\"},\"move_method\":{\"type\":\"string\",\"description\":\"How the Pokémon learns this move (e.g., 'level-up', 'machine', 'tutor').\"},\"level\":{\"type\":\"integer\",\"description\":\"Level at which the move is learned (for level-up moves). Null for other learn methods.\"},\"type\":{\"type\":\"string\",\"description\":\"Type name of the move.\"}}}},\"sprite\":{\"type\":\"string\",\"description\":\"URL to the Pokémon's sprite image.\",\"example\":\"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png\"}}}; 404: Pokémon not found"
+  },
+  {
+    "id": "api-/pokemon/moves-POST",
+    "summary": "Get all moves that a specific Pokémon can learn, with optional filters for type, learn method, and sorting.",
+    "tags": [
+      "pokemon",
+      "moves",
+      "learn",
+      "move",
+      "get"
+    ],
+    "content": "path: /pokemon/moves\nmethod: POST\ntags: pokemon, moves, learn, move, get\nsummary: Get all moves that a specific Pokémon can learn, with optional filters for type, learn method, and sorting.\ndescription: \nparameters: \nrequestBody: application/json: {\"type\":\"object\",\"properties\":{\"pokemonId\":{\"type\":\"integer\",\"description\":\"The ID of the Pokémon to retrieve moves for.\"},\"typeId\":{\"type\":\"integer\",\"description\":\"Filter by move type ID (default: null).\",\"default\":null},\"learnMethodId\":{\"type\":\"integer\",\"description\":\"Filter by learn method ID (default: level-up).\",\"default\":1},\"sortBy\":{\"type\":\"integer\",\"description\":\"Sorting option: 0 (Level low-high, default), 1 (Level high-low), 2 (Power low-high), 3 (Power high-low), 4 (PP low-high), 5 (PP low-high), 6 (Name A-Z), 7 (Name Z-A).\",\"default\":0},\"page\":{\"type\":\"integer\",\"description\":\"Page number for pagination (default: 0).\",\"default\":0}},\"required\":[\"pokemonId\"]}\nresponses: 200: Moves retrieved successfully {\"type\":\"object\",\"properties\":{\"results\":{\"type\":\"array\",\"description\":\"List of moves that the specified Pokémon can learn.\",\"items\":{\"type\":\"object\",\"properties\":{\"move\":{\"type\":\"string\",\"description\":\"Move identifier (internal name).\"},\"type_id\":{\"type\":\"integer\",\"description\":\"Type ID of the move.\"},\"type_name\":{\"type\":\"string\",\"description\":\"Localized type name of the move.\"},\"power\":{\"type\":\"integer\",\"description\":\"Base power of the move. Null for status moves.\"},\"accuracy\":{\"type\":\"integer\",\"description\":\"Accuracy percentage (0-100). Null for moves that never miss.\"},\"pp\":{\"type\":\"integer\",\"description\":\"Power Points - number of times the move can be used.\"},\"priority\":{\"type\":\"integer\",\"description\":\"Priority level in battle. Higher values move first.\"},\"name\":{\"type\":\"string\",\"description\":\"Localized move name.\"},\"move_method\":{\"type\":\"string\",\"description\":\"How the Pokémon learns this move (e.g., 'level-up', 'machine', 'tutor').\"},\"level\":{\"type\":\"integer\",\"description\":\"Level at which the move is learned (for level-up moves). Null for other learn methods.\"}}}},\"page\":{\"type\":\"integer\",\"description\":\"Current page number.\"},\"limit\":{\"type\":\"integer\",\"description\":\"Number of results per page.\"},\"totalPages\":{\"type\":\"integer\",\"description\":\"Total number of pages available.\"}}}; 400: Invalid request parameters; 404: Pokémon or moves not found"
+  },
+  {
+    "id": "api-/pokemon/teams/{teamId}-DELETE",
+    "summary": "Delete a specific Pokémon team by its ID.",
+    "tags": [
+      "pokemon",
+      "teams",
+      "delete",
+      "user"
+    ],
+    "content": "path: /pokemon/teams/{teamId}\nmethod: DELETE\ntags: pokemon, teams, delete, user\nsummary: Delete a specific Pokémon team by its ID.\ndescription: \nparameters: teamId (path): string\nrequestBody: \nresponses: 200: Team deleted successfully.; 401: Unauthorized. The user is not logged in or the token has expired.; 500: Internal server error."
+  },
+  {
+    "id": "api-/pokemon/allteams-DELETE",
+    "summary": "Delete all Pokémon teams for the authenticated user",
+    "tags": [
+      "Teams"
+    ],
+    "content": "path: /pokemon/allteams\nmethod: DELETE\ntags: Teams\nsummary: Delete all Pokémon teams for the authenticated user\ndescription: Deletes all Pokémon teams associated with the authenticated user.\nparameters: \nrequestBody: \nresponses: 200: All teams deleted successfully.; 401: Unauthorized. Token is invalid or expired.; 500: Internal server error."
+  },
+  {
+    "id": "table-UserPokemonTeamMembers",
+    "content": "Database Schema:\nTables:\nUserPokemonTeamMembers(id, team_id, pokemon_id, nickname, level, order_index, moves, shiny, deleted, created_at, created_by, updated_at, updated_by)\n\n-- Example 1\nQuestion: Show all pokemon in team 10 ordered by position.\nSQL: SELECT pokemon_id, nickname, level, shiny\nFROM UserPokemonTeamMembers\nWHERE team_id = 10 AND deleted = FALSE\nORDER BY order_index;\n\n-- Example 2\nQuestion: Find all shiny pokemon across all teams.\nSQL: SELECT tm.team_id, t.team_name, tm.pokemon_id, tm.nickname\nFROM UserPokemonTeamMembers tm\nJOIN UserPokemonTeams t ON tm.team_id = t.id\nWHERE tm.shiny = TRUE AND tm.deleted = FALSE AND t.deleted = FALSE\nORDER BY t.team_name, tm.order_index;"
+  },
+  {
+    "id": "table-UserPokemonTeams",
+    "content": "Database Schema:\nTables:\nUserPokemonTeams(id, user_id, team_name, deleted, created_at, created_by, updated_at, updated_by)\n\n-- Example 1\nQuestion: List all teams created by user 3.\nSQL: SELECT id, team_name, created_at\nFROM UserPokemonTeams\nWHERE user_id = 3 AND deleted = FALSE\nORDER BY created_at DESC;\n\n-- Example 2\nQuestion: Find teams with names containing \"Fire\".\nSQL: SELECT id, user_id, team_name\nFROM UserPokemonTeams\nWHERE team_name ILIKE '%Fire%' AND deleted = FALSE\nORDER BY team_name;"
+  },
+  {
+    "id": "table-UserPokemonWatchlist",
+    "content": "Database Schema:\nTables:\nUserPokemonWatchlist(id, pokemon_id, user_id, deleted, created_at, created_by, updated_at, updated_by)\n\n-- Example 1\nQuestion: List all pokemon in user 5's watchlist.\nSQL: SELECT pokemon_id\nFROM UserPokemonWatchlist\nWHERE user_id = 5 AND deleted = FALSE\nORDER BY created_at DESC;\n\n-- Example 2\nQuestion: Find users watching pikachu (pokemon_id = 25).\nSQL: SELECT DISTINCT user_id\nFROM UserPokemonWatchlist\nWHERE pokemon_id = 25 AND deleted = FALSE\nORDER BY user_id;"
+  },
+  {
+    "id": "table-abilities",
+    "content": "Database Schema:\nTables:\nabilities(id, identifier, generation_id, is_main_series)\n\n-- Example 1\nQuestion: Show abilities introduced in generation 5 or later.\nSQL: SELECT a.identifier, g.identifier as generation\nFROM abilities a\nJOIN generations g ON a.generation_id = g.id\nWHERE a.generation_id >= 5\nORDER BY a.generation_id, a.identifier;\n\n-- Example 2\nQuestion: Which ability is shared by the most pokemon?\nSQL: SELECT a.identifier, COUNT(DISTINCT pa.pokemon_id) as pokemon_count\nFROM abilities a\nJOIN pokemon_abilities pa ON a.id = pa.ability_id\nGROUP BY a.id, a.identifier\nORDER BY pokemon_count DESC\nLIMIT 10;"
+  },
+  {
+    "id": "table-ability_names",
+    "content": "Database Schema:\nTables:\nability_names(ability_id, local_language_id, name)\n\n-- Example 1\nQuestion: Find abilities with localized names in English (language_id = 9).\nSQL: SELECT a.identifier, an.name as english_name\nFROM abilities a\nJOIN ability_names an ON a.id = an.ability_id\nWHERE an.local_language_id = 9\nORDER BY a.identifier;\n\n-- Example 2\nQuestion: List abilities with their names in multiple languages.\nSQL: SELECT a.identifier, COUNT(DISTINCT an.local_language_id) as language_count\nFROM abilities a\nJOIN ability_names an ON a.id = an.ability_id\nGROUP BY a.id, a.identifier\nORDER BY language_count DESC;"
+  },
+  {
+    "id": "table-contest_types",
+    "content": "Database Schema:\nTables:\ncontest_types(id, identifier)\n\n-- Example 1\nQuestion: List all contest types with berry flavor associations.\nSQL: SELECT ct.identifier, COUNT(DISTINCT bf.berry_id) as berry_count\nFROM contest_types ct\nLEFT JOIN berry_flavors bf ON ct.id = bf.contest_type_id\nGROUP BY ct.id, ct.identifier\nORDER BY berry_count DESC;\n\n-- Example 2\nQuestion: Find moves associated with each contest type.\nSQL: SELECT ct.identifier as contest_type, COUNT(*) as move_count\nFROM contest_types ct\nLEFT JOIN moves m ON ct.id = m.contest_type_id\nGROUP BY ct.id, ct.identifier\nORDER BY move_count DESC;"
+  },
+  {
+    "id": "table-generations",
+    "content": "Database Schema:\nTables:\ngenerations(id, main_region_id, identifier)\n\n-- Example 1\nQuestion: How many pokemon were introduced in each generation?\nSQL: SELECT g.identifier as generation, COUNT(DISTINCT ps.id) as pokemon_count\nFROM generations g\nLEFT JOIN pokemon_species ps ON g.id = ps.generation_id\nGROUP BY g.id, g.identifier\nORDER BY g.id;\n\n-- Example 2\nQuestion: Count the number of abilities introduced per generation.\nSQL: SELECT g.identifier as generation, COUNT(*) as ability_count\nFROM generations g\nLEFT JOIN abilities a ON g.id = a.generation_id\nGROUP BY g.id, g.identifier\nORDER BY g.id;"
+  },
+  {
+    "id": "table-language_names",
+    "content": "Database Schema:\nTables:\nlanguage_names(id, language_id, local_language_id, name)\n\n-- Example 1\nQuestion: Get language names in English (local_language_id = 9).\nSQL: SELECT l.identifier, ln.name as english_name\nFROM languages l\nJOIN language_names ln ON l.id = ln.language_id\nWHERE ln.local_language_id = 9\nORDER BY l.identifier;\n\n-- Example 2\nQuestion: Find how many localized names each language has.\nSQL: SELECT l.identifier, COUNT(*) as translation_count\nFROM languages l\nJOIN language_names ln ON l.id = ln.language_id\nGROUP BY l.id, l.identifier\nORDER BY translation_count DESC;"
+  },
+  {
+    "id": "table-languages",
+    "content": "Database Schema:\nTables:\nlanguages(id, iso639, iso3166, identifier, official, order)\n\n-- Example 1\nQuestion: List all official languages.\nSQL: SELECT identifier, iso639, iso3166\nFROM languages\nWHERE official = TRUE\nORDER BY \"order\";\n\n-- Example 2\nQuestion: Find languages used in Japan.\nSQL: SELECT identifier, iso639\nFROM languages\nWHERE iso3166 = 'jp'\nORDER BY \"order\";"
+  },
+  {
+    "id": "table-move_damage_classes",
+    "content": "Database Schema:\nTables:\nmove_damage_classes(id, identifier)\n\n-- Example 1\nQuestion: List all status moves (moves with no power).\nSQL: SELECT m.identifier\nFROM moves m\nJOIN move_damage_classes mdc ON m.damage_class_id = mdc.id\nWHERE mdc.identifier = 'status'\nORDER BY m.identifier;\n\n-- Example 2\nQuestion: List all move damage classes with example moves.\nSQL: SELECT mdc.identifier as damage_class, COUNT(*) as move_count\nFROM move_damage_classes mdc\nLEFT JOIN moves m ON mdc.id = m.damage_class_id\nGROUP BY mdc.id, mdc.identifier\nORDER BY move_count DESC;"
+  },
+  {
+    "id": "table-move_targets",
+    "content": "Database Schema:\nTables:\nmove_targets(id, identifier)\n\n-- Example 1\nQuestion: Show the distribution of moves across different target types.\nSQL: SELECT mt.identifier as target_type, COUNT(*) as move_count\nFROM move_targets mt\nLEFT JOIN moves m ON mt.id = m.target_id\nGROUP BY mt.id, mt.identifier\nORDER BY move_count DESC;\n\n-- Example 2\nQuestion: Find powerful moves that target all opponents.\nSQL: SELECT m.identifier, m.power\nFROM moves m\nJOIN move_targets mt ON m.target_id = mt.id\nWHERE mt.identifier = 'all-opponents' AND m.power IS NOT NULL\nORDER BY m.power DESC\nLIMIT 10;"
+  },
+  {
+    "id": "table-moves",
+    "content": "Database Schema:\nTables:\nmoves(id, identifier, generation_id, type_id, power, pp, accuracy, priority, target_id, damage_class_id, effect_id, effect_chance, contest_type_id, contest_effect_id, super_contest_effect_id)\n\n-- Example 1\nQuestion: Find the most powerful fire-type moves.\nSQL: SELECT m.identifier, m.power, m.accuracy\nFROM moves m\nJOIN types t ON m.type_id = t.id\nWHERE t.identifier = 'fire' AND m.power IS NOT NULL\nORDER BY m.power DESC\nLIMIT 10;\n\n-- Example 2\nQuestion: Find moves with 100% accuracy and power greater than 80.\nSQL: SELECT m.identifier, m.power, t.identifier as type\nFROM moves m\nJOIN types t ON m.type_id = t.id\nWHERE m.accuracy = 100 AND m.power > 80\nORDER BY m.power DESC;"
+  },
+  {
+    "id": "table-pokemon",
+    "content": "Database Schema:\nTables:\npokemon(id, identifier, species_id, height, weight, base_experience, order, is_default)\n\n-- Example 1\nQuestion: Show pokemon that weigh more than 2000 hectograms.\nSQL: SELECT identifier, weight\nFROM pokemon\nWHERE weight > 2000\nORDER BY weight DESC;\n\n-- Example 2\nQuestion: Find the default form for each pokemon species.\nSQL: SELECT p.identifier, p.height, p.weight\nFROM pokemon p\nWHERE p.is_default = TRUE\nORDER BY p.identifier;"
+  },
+  {
+    "id": "table-pokemon_abilities",
+    "content": "Database Schema:\nTables:\npokemon_abilities(id, pokemon_id, ability_id, is_hidden, slot)\n\n-- Example 1\nQuestion: List all abilities available to pikachu.\nSQL: SELECT a.identifier, pa.is_hidden\nFROM pokemon p\nJOIN pokemon_abilities pa ON p.id = pa.pokemon_id\nJOIN abilities a ON pa.ability_id = a.id\nWHERE p.identifier = 'pikachu'\nORDER BY pa.slot;\n\n-- Example 2\nQuestion: Find hidden abilities for fire-type pokemon.\nSQL: SELECT DISTINCT p.identifier as pokemon, a.identifier as ability\nFROM pokemon p\nJOIN pokemon_types pt ON p.id = pt.pokemon_id\nJOIN types t ON pt.type_id = t.id\nJOIN pokemon_abilities pa ON p.id = pa.pokemon_id\nJOIN abilities a ON pa.ability_id = a.id\nWHERE t.identifier = 'fire' AND pa.is_hidden = TRUE\nORDER BY p.identifier;"
+  },
+  {
+    "id": "table-pokemon_move_methods",
+    "content": "Database Schema:\nTables:\npokemon_move_methods(id, identifier)\n\n-- Example 1\nQuestion: List all move learning methods with move counts.\nSQL: SELECT pmm.identifier as method, COUNT(DISTINCT pm.move_id) as move_count\nFROM pokemon_move_methods pmm\nLEFT JOIN pokemon_moves pm ON pmm.id = pm.move_method_id\nGROUP BY pmm.id, pmm.identifier\nORDER BY move_count DESC;\n\n-- Example 2\nQuestion: Find moves that pikachu learns by leveling up.\nSQL: SELECT m.identifier, pm.level\nFROM pokemon p\nJOIN pokemon_moves pm ON p.id = pm.pokemon_id\nJOIN moves m ON pm.move_id = m.id\nJOIN pokemon_move_methods pmm ON pm.move_method_id = pmm.id\nWHERE p.identifier = 'pikachu' AND pmm.identifier = 'level-up'\nORDER BY pm.level;"
+  },
+  {
+    "id": "table-pokemon_moves",
+    "content": "Database Schema:\nTables:\npokemon_moves(id, pokemon_id, move_id, version_group_id, move_method_id, level, order_index, mastery)\n\n-- Example 1\nQuestion: What moves can pikachu learn?\nSQL: SELECT m.identifier, pmm.identifier as learn_method, pm.level\nFROM pokemon p\nJOIN pokemon_moves pm ON p.id = pm.pokemon_id\nJOIN moves m ON pm.move_id = m.id\nJOIN pokemon_move_methods pmm ON pm.move_method_id = pmm.id\nWHERE p.identifier = 'pikachu'\nORDER BY pm.level, m.identifier;\n\n-- Example 2\nQuestion: What are the most common moves learned by water-type pokemon?\nSQL: SELECT m.identifier, COUNT(DISTINCT p.id) as pokemon_count\nFROM moves m\nJOIN pokemon_moves pm ON m.id = pm.move_id\nJOIN pokemon p ON pm.pokemon_id = p.id\nJOIN pokemon_types pt ON p.id = pt.pokemon_id\nJOIN types t ON pt.type_id = t.id\nWHERE t.identifier = 'water'\nGROUP BY m.id, m.identifier\nORDER BY pokemon_count DESC\nLIMIT 15;"
+  },
+  {
+    "id": "table-pokemon_species",
+    "content": "Database Schema:\nTables:\npokemon_species(id, identifier, generation_id, evolves_from_species_id, evolution_chain_id, color_id, shape_id, habitat_id, gender_rate, capture_rate, base_happiness, is_baby, hatch_counter, has_gender_differences, growth_rate_id, forms_switchable, is_legendary, is_mythical, order, conquest_order)\n\n-- Example 1\nQuestion: List all legendary pokemon.\nSQL: SELECT identifier\nFROM pokemon_species\nWHERE is_legendary = TRUE\nORDER BY identifier;\n\n-- Example 2\nQuestion: Find pokemon that evolve from pikachu.\nSQL: SELECT ps.identifier\nFROM pokemon_species ps\nJOIN pokemon_species parent ON ps.evolves_from_species_id = parent.id\nWHERE parent.identifier = 'pikachu';"
+  },
+  {
+    "id": "table-pokemon_stats",
+    "content": "Database Schema:\nTables:\npokemon_stats(pokemon_id, stat_id, base_stat, effort)\n\n-- Example 1\nQuestion: Find me the strongest fire-type pokemon.\nSQL: SELECT p.identifier, SUM(ps.base_stat) as total_stats\nFROM pokemon p\nJOIN pokemon_types pt ON p.id = pt.pokemon_id\nJOIN types t ON pt.type_id = t.id\nJOIN pokemon_stats ps ON p.id = ps.pokemon_id\nWHERE t.identifier = 'fire'\nGROUP BY p.id, p.identifier\nORDER BY total_stats DESC\nLIMIT 1;\n\n-- Example 2\nQuestion: What's the lowest attack a grass-type pokemon can have?\nSQL: SELECT MIN(ps.base_stat) as min_attack\nFROM pokemon p\nJOIN pokemon_types pt ON p.id = pt.pokemon_id\nJOIN types t ON pt.type_id = t.id\nJOIN pokemon_stats ps ON p.id = ps.pokemon_id\nJOIN stats s ON ps.stat_id = s.id\nWHERE t.identifier = 'grass' AND s.identifier = 'attack';"
+  },
+  {
+    "id": "table-pokemon_types",
+    "content": "Database Schema:\nTables:\npokemon_types(pokemon_id, type_id, slot)\n\n-- Example 1\nQuestion: Find all fire-type pokemon.\nSQL: SELECT p.identifier\nFROM pokemon p\nJOIN pokemon_types pt ON p.id = pt.pokemon_id\nJOIN types t ON pt.type_id = t.id\nWHERE t.identifier = 'fire'\nORDER BY p.identifier;\n\n-- Example 2\nQuestion: Find dual-type pokemon (pokemon with exactly 2 types).\nSQL: SELECT p.identifier\nFROM pokemon p\nJOIN pokemon_types pt ON p.id = pt.pokemon_id\nGROUP BY p.id, p.identifier\nHAVING COUNT(*) = 2\nORDER BY p.identifier;"
+  },
+  {
+    "id": "table-sql_format",
+    "content": "Database Schema:\nTables:\ncustomer(id, name, city)\n\n-- Example 1\nQuestion: List all customers.\nSQL: SELECT name FROM customer;\n\n-- Example 2\nQuestion: Show customer names with order amounts over 100.\nSQL: SELECT c.name\nFROM customer c\nJOIN orders o ON c.id = o.customer_id\nWHERE o.amount > 100;"
+  },
+  {
+    "id": "table-stats",
+    "content": "Database Schema:\nTables:\nstats(id, damage_class_id, identifier, is_battle_only, game_index)\n\n-- Example 1\nQuestion: Show all battle stats (non-battle-only stats).\nSQL: SELECT identifier\nFROM stats\nWHERE is_battle_only = FALSE\nORDER BY game_index;\n\n-- Example 2\nQuestion: Find which damage classes are associated with which stats.\nSQL: SELECT s.identifier as stat, mdc.identifier as damage_class\nFROM stats s\nLEFT JOIN move_damage_classes mdc ON s.damage_class_id = mdc.id\nWHERE s.damage_class_id IS NOT NULL\nORDER BY s.identifier;"
+  },
+  {
+    "id": "table-types",
+    "content": "Database Schema:\nTables:\ntypes(id, identifier, generation_id, damage_class_id)\n\n-- Example 1\nQuestion: List all pokemon types.\nSQL: SELECT identifier\nFROM types\nORDER BY identifier;\n\n-- Example 2\nQuestion: Find types introduced in each generation.\nSQL: SELECT g.identifier as generation, t.identifier as type\nFROM generations g\nJOIN types t ON g.id = t.generation_id\nORDER BY g.id, t.identifier;"
+  }
+]
