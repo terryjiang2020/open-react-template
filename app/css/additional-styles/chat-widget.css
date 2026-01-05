@@ -13,6 +13,7 @@
     border-radius: 60px;
     padding: 0 16px 0 8px;
     background: #007E60;
+    opacity: 0.7;
     /* background: #000; */
     border: none;
     cursor: pointer;
@@ -20,7 +21,6 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    opacity: 1;
     transform: translateY(0);
     transition: opacity 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease;
     position: relative;
@@ -29,10 +29,12 @@
 .chat-toggle-button:hover {
     transform: scale(1.05);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    opacity: 1;
 }
 
 .chat-toggle-button:active {
     transform: scale(0.95);
+    opacity: 1;
 }
 
 /* .chat-toggle-button svg {

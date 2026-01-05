@@ -67,8 +67,11 @@ const TeamsPage = () => {
   }, []);
 
   return (
-    <div>
-      <h1>Manage Teams</h1>
+    <div className="space-y-6">
+      <div className="pb-6">
+        <h1 className="text-4xl font-semibold text-foreground">Manage Teams</h1>
+        <p className="mt-2 text-muted-foreground">Create and manage your Pokémon teams. Build the perfect squad for your adventures.</p>
+      </div>
 
       <div>
         <input

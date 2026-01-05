@@ -103,7 +103,7 @@ const PokemonDetailPage = () => {
   const filteredMoves = (pokemon.moves || []).filter((move: any) => filter === "all" || move.move_method === filter);
 
   return (
-    <div className="container mx-auto max-w-4xl p-6 text-foreground max-h-full overflow-y-auto">
+    <div className="container mx-auto p-6 text-foreground max-h-full overflow-y-auto">
       <Button className="mb-6 gap-2" onClick={() => router.back()}>
         Back
       </Button>

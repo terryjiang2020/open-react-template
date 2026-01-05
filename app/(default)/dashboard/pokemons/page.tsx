@@ -8,7 +8,7 @@ import {
   addToWatchlist,
   removeFromWatchlist,
 } from "@/services/pokemonService";
-import { typeColors } from "./[id]/page";
+import { typeClasses, typeColors } from "./[id]/page";
 
 const PokemonPage = () => {
   const router = useRouter();
@@ -118,10 +118,18 @@ const PokemonPage = () => {
       console.error("Failed to update watchlist:", error);
     }
   };
+  
+  const getTypeClass = (type: string) => {
+    const key = (type || "normal").toLowerCase();
+    return typeClasses[key] || typeClasses.normal;
+  };
 
   return (
-    <div>
-      <h1>Pokémons</h1>
+    <div className="space-y-6">
+      <div className="pb-6">
+        <h1 className="text-4xl font-semibold text-foreground">Pokémons</h1>
+        <p className="mt-2 text-muted-foreground">Browse and manage your Pokémon collection. Search, filter, and add favorites to your watchlist.</p>
+      </div>
       <form onSubmit={handleSearch} style={{ marginBottom: "1rem" }}>
         <input
           type="text"
@@ -131,8 +139,8 @@ const PokemonPage = () => {
           style={{
             padding: "0.5rem",
             marginRight: "0.5rem",
-            color: "black",
-          }} // Set text color to black
+            color: "white",
+          }}
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>
           Search
@@ -164,17 +172,12 @@ const PokemonPage = () => {
                 pokemon.types.map((type: string, index: number) => {
                   const typeIdentifier = type || "";
                   const typeName = type || typeIdentifier;
-                  const typeKey = typeIdentifier.toLowerCase();
-                  const chipColor = typeColors[typeKey as keyof typeof typeColors] || "#ccc";
-                  const chipBg = `${chipColor}26`; // light tint of the type color
 
                   return (
                     <span
                       key={index}
+                      className={`text-xs capitalize ${getTypeClass(typeName)}`}
                       style={{
-                        backgroundColor: chipBg,
-                        color: chipColor,
-                        border: `1px solid ${chipColor}`,
                         padding: "0.5rem 1rem",
                         borderRadius: "12px",
                         fontWeight: "bold",

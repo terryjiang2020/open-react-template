@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { getWatchlist, removeFromWatchlist } from '@/services/pokemonService';
 import { useRouter } from 'next/navigation';
-import { typeColors } from '../pokemons/[id]/page';
+import { typeClasses, typeColors } from '../pokemons/[id]/page';
 
 const WatchlistPage = () => {
   const [watchlist, setWatchlist] = useState<any[]>([]);
@@ -41,6 +41,11 @@ const WatchlistPage = () => {
   useEffect(() => {
     fetchWatchlist();
   }, []);
+    
+  const getTypeClass = (type: string) => {
+    const key = (type || "normal").toLowerCase();
+    return typeClasses[key] || typeClasses.normal;
+  };
 
   if (loading) {
     return <div>Loading...</div>;
@@ -51,8 +56,11 @@ const WatchlistPage = () => {
   }
 
   return (
-    <div>
-      <h1>Your Watchlist</h1>
+    <div className="space-y-6">
+      <div className="pb-6">
+        <h1 className="text-4xl font-semibold text-foreground">Your Watchlist</h1>
+        <p className="mt-2 text-muted-foreground">Keep track of your favorite Pokémon. View details and manage your collection.</p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {watchlist.map((pokemon) => (
           <div
@@ -77,19 +85,13 @@ const WatchlistPage = () => {
               {pokemon.pokemonTypeNames && pokemon.pokemonTypeNames.length > 0 ? (
                 pokemon.pokemonTypeNames.map((type: string, index: number) => {
                   const typeIdentifier = type || "";
-                  console.log('typeIdentifier: ', typeIdentifier);
                   const typeName = type || typeIdentifier;
-                  const typeKey = typeIdentifier.toLowerCase();
-                  const chipColor = typeColors[typeKey as keyof typeof typeColors] || "#ccc";
-                  const chipBg = `${chipColor}26`; // light tint of the type color
 
                   return (
                     <span
                       key={index}
+                      className={`text-xs capitalize ${getTypeClass(typeName)}`}
                       style={{
-                        backgroundColor: chipBg,
-                        color: chipColor,
-                        border: `1px solid ${chipColor}`,
                         padding: "0.5rem 1rem",
                         borderRadius: "12px",
                         fontWeight: "bold",

@@ -53,15 +53,18 @@ const MovePage = () => {
   };
 
   return (
-    <div>
-      <h1>Moves</h1>
+    <div className="space-y-6">
+      <div className="pb-6">
+        <h1 className="text-4xl font-semibold text-foreground">Moves</h1>
+        <p className="mt-2 text-muted-foreground">Explore all available Pokémon moves. Search by name, type, and power.</p>
+      </div>
       <form onSubmit={handleSearch} style={{ marginBottom: "1rem" }}>
         <input
           type="text"
           placeholder="Search Move by name or ID"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "black" }} // Set text color to black
+          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "white" }} // Set text color to black
         />
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
       </form>
