@@ -9,6 +9,13 @@
 # 2. You MUST use only the provided schema/table/field information to construct the SQL query.
 #    - DO NOT use or reference any API endpoints or non-table data.
 #    - DO NOT invent or assume any data not present in the schema or usefulData.
+#    - CRITICAL: When querying entities, ALWAYS select both IDs AND human-readable names/identifiers:
+#      * For Pokémon: SELECT id, identifier, name (or species_name)
+#      * For Moves: SELECT id, identifier, name
+#      * For Teams: SELECT id, team_name, created_at
+#      * For Abilities: SELECT id, identifier, name
+#      * For Watchlist: SELECT pokemon_id, p.identifier, p.name (JOIN with pokemon table)
+#      This ensures meaningful names appear in final answers instead of just IDs.
 #
 # 3. If the current user id is needed in the SQL, ALWAYS use the placeholder 'CURRENT_USER_ID' (e.g., WHERE user_id = CURRENT_USER_ID).
 #
@@ -20,8 +27,10 @@
 #
 # Example:
 # ✅ CORRECT:
-#   "execution_plan": [ { "step_number": 1, "api": { "path": "/general/sql/query", "method": "post", "requestBody": { "query": "SELECT ..." } } } ]
-# ❌ WRONG:
+#   "execution_plan": [ { "step_number": 1, "api": { "path": "/general/sql/query", "method": "post", "requestBody": { "query": "SELECT id, identifier, name FROM pokemon WHERE ..." } } } ]
+# ❌ WRONG (missing descriptive fields):
+#   "execution_plan": [ { "step_number": 1, "api": { "path": "/general/sql/query", "method": "post", "requestBody": { "query": "SELECT id FROM pokemon WHERE ..." } } } ]
+# ❌ WRONG (using API instead of SQL):
 #   "execution_plan": [ { "step_number": 1, "api": { "path": "/pokemon/search", "method": "post" } } ]
 #
 # Output format:
@@ -37,4 +46,62 @@
 #   "needs_clarification": true,
 #   "reason": "Why the query cannot be generated",
 #   "clarification_question": "A single, precise question to resolve the ambiguity"
+# }
+#
+# ──────────────────────────────────────────────
+# COMPLETE EXAMPLES
+# ──────────────────────────────────────────────
+#
+# Example 1: Fetch user's watchlist with Pokémon names
+# User: "Show me my watchlist"
+# ✅ CORRECT:
+# {
+#   "needs_clarification": false,
+#   "final_deliverable": "List of all Pokémon in the user's watchlist with their names",
+#   "execution_plan": [
+#     {
+#       "step_number": 1,
+#       "api": {
+#         "path": "/general/sql/query",
+#         "method": "post",
+#         "requestBody": {
+#           "query": "SELECT w.pokemon_id, p.identifier, p.name FROM UserPokemonWatchlist w JOIN pokemon p ON w.pokemon_id = p.id WHERE w.user_id = CURRENT_USER_ID AND w.deleted = FALSE ORDER BY w.created_at DESC;"
+#         }
+#       }
+#     }
+#   ],
+#   "selected_tools_spec": [
+#     {
+#       "endpoint": "POST /general/sql/query",
+#       "purpose": "Fetch watchlist with Pokémon names using JOIN",
+#       "returns": "Array with pokemon_id, identifier, and name for each watchlist item"
+#     }
+#   ]
+# }
+#
+# Example 2: Fetch team details with member names
+# User: "Show me my team named 'Fire Squad'"
+# ✅ CORRECT:
+# {
+#   "needs_clarification": false,
+#   "final_deliverable": "Details of the 'Fire Squad' team including all member Pokémon names",
+#   "execution_plan": [
+#     {
+#       "step_number": 1,
+#       "api": {
+#         "path": "/general/sql/query",
+#         "method": "post",
+#         "requestBody": {
+#           "query": "SELECT t.id, t.team_name, tm.pokemon_id, p.identifier, p.name FROM PokemonTeam t LEFT JOIN TeamMember tm ON t.id = tm.team_id LEFT JOIN pokemon p ON tm.pokemon_id = p.id WHERE t.user_id = CURRENT_USER_ID AND t.team_name = 'Fire Squad' AND t.deleted = FALSE;"
+#         }
+#       }
+#     }
+#   ],
+#   "selected_tools_spec": [
+#     {
+#       "endpoint": "POST /general/sql/query",
+#       "purpose": "Fetch team and member details with Pokémon names using JOINs",
+#       "returns": "Array of team members with id, team_name, pokemon_id, identifier, and name"
+#     }
+#   ]
 # }

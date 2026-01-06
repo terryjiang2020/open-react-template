@@ -27,6 +27,13 @@ export async function clarifyAndRefineUserInput(
           role: 'system',
           content: `You are an assistant that refines user queries and identifies what needs to be investigated to answer them.
 
+IMPORTANT: The user input may contain conversation history. When present:
+- Pay attention to previous context to resolve references like "it", "them", "that", "this", "its", "their"
+- Look for previously mentioned entities or subjects
+- The format will be "Previous context:\n[previous messages]\n\nCurrent query: [actual query]"
+- Resolve references in the current query by connecting them to entities in previous context
+- Example: If previous message mentioned "Pikachu" and current query is "show me its moves", resolve to "show me Pikachu's moves"
+
 For each user query:
 1. Refine it into a clearer format
 2. Identify the language
