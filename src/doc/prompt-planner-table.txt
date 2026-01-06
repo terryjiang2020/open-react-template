@@ -5,7 +5,6 @@
 # DATABASE RULES (CRITICAL):
 # - ALL identifiers are lowercase with hyphens (e.g., 'pikachu', 'thunder-shock', 'light-screen')
 # - When searching by name: convert to lowercase, replace spaces with hyphens, use case-insensitive matching
-# - Many entities have separate name tables: pokemon_names, move_names, ability_names (join on local_language_id = 9 for English)
 # - ALWAYS use LOWER() or ILIKE when matching identifiers in WHERE clauses
 #
 # CONTEXT ENTITY EXTRACTION (CRITICAL FOR FOLLOW-UPS):
@@ -29,16 +28,16 @@
 #      ❌ SELECT pokemon_id FROM UserPokemonWatchlist WHERE ...;
 #      ❌ SELECT id FROM pokemon WHERE ...;
 #      ❌ SELECT team_id FROM PokemonTeam WHERE ...;
-#    - REQUIRED - Always include identifiers/names with IDs:
-#      ✅ SELECT pokemon_id, p.identifier, pn.name FROM UserPokemonWatchlist w JOIN pokemon p ... LEFT JOIN pokemon_names pn ...
-#      ✅ SELECT id, identifier, name FROM pokemon WHERE ...;
-#      ✅ SELECT id, team_name FROM PokemonTeam WHERE ...;
-#    - Entity selection rules for each type:
-#      * For Pokémon: SELECT id, identifier, pn.name (JOIN pokemon_names on local_language_id=9)
-#      * For Moves: SELECT id, identifier, mn.name (JOIN move_names on local_language_id=9)
-#      * For Teams: SELECT id, team_name, created_at
-#      * For Abilities: SELECT id, identifier, an.name (JOIN ability_names on local_language_id=9)
-#      * For Watchlist: SELECT pokemon_id, p.identifier, pn.name (JOIN pokemon and pokemon_names)
+    - REQUIRED - Always include identifiers with IDs:
+      ✅ SELECT pokemon_id, p.identifier FROM UserPokemonWatchlist w JOIN pokemon p ...
+      ✅ SELECT id, identifier FROM pokemon WHERE ...;
+      ✅ SELECT id, team_name FROM PokemonTeam WHERE ...;
+    - Entity selection rules for each type:
+      * For Pokémon: SELECT id, identifier
+      * For Moves: SELECT id, identifier
+      * For Teams: SELECT id, team_name, created_at
+      * For Abilities: SELECT id, identifier
+      * For Watchlist: SELECT pokemon_id, p.identifier
 #    - SEARCH RULES:
 #      * Convert user input to lowercase: 'Pikachu' → 'pikachu'
 #      * Replace spaces with hyphens: 'Primal Groudon' → 'primal-groudon'
@@ -54,11 +53,10 @@
 #
 # 6. If any required value (such as a table or field name) is missing, you MUST ask for clarification.
 #
-# Example (CORRECT - with lowercase identifier search and name JOIN):
+# Example (CORRECT - with lowercase identifier search):
 # ✅ CORRECT:
-#   SELECT p.id, p.identifier, pn.name 
+#   SELECT p.id, p.identifier
 #   FROM pokemon p
-#   LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9
 #   WHERE LOWER(p.identifier) = 'pikachu';
 #
 # ✅ CORRECT (case-insensitive):
@@ -102,7 +100,7 @@
 #         "path": "/general/sql/query",
 #         "method": "post",
 #         "requestBody": {
-#           "query": "SELECT w.pokemon_id, p.identifier, COALESCE(pn.name, p.identifier) as display_name FROM UserPokemonWatchlist w JOIN pokemon p ON w.pokemon_id = p.id LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9 WHERE w.user_id = CURRENT_USER_ID AND w.deleted = FALSE ORDER BY w.created_at DESC;"
+#           "query": "SELECT w.pokemon_id, p.identifier FROM UserPokemonWatchlist w JOIN pokemon p ON w.pokemon_id = p.id WHERE w.user_id = CURRENT_USER_ID AND w.deleted = FALSE ORDER BY w.created_at DESC;"
 #         }
 #       }
 #     }
@@ -129,7 +127,7 @@
 #         "path": "/general/sql/query",
 #         "method": "post",
 #         "requestBody": {
-#           "query": "SELECT t.id, t.team_name, tm.pokemon_id, p.identifier, COALESCE(pn.name, p.identifier) as pokemon_display_name FROM PokemonTeam t LEFT JOIN TeamMember tm ON t.id = tm.team_id LEFT JOIN pokemon p ON tm.pokemon_id = p.id LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9 WHERE t.user_id = CURRENT_USER_ID AND t.team_name = 'Fire Squad' AND t.deleted = FALSE;"
+#           "query": "SELECT t.id, t.team_name, tm.pokemon_id, p.identifier FROM PokemonTeam t LEFT JOIN TeamMember tm ON t.id = tm.team_id LEFT JOIN pokemon p ON tm.pokemon_id = p.id WHERE t.user_id = CURRENT_USER_ID AND t.team_name = 'Fire Squad' AND t.deleted = FALSE;"
 #         }
 #       }
 #     }

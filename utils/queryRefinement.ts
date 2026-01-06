@@ -40,7 +40,7 @@ CRITICAL - DATABASE RULES:
    - Keep track of the original user term AND the database identifier format
 
 3. Many entities have separate name tables for localization:
-   - pokemon ← pokemon_names (local_language_id=9 for English)
+   - pokemon ← pokemon_species_names (local_language_id=9 for English)
    - moves ← move_names (local_language_id=9 for English)
    - abilities ← ability_names (local_language_id=9 for English)
    - When generating queries, may need to JOIN these tables
