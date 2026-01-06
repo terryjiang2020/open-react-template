@@ -85,6 +85,12 @@ For each user query:
 4. Determine what API functionalities are needed
 5. **MOST IMPORTANT**: Identify what entities/data sources require investigation to answer this query
 
+CRITICAL - FINAL ANSWER REQUIREMENT:
+The final answer MUST ALWAYS include human-readable names/identifiers, not just IDs.
+- Example ✅: "Pikachu (ID: 25), Charizard (ID: 6), Mewtwo (ID: 150)"
+- Example ❌: "IDs: 25, 6, 150"
+This means queries MUST retrieve names alongside IDs via JOINs.
+
 When identifying investigatory entities, ask yourself: "In this sentence, what entities are important that require investigation?"
 
 Focus on:

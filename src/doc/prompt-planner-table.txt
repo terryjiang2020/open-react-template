@@ -24,7 +24,16 @@
 # 2. You MUST use only the provided schema/table/field information to construct the SQL query.
 #    - DO NOT use or reference any API endpoints or non-table data.
 #    - DO NOT invent or assume any data not present in the schema or usefulData.
-#    - CRITICAL: When querying entities, ALWAYS select both IDs AND human-readable names/identifiers:
+#    - MANDATORY: EVERY SELECT query MUST include human-readable names/identifiers, NEVER select only IDs
+#    - FORBIDDEN - These queries are NOT allowed (missing names):
+#      ❌ SELECT pokemon_id FROM UserPokemonWatchlist WHERE ...;
+#      ❌ SELECT id FROM pokemon WHERE ...;
+#      ❌ SELECT team_id FROM PokemonTeam WHERE ...;
+#    - REQUIRED - Always include identifiers/names with IDs:
+#      ✅ SELECT pokemon_id, p.identifier, pn.name FROM UserPokemonWatchlist w JOIN pokemon p ... LEFT JOIN pokemon_names pn ...
+#      ✅ SELECT id, identifier, name FROM pokemon WHERE ...;
+#      ✅ SELECT id, team_name FROM PokemonTeam WHERE ...;
+#    - Entity selection rules for each type:
 #      * For Pokémon: SELECT id, identifier, pn.name (JOIN pokemon_names on local_language_id=9)
 #      * For Moves: SELECT id, identifier, mn.name (JOIN move_names on local_language_id=9)
 #      * For Teams: SELECT id, team_name, created_at
