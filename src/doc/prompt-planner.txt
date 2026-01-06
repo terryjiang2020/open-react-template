@@ -43,6 +43,26 @@ Many entities have TWO related tables:
 - Use the identifier directly (it's human-readable after lowercase conversion)
 - OR JOIN with the `*_names` table where local_language_id = 9 (English)
 
+**MANDATORY SQL SELECTION RULE (CRITICAL):**
+EVERY SELECT query MUST include human-readable names/identifiers in addition to IDs.
+
+❌ FORBIDDEN - Selecting ONLY IDs:
+```sql
+SELECT pokemon_id FROM UserPokemonWatchlist WHERE ...;  -- NO NAMES!
+SELECT id FROM pokemon WHERE ...;  -- NO IDENTIFIERS!
+```
+
+✅ REQUIRED - Always include names/identifiers:
+```sql
+SELECT pokemon_id, p.identifier, pn.name 
+FROM UserPokemonWatchlist w 
+JOIN pokemon p ON w.pokemon_id = p.id 
+LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9 
+WHERE ...;
+```
+
+Why: The final answer MUST display "Pikachu (ID: 25), Charizard (ID: 6)" not just "IDs: 25, 6"
+
 **Example correct approach:**
 ```sql
 -- CORRECT: Find pikachu using lowercase identifier
