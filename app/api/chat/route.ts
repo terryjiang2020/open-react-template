@@ -1181,11 +1181,16 @@ export async function POST(request: NextRequest) {
 
     // Build conversation context for query refinement
     // Include recent conversation history to maintain context continuity
+    // IMPORTANT: Limit context to prevent historical information from overshadowing current intent
     let conversationContext = '';
+    const MAX_CONTEXT_TOKENS = 800; // Hard limit on context size (~3200 characters)
+    const MAX_CONTEXT_MESSAGES = 10; // Limit to last 3 CLEANED messages max (planning messages already filtered out)
+    
     if (cleanedMessages.length > 1) {
       // For follow-up queries: include more context (last 2-3 exchanges)
       // For independent queries: include just previous message for potential reference
-      const contextDepth = isFollowUpQuery ? Math.min(5, cleanedMessages.length - 1) : 1;
+      // Note: cleanedMessages already has plan-related messages removed, so we're selecting from cleaned history
+      const contextDepth = isFollowUpQuery ? Math.min(MAX_CONTEXT_MESSAGES, cleanedMessages.length - 1) : 1;
       const recentMessages = cleanedMessages.slice(-1 - contextDepth, -1);
       
       // Additional summarization for context if messages are still too long
@@ -1201,14 +1206,27 @@ export async function POST(request: NextRequest) {
         })
       );
       
-      conversationContext = contextMessages
+      let tempContext = contextMessages
         .map((msg) => `${msg.role}: ${msg.content}`)
         .join('\n');
+      
+      // Enforce token limit on context
+      const contextTokens = estimateTokens(tempContext);
+      if (contextTokens > MAX_CONTEXT_TOKENS) {
+        // If context is too large, truncate older messages and keep only the most recent
+        const recentMsg = contextMessages[contextMessages.length - 1];
+        tempContext = `${recentMsg.role}: ${recentMsg.content}`;
+        console.log(`⚠️ Context truncated: ${contextTokens} → ${estimateTokens(tempContext)} tokens to stay within limit`);
+      }
+      
+      conversationContext = tempContext;
     }
 
     console.log(`🔍 Query type: ${isFollowUpQuery ? 'FOLLOW-UP (with extended context)' : 'INDEPENDENT (with minimal context)'}`);
     if (conversationContext) {
-      console.log(`📝 Using context (${conversationContext.split('\n').length} messages, ~${estimateTokens(conversationContext)} tokens):`);
+      const ctxTokens = estimateTokens(conversationContext);
+      const msgCount = conversationContext.split('\n').filter(line => line.match(/^(user|assistant):/)).length;
+      console.log(`📝 Using context (${msgCount} cleaned messages, ~${ctxTokens}/${MAX_CONTEXT_TOKENS} tokens, ${(ctxTokens/MAX_CONTEXT_TOKENS*100).toFixed(0)}% of limit):`);
       console.log(conversationContext.substring(0, 200) + (conversationContext.length > 200 ? '...' : ''));
     }
 
