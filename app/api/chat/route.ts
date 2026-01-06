@@ -211,16 +211,12 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-// 摘要用户消息以减少token使用
-async function summarizeMessages(messages: Message[], apiKey: string): Promise<Message[]> {
-  // 如果消息少于10条，不需要摘要
-  if (messages.length <= 10) {
-    return messages;
+// Summarize individual message while preserving all critical data
+async function summarizeMessage(message: Message, apiKey: string): Promise<Message> {
+  // Don't summarize short messages or system messages
+  if (message.content.length < 500 || message.role === 'system') {
+    return message;
   }
-
-  // 保留最近的5条消息，摘要之前的消息
-  const recentMessages = messages.slice(-5);
-  const oldMessages = messages.slice(0, -5);
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -234,27 +230,147 @@ async function summarizeMessages(messages: Message[], apiKey: string): Promise<M
         messages: [
           {
             role: 'system',
-            content: '请将以下对话历史总结成简洁的要点，保留关键信息和上下文。用英文回复。',
+            content: `You are a message summarizer that extracts ONLY critical information from conversation messages.
+
+CRITICAL RULES - NO DATA LOSS PERMITTED:
+1. Preserve ALL numbers, IDs, quantities, counts, statistics (e.g., "125 moves", "ID: 25", "3 Pokémon")
+2. Preserve ALL names: Pokémon names, move names, ability names, team names, item names
+3. Preserve ALL specific entities and identifiers (e.g., "Pikachu", "Thunderbolt", "Static")
+4. Preserve ALL data values, measurements, and attributes (e.g., "Electric-type", "power: 90")
+5. Preserve ALL relationships and associations (e.g., "Pikachu's moves", "team members", "in watchlist")
+6. Preserve ALL lists and enumerations completely (e.g., if 10 items mentioned, keep all 10)
+7. Preserve ALL temporal information (e.g., "added on 2023-01-15", "last updated")
+8. Remove conversational fluff, greetings, explanations, and filler text
+9. Keep only factual data in a concise structured format
+
+Special Attention To:
+- Pokemon data: name, ID, type(s), abilities, stats, moves, evolution
+- Move data: name, type, power, accuracy, PP, damage class, learning method
+- Team data: team name, team ID, member count, member names and IDs
+- Watchlist data: item names, IDs, count
+- Ability data: name, effect, hidden/normal
+- User actions: what was requested, what was completed
+
+Format: Extract as bullet points or compact sentences.
+
+Examples:
+
+Input: "Great! I found Pikachu for you. Pikachu is an Electric-type Pokémon with ID 25. It has the abilities Static and Lightning Rod. It can learn 125 moves including Thunderbolt, Quick Attack, and Thunder Shock. Would you like to know more about any of these moves?"
+
+Output: "Pikachu (ID: 25), Electric-type, Abilities: Static, Lightning Rod, Can learn 125 moves: Thunderbolt, Quick Attack, Thunder Shock"
+
+Input: "I've checked your watchlist. You currently have 3 Pokémon in your watchlist: Charizard (ID: 6), Mewtwo (ID: 150), and Dragonite (ID: 149). They were added on different dates. Is there anything you'd like to do with these?"
+
+Output: "Watchlist: 3 Pokémon - Charizard (ID: 6), Mewtwo (ID: 150), Dragonite (ID: 149)"
+
+Input: "Your team 'Elite Squad' (ID: 42) has 6 members: Pikachu, Charizard, Blastoise, Venusaur, Gengar, Dragonite. The team was created on 2024-01-15 and last updated on 2024-06-20."
+
+Output: "Team 'Elite Squad' (ID: 42): 6 members - Pikachu, Charizard, Blastoise, Venusaur, Gengar, Dragonite. Created: 2024-01-15, Updated: 2024-06-20"
+
+Input: "add pikachu to my team"
+Output: "add pikachu to my team" (keep short messages as-is)
+
+Now summarize this message:`,
           },
           {
             role: 'user',
-            content: `对话历史：\n${oldMessages.map(m => `${m.role}: ${m.content}`).join('\n')}`,
+            content: message.content,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 4096,
+        temperature: 0.1,
+        max_tokens: 1024,
       }),
     });
 
     if (response.ok) {
       const data = await response.json();
-      const summary = data.choices[0]?.message?.content || '';
-
-      return [
-        { role: 'system', content: `对话历史摘要：${summary}` },
-        ...recentMessages,
-      ];
+      const summarized = data.choices[0]?.message?.content?.trim();
+      
+      if (summarized && summarized.length < message.content.length) {
+        console.log(`📝 Summarized message: ${message.content.length} → ${summarized.length} chars (${Math.round((1 - summarized.length/message.content.length) * 100)}% reduction)`);
+        return { ...message, content: summarized };
+      }
     }
+  } catch (error) {
+    console.warn('Message summarization failed:', error);
+  }
+
+  return message;
+}
+
+// Filter out plan-related messages from conversation context
+// Removes: plan proposals, approval/rejection messages, clarification requests
+// Keeps only: user intentions and final results
+function filterPlanMessages(messages: Message[]): Message[] {
+  return messages.filter((message) => {
+    const content = message.content.toLowerCase();
+    
+    // Skip plan proposal messages (from assistant containing execution plans)
+    if (message.role === 'assistant' && (
+      content.includes('What You\'re About To Do') ||
+      content.includes('execution_plan') ||
+      content.includes('needs_clarification') ||
+      content.includes('"phase":') ||
+      content.includes('would you like me to') ||
+      content.includes('here\'s the plan') ||
+      content.includes('i\'ll now') ||
+      content.includes('approval needed') ||
+      content.includes('do you approve')
+    )) {
+      console.log('⏭️ Filtering out plan proposal from assistant');
+      return false;
+    }
+    
+    // Skip approval/rejection/confirmation messages (from user)
+    if (message.role === 'user' && (
+      /^(approve|yes|no|reject|cancel|abort|proceed|ok|confirm|go ahead|deny|decline|disagree)$/i.test(content.trim()) ||
+      /^(approve|yes|reject|no|cancel)[\s!.]*$/.test(content.trim()) ||
+      /^(please )?(approve|reject|cancel|proceed)/.test(content.trim())
+    )) {
+      console.log('⏭️ Filtering out approval/rejection message from user');
+      return false;
+    }
+    
+    // Skip clarification request messages
+    if (message.role === 'assistant' && (
+      content.includes('could you clarify') ||
+      content.includes('what do you mean') ||
+      content.includes('i need clarification') ||
+      content.includes('please clarify') ||
+      content.includes('could you please provide') ||
+      content.includes('i\'m not sure what you mean')
+    )) {
+      console.log('⏭️ Filtering out clarification request from assistant');
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+// 摘要用户消息以减少token使用
+async function summarizeMessages(messages: Message[], apiKey: string): Promise<Message[]> {
+  // 如果消息少于10条，不需要摘要
+  if (messages.length <= 10) {
+    return messages;
+  }
+
+  // 保留最近的5条消息完整，摘要之前的消息
+  const recentMessages = messages.slice(-5);
+  const oldMessages = messages.slice(0, -5);
+
+  console.log(`📊 Summarizing ${oldMessages.length} old messages, keeping ${recentMessages.length} recent messages intact`);
+
+  try {
+    // Summarize each old message individually to preserve data
+    const summarizedOldMessages = await Promise.all(
+      oldMessages.map(msg => summarizeMessage(msg, apiKey))
+    );
+
+    return [
+      ...summarizedOldMessages,
+      ...recentMessages,
+    ];
   } catch (error: any) {
     console.warn('Error summarizing messages:', error);
   }
@@ -1052,25 +1168,66 @@ export async function POST(request: NextRequest) {
 
     // Summarize conversation history for context (if messages > 10)
     const summarizedMessages = await summarizeMessages(messages, apiKey);
+    
+    // Filter out plan-related messages (plans, approvals, rejections)
+    // Keep only user intentions and final results
+    const cleanedMessages = filterPlanMessages(summarizedMessages);
+    console.log(`📊 Context cleaning: ${summarizedMessages.length} messages → ${cleanedMessages.length} messages after filtering plans`);
 
     // Detect if this is a follow-up query or an independent query
-    const isFollowUpQuery = /^(what about|how about|and|also|more|details?|show me|tell me more|what else|the same|similarly|like that)/i.test(userMessage.content.trim()) ||
-      userMessage.content.trim().length < 20; // Very short queries likely need context
+    const isFollowUpQuery = /^(what about|how about|and|also|more|details?|show me|tell me more|what else|the same|similarly|like that|its|their|his|her)/i.test(userMessage.content.trim()) ||
+      userMessage.content.trim().length < 20 || // Very short queries likely need context
+      /\b(it|them|that|this|those|these)\b/i.test(userMessage.content.trim()); // Pronoun references
 
     // Build conversation context for query refinement
-    // Only use context for follow-up/clarification queries to prevent mixing conditions
+    // Include recent conversation history to maintain context continuity
+    // IMPORTANT: Limit context to prevent historical information from overshadowing current intent
     let conversationContext = '';
-    if (isFollowUpQuery && summarizedMessages.length > 1) {
-      // Only include the immediate previous message for follow-ups
-      const previousMessage = summarizedMessages[summarizedMessages.length - 2];
-      if (previousMessage) {
-        conversationContext = `${previousMessage.role}: ${previousMessage.content}`;
+    const MAX_CONTEXT_TOKENS = 800; // Hard limit on context size (~3200 characters)
+    const MAX_CONTEXT_MESSAGES = 10; // Limit to last 3 CLEANED messages max (planning messages already filtered out)
+    
+    if (cleanedMessages.length > 1) {
+      // For follow-up queries: include more context (last 2-3 exchanges)
+      // For independent queries: include just previous message for potential reference
+      // Note: cleanedMessages already has plan-related messages removed, so we're selecting from cleaned history
+      const contextDepth = isFollowUpQuery ? Math.min(MAX_CONTEXT_MESSAGES, cleanedMessages.length - 1) : 1;
+      const recentMessages = cleanedMessages.slice(-1 - contextDepth, -1);
+      
+      // Additional summarization for context if messages are still too long
+      // This ensures we preserve critical data while reducing tokens
+      const contextMessages = await Promise.all(
+        recentMessages.map(async (msg) => {
+          // Only summarize long assistant responses for context
+          if (msg.role === 'assistant' && msg.content.length > 800) {
+            const summarized = await summarizeMessage(msg, apiKey);
+            return summarized;
+          }
+          return msg;
+        })
+      );
+      
+      let tempContext = contextMessages
+        .map((msg) => `${msg.role}: ${msg.content}`)
+        .join('\n');
+      
+      // Enforce token limit on context
+      const contextTokens = estimateTokens(tempContext);
+      if (contextTokens > MAX_CONTEXT_TOKENS) {
+        // If context is too large, truncate older messages and keep only the most recent
+        const recentMsg = contextMessages[contextMessages.length - 1];
+        tempContext = `${recentMsg.role}: ${recentMsg.content}`;
+        console.log(`⚠️ Context truncated: ${contextTokens} → ${estimateTokens(tempContext)} tokens to stay within limit`);
       }
+      
+      conversationContext = tempContext;
     }
 
-    console.log(`🔍 Query type: ${isFollowUpQuery ? 'FOLLOW-UP (with context)' : 'INDEPENDENT (no context)'}`);
+    console.log(`🔍 Query type: ${isFollowUpQuery ? 'FOLLOW-UP (with extended context)' : 'INDEPENDENT (with minimal context)'}`);
     if (conversationContext) {
-      console.log(`📝 Using context: ${conversationContext.substring(0, 100)}...`);
+      const ctxTokens = estimateTokens(conversationContext);
+      const msgCount = conversationContext.split('\n').filter(line => line.match(/^(user|assistant):/)).length;
+      console.log(`📝 Using context (${msgCount} cleaned messages, ~${ctxTokens}/${MAX_CONTEXT_TOKENS} tokens, ${(ctxTokens/MAX_CONTEXT_TOKENS*100).toFixed(0)}% of limit):`);
+      console.log(conversationContext.substring(0, 200) + (conversationContext.length > 200 ? '...' : ''));
     }
 
     // Clarify and refine user input WITH conversation context (only for follow-ups)

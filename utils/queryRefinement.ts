@@ -14,18 +14,69 @@ export async function clarifyAndRefineUserInput(
   intentType: "FETCH" | "MODIFY",
   referenceTask?: SavedTask
 }> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an assistant that refines user queries and identifies what needs to be investigated to answer them.
+  // Extract current query from context if present
+  let currentQuery = userInput;
+  let contextHistory = '';
+  
+  const contextMatch = userInput.match(/^Previous context:\n([\s\S]*?)\n\nCurrent query: (.+)$/);
+  if (contextMatch) {
+    contextHistory = contextMatch[1];
+    currentQuery = contextMatch[2];
+  }
+  
+  // Build the prompt with CURRENT query emphasized as PRIMARY
+  const systemPrompt = `You are an assistant that refines user queries and identifies what needs to be investigated to answer them.
+
+CRITICAL - DATABASE RULES:
+==========================
+1. ALL identifiers in the database are LOWERCASE with HYPHENS (not spaces)
+   - "Pikachu" → stored as "pikachu" 
+   - "Primal Groudon" → stored as "primal-groudon"
+   - "Thunder Shock" → stored as "thunder-shock"
+   - "Nidoran♂" → stored as "nidoran-m"
+
+2. When the user mentions an entity name, convert it to the database format (lowercase, hyphens)
+   - This is important for query refinement and entity extraction
+   - Keep track of the original user term AND the database identifier format
+
+3. Many entities have separate name tables for localization:
+   - pokemon ← pokemon_names (local_language_id=9 for English)
+   - moves ← move_names (local_language_id=9 for English)
+   - abilities ← ability_names (local_language_id=9 for English)
+   - When generating queries, may need to JOIN these tables
+
+IMPORTANT: The user input may contain conversation history. When present:
+- Pay attention to previous context to resolve references like "it", "them", "that", "this", "its", "their"
+- Look for previously mentioned entities or subjects
+- The format will be "Previous context:\n[previous messages]\n\nCurrent query: [actual query]"
+- Resolve references in the current query by connecting them to entities in previous context
+- Example: If previous message mentioned "Pikachu" and current query is "show me its moves", resolve to "show me Pikachu's moves"
+
+CRITICAL - FOLLOW-UP QUERIES WITH "AMONG THEM" (DEFAULT RULE):
+**Use previous result set UNLESS explicitly told not to.**
+
+When the conversation context contains a numbered/bulleted list of entities from a previous query:
+- Treat ALL follow-up queries as scoped to that result set by default
+- Look for these trigger phrases (they indicate follow-up queries):
+  * "among them", "among those", "of them", "of those"
+  * "which one", "which", "who", "what about" 
+  * "the highest", "the lowest", "the one with"
+  * Any superlative question after a list: "Who has the...", "Which has the...", "What about the..."
+
+When to NOT use previous list (explicit exceptions):
+- User says: "from all pokemon", "overall", "in the entire database"
+- User says: "not from that list", "besides them", "excluding them"
+- Only if explicitly stated should you ignore the previous result set
+
+Action steps:
+1. EXTRACT the list of entities from the PREVIOUS ASSISTANT RESPONSE
+2. Look for numbered lists (1. Name, 2. Name, 3. Name) or bullet points
+3. Convert each name to lowercase identifier format (e.g., "Abra" → "abra")
+4. Include this extracted list in the "Entities" field as "among [extracted list]"
+5. Example: If previous response was "1. Abra\n2. Azurill\n3. Blipbug\n...", and current query is "Which one has highest attack?"
+   - Refined Query: "Identify which pokemon has the highest attack among [Abra, Azurill, Blipbug, ...]"
+   - Entities: ["among-abra-azurill-blipbug-blissey-bounsweet-bronzor-budew-bunnelby-burmy-cascoon"]
+   - This signals to the planner to search within this specific list, not re-apply original filters
 
 For each user query:
 1. Refine it into a clearer format
@@ -37,7 +88,7 @@ For each user query:
 When identifying investigatory entities, ask yourself: "In this sentence, what entities are important that require investigation?"
 
 Focus on:
-- Specific subjects mentioned (e.g., "Magnemite", "Pikachu")
+- Specific subjects mentioned (e.g., "Magnemite", "Pikachu") - REMEMBER TO CONVERT TO LOWERCASE
 - Data categories needed (e.g., "steel moves", "fire pokemon")
 - Relationships/capabilities (e.g., "moves a pokemon can learn", "pokemon in a region")
 - Detail/attribute queries (e.g., "pokemon details", "move power", "ability effects")
@@ -106,11 +157,28 @@ Language: [language code]
 Concepts: [list of concepts]
 API Needs: [list of API functionalities needed]
 Entities: [list of entities that require investigation to answer the query]
-IntentType: ["FETCH"/"MODIFY"]`,
+IntentType: ["FETCH"/"MODIFY"]`;
+
+  const userMessage = contextHistory 
+    ? `HISTORICAL CONTEXT (for reference only):\n${contextHistory}\n\n========================================\nCURRENT QUERY (PRIMARY FOCUS):\n${currentQuery}`
+    : currentQuery;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
         },
         {
           role: 'user',
-          content: userInput,
+          content: userMessage,
         },
       ],
       temperature: 0.5,
