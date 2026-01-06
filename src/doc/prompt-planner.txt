@@ -30,18 +30,14 @@ Examples:
 4. Use ILIKE or case-insensitive matching in SQL
 5. Match against the `identifier` field, NOT the `name` field
 
-**Separate Name Tables:**
-Many entities have TWO related tables:
+**Core Tables:**
 - `pokemon` table (contains id, identifier, height, weight, base_experience, etc.)
-- `pokemon_names` table (contains pokemon_id, local_language_id, name - localized names)
 - `moves` table (contains id, identifier, power, pp, accuracy, etc.)
-- `move_names` table (contains move_id, local_language_id, name)
 - `abilities` table (contains id, identifier, generation_id, is_main_series)
-- `ability_names` table (contains ability_id, local_language_id, name)
 
 **When you need to display user-friendly names:**
 - Use the identifier directly (it's human-readable after lowercase conversion)
-- OR JOIN with the `*_names` table where local_language_id = 9 (English)
+- The identifier is already human-readable: 'pikachu', 'thunder-shock', 'light-screen'
 
 **MANDATORY SQL SELECTION RULE (CRITICAL):**
 EVERY SELECT query MUST include human-readable names/identifiers in addition to IDs.
@@ -52,12 +48,11 @@ SELECT pokemon_id FROM UserPokemonWatchlist WHERE ...;  -- NO NAMES!
 SELECT id FROM pokemon WHERE ...;  -- NO IDENTIFIERS!
 ```
 
-✅ REQUIRED - Always include names/identifiers:
+✅ REQUIRED - Always include identifiers:
 ```sql
-SELECT pokemon_id, p.identifier, pn.name 
+SELECT pokemon_id, p.identifier
 FROM UserPokemonWatchlist w 
 JOIN pokemon p ON w.pokemon_id = p.id 
-LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9 
 WHERE ...;
 ```
 
@@ -68,10 +63,9 @@ Why: The final answer MUST display "Pikachu (ID: 25), Charizard (ID: 6)" not jus
 -- CORRECT: Find pikachu using lowercase identifier
 SELECT id, identifier FROM pokemon WHERE identifier = 'pikachu' LIMIT 1;
 
--- CORRECT: Get localized name
-SELECT id, identifier, pn.name 
+-- CORRECT: Get identifier (human-readable)
+SELECT id, identifier 
 FROM pokemon p
-LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9
 WHERE p.identifier = 'pikachu';
 
 -- WRONG: Case-sensitive search
@@ -195,19 +189,13 @@ All identifiers in the database are lowercase with hyphens. When resolving entit
 4. **Replace spaces with hyphens**: "Thunder Shock" → "thunder-shock"
 5. **Handle special characters**: "Nidoran♂" → "nidoran-m", "Nidoran♀" → "nidoran-f"
 
-**Accessing Localized Names**:
-If you need the user-facing name (not just the identifier), JOIN with name tables:
-- `pokemon` ← JOIN → `pokemon_species_names` (where local_language_id = 9 for English)
-- `moves` ← JOIN → `move_names` (where local_language_id = 9)
-- `abilities` ← JOIN → `ability_names` (where local_language_id = 9)
+**Using Identifiers**:
+The identifier field is already human-readable and localization-friendly:
+- Pokémon: identifier like 'pikachu', 'primal-groudon'
+- Moves: identifier like 'thunder-shock', 'light-screen'
+- Abilities: identifier like 'static', 'lightning-rod'
 
-Example:
-```sql
-SELECT p.id, p.identifier, pn.name as localized_name
-FROM pokemon p
-LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9
-WHERE LOWER(p.identifier) = 'pikachu';
-```
+No additional JOINs needed for display names — use identifier directly.
 
 ---
 
@@ -606,7 +594,7 @@ Before generating output, you MUST internally verify:
         "path": "/general/sql/query",
         "method": "post",
         "requestBody": {
-          "query": "SELECT w.pokemon_id, p.identifier, COALESCE(pn.name, p.identifier) as display_name FROM UserPokemonWatchlist w JOIN pokemon p ON w.pokemon_id = p.id LEFT JOIN pokemon_names pn ON p.id = pn.pokemon_id AND pn.local_language_id = 9 WHERE w.user_id = CURRENT_USER_ID AND w.deleted = FALSE ORDER BY w.created_at DESC;"
+          "query": "SELECT w.pokemon_id, p.identifier FROM UserPokemonWatchlist w JOIN pokemon p ON w.pokemon_id = p.id WHERE w.user_id = CURRENT_USER_ID AND w.deleted = FALSE ORDER BY w.created_at DESC;"
         }
       }
     }
