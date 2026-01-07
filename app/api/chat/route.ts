@@ -1037,7 +1037,8 @@ export async function POST(request: NextRequest) {
   try {
     // Extract user token from Authorization header (optional)
     const authHeader = request.headers.get('Authorization') || '';
-    const userToken = authHeader.startsWith('Bearer ') ? authHeader : '';
+    const userToken = authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : '';
+    console.log('userToken:', userToken);
 
     const requestBody = await request.json();
     const { messages, sessionId: clientSessionId, isApproval: clientIsApproval } = requestBody;
@@ -1235,7 +1236,7 @@ export async function POST(request: NextRequest) {
       ? `Previous context:\n${conversationContext}\n\nCurrent query: ${userMessage.content}`
       : userMessage.content;
 
-    const { refinedQuery, language, concepts, apiNeeds, entities, intentType, referenceTask } = await clarifyAndRefineUserInput(queryWithContext, apiKey);
+    const { refinedQuery, language, concepts, apiNeeds, entities, intentType, referenceTask } = await clarifyAndRefineUserInput(queryWithContext, apiKey, userToken);
     // 设置原始finalDeliverable为refinedQuery，保证不被中间依赖覆盖
     if (!finalDeliverable) finalDeliverable = refinedQuery;
     console.log('\n📝 QUERY REFINEMENT RESULTS:');
