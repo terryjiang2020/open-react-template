@@ -35,6 +35,7 @@ const PokemonDetailPage = () => {
   const id = params?.id ? String(params.id) : "";
   const [pokemon, setPokemon] = useState<any | null>(null);
   const [filter, setFilter] = useState("level-up");
+  const [hoveredAbility, setHoveredAbility] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -125,6 +126,36 @@ const PokemonDetailPage = () => {
                 <p>No type information available</p>
               )}
             </div>
+            
+            {pokemon.abilities && pokemon.abilities.length > 0 && (
+              <div className="mt-4">
+                <h3 className="font-mono text-sm text-muted-foreground mb-2">Abilities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {pokemon.abilities.map((ability: any, index: number) => (
+                    <div 
+                      key={index} 
+                      className="relative"
+                      onMouseEnter={() => setHoveredAbility(index)}
+                      onMouseLeave={() => setHoveredAbility(null)}
+                    >
+                      <span className="cursor-help rounded-lg border border-border/50 bg-background px-3 py-1.5 text-sm font-medium capitalize hover:bg-border/20 transition-colors inline-block">
+                        {ability.ability_name || ability.ability}
+                      </span>
+                      {ability.short_effect && hoveredAbility === index && (
+                        <div className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none">
+                          <div className="rounded-md bg-slate-900 text-white px-3 py-2 text-xs shadow-xl border border-slate-700 w-[250px] whitespace-normal">
+                            {ability.short_effect}
+                            <div className="absolute left-4 top-full -mt-[1px]">
+                              <div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,7 @@
 import { selectReferenceTask } from "@/services/taskSelectorService";
 import { fetchTaskList, SavedTask } from "@/services/taskService";
+import path from 'path';
+import fs from 'fs';
 
 export async function clarifyAndRefineUserInput(
   userInput: string,
@@ -218,6 +220,20 @@ IntentType: ["FETCH"/"MODIFY"]`;
       console.log(`\n🔍 Fetching saved tasks for reference matching (intent: ${intentType})...`);
       const tasks = await fetchTaskList(userToken);
       console.log('Fetched tasks: ', tasks);
+      // Log fetched tasks to file (server-side only)
+      try {
+        const logPath = path.join(process.cwd(), '.temp', 'tasks_fetched.txt');
+        
+        const timestamp = new Date().toISOString();
+        const logContent = `\n=== Tasks Fetched at ${timestamp} ===\n` +
+          `Total tasks: ${tasks.length}\n\n` +
+          JSON.stringify(tasks, null, 2) + '\n';
+        
+        await fs.writeFileSync(logPath, logContent);
+        console.log(`Logged fetched tasks to ${logPath}`);
+      } catch (err) {
+        console.error('Failed to log tasks to file:', err);
+      }
       const match = await selectReferenceTask(refinedQuery, tasks, apiKey, intentType);
       console.log('Reference task matching result: ', match);
       if (match.task && typeof match.score === 'number') {
