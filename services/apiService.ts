@@ -27,11 +27,13 @@ export async function dynamicApiRequest(baseUrl: string, schema: any, userToken?
     const { path, method, requestBody, parameters, input } = schema;
 
     // Use user token if provided, otherwise fall back to environment token
-    let token = userToken || (process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN ? `Bearer ${process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN}` : '');
-
+    // Ensure token has "Bearer " prefix
+    let token = '';
     if (userToken) {
+      token = userToken.startsWith('Bearer ') ? userToken : `Bearer ${userToken}`;
       console.log('Using user token from localStorage for API authentication');
-    } else if (token) {
+    } else if (process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN) {
+      token = `Bearer ${process.env.NEXT_PUBLIC_ELASTICDASH_TOKEN}`;
       console.log('Using environment token for API authentication (no user token provided)');
     } else {
       console.log('No authentication token available');
