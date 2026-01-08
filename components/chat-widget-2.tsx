@@ -43,6 +43,7 @@ type TaskPayload = {
     stepOrder: number;
     stepType: number;
     stepContent: string;
+    stepJsonContent?: Object;
     api?: {
       path: string;
       method: string;
@@ -51,6 +52,8 @@ type TaskPayload = {
     };
     depends_on_step?: number;
   }>;
+  originalQuery?: string;
+  planResponse?: string;
 };
 
 export default function ChatWidget2() {
@@ -244,15 +247,25 @@ export default function ChatWidget2() {
       const apiPart = step.api ? step.api.trim() : '';
       const stepType = stepTypeFromApi(apiPart);
 
-      const logicalDesc = (step.description || '').split('(')[0].trim() || 'Step';
-      const content = apiPart ? `${logicalDesc} — ${apiPart}` : logicalDesc;
-
       const apiDetails = parameterizeApiDetails(step, refinedQuery);
+      const methodForContent = apiDetails?.method ? apiDetails.method.toUpperCase() : (apiPart.split(' ')[0] || '').toUpperCase();
+      const pathForContent = apiDetails?.path || apiPart.split(' ').slice(1).join(' ');
+
+      const logicalDesc = (step.description || '').split('(')[0].trim() || 'Step';
+      const content = apiDetails ? `${logicalDesc} — ${methodForContent} ${pathForContent}` : (apiPart ? `${logicalDesc} — ${apiPart}` : logicalDesc);
+
+      const stepJsonContent = apiDetails ? {
+        method: methodForContent,
+        path: pathForContent,
+        query: apiDetails.parameters || {},
+        body: apiDetails.requestBody || {},
+      } : undefined;
 
       return {
         stepOrder: idx + 1,
         stepType,
         stepContent: sanitizeContent(content),
+        stepJsonContent,
         api: apiDetails,
         depends_on_step: step.depends_on_step,
       };
@@ -266,6 +279,8 @@ export default function ChatWidget2() {
       taskType,
       taskContent,
       taskSteps: mappedSteps,
+      originalQuery: refinedQuery,
+      planResponse: message.planResponse,
     };
   };
 

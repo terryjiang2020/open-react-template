@@ -1533,6 +1533,7 @@ ${step.api.requestBody && Object.keys(step.api.requestBody).length > 0 ? `Body: 
         awaitingApproval: true,
         refinedQuery,
         sessionId,
+        planResponse,
         planningDurationMs,
         usedReferencePlan: actionablePlan._from_reference_task || false
       });
