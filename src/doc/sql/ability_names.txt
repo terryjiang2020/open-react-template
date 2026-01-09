@@ -1,0 +1,19 @@
+Database Schema:
+Tables:
+ability_names(ability_id, local_language_id, name)
+
+-- Example 1
+Question: Find abilities with localized names in English (language_id = 9).
+SQL: SELECT a.identifier, an.name as english_name
+FROM abilities a
+JOIN ability_names an ON a.id = an.ability_id
+WHERE an.local_language_id = 9
+ORDER BY a.identifier;
+
+-- Example 2
+Question: List abilities with their names in multiple languages.
+SQL: SELECT a.identifier, COUNT(DISTINCT an.local_language_id) as language_count
+FROM abilities a
+JOIN ability_names an ON a.id = an.ability_id
+GROUP BY a.id, a.identifier
+ORDER BY language_count DESC;

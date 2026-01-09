@@ -1,0 +1,19 @@
+Database Schema:
+Tables:
+move_damage_classes(id, identifier)
+
+-- Example 1
+Question: List all status moves (moves with no power).
+SQL: SELECT m.identifier
+FROM moves m
+JOIN move_damage_classes mdc ON m.damage_class_id = mdc.id
+WHERE mdc.identifier = 'status'
+ORDER BY m.identifier;
+
+-- Example 2
+Question: List all move damage classes with example moves.
+SQL: SELECT mdc.identifier as damage_class, COUNT(*) as move_count
+FROM move_damage_classes mdc
+LEFT JOIN moves m ON mdc.id = m.damage_class_id
+GROUP BY mdc.id, mdc.identifier
+ORDER BY move_count DESC;

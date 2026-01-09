@@ -42,5 +42,5 @@ next-env.d.ts
 temp/
 .temp/
 dist/
-src/doc/vectorized-data/
-src/scripts
+
+rag_apis.json

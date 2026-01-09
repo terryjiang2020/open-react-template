@@ -1,0 +1,20 @@
+Database Schema:
+Tables:
+abilities(id, identifier, generation_id, is_main_series)
+
+-- Example 1
+Question: Show abilities introduced in generation 5 or later.
+SQL: SELECT a.identifier, g.identifier as generation
+FROM abilities a
+JOIN generations g ON a.generation_id = g.id
+WHERE a.generation_id >= 5
+ORDER BY a.generation_id, a.identifier;
+
+-- Example 2
+Question: Which ability is shared by the most pokemon?
+SQL: SELECT a.identifier, COUNT(DISTINCT pa.pokemon_id) as pokemon_count
+FROM abilities a
+JOIN pokemon_abilities pa ON a.id = pa.ability_id
+GROUP BY a.id, a.identifier
+ORDER BY pokemon_count DESC
+LIMIT 10;

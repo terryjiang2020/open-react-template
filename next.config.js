@@ -4,5 +4,3 @@ require('dotenv').config();
 const nextConfig = {};
 
 module.exports = nextConfig;
-
-console.log('process.env: ', process.env);

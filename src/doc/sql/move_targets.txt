@@ -1,0 +1,20 @@
+Database Schema:
+Tables:
+move_targets(id, identifier)
+
+-- Example 1
+Question: Show the distribution of moves across different target types.
+SQL: SELECT mt.identifier as target_type, COUNT(*) as move_count
+FROM move_targets mt
+LEFT JOIN moves m ON mt.id = m.target_id
+GROUP BY mt.id, mt.identifier
+ORDER BY move_count DESC;
+
+-- Example 2
+Question: Find powerful moves that target all opponents.
+SQL: SELECT m.identifier, m.power
+FROM moves m
+JOIN move_targets mt ON m.target_id = mt.id
+WHERE mt.identifier = 'all-opponents' AND m.power IS NOT NULL
+ORDER BY m.power DESC
+LIMIT 10;

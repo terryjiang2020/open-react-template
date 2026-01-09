@@ -1,0 +1,26 @@
+Database Schema:
+Tables:
+pokemon_moves(id, pokemon_id, move_id, version_group_id, move_method_id, level, order_index, mastery)
+
+-- Example 1
+Question: What moves can pikachu learn?
+SQL: SELECT m.identifier, pmm.identifier as learn_method, pm.level
+FROM pokemon p
+JOIN pokemon_moves pm ON p.id = pm.pokemon_id
+JOIN moves m ON pm.move_id = m.id
+JOIN pokemon_move_methods pmm ON pm.move_method_id = pmm.id
+WHERE p.identifier = 'pikachu'
+ORDER BY pm.level, m.identifier;
+
+-- Example 2
+Question: What are the most common moves learned by water-type pokemon?
+SQL: SELECT m.identifier, COUNT(DISTINCT p.id) as pokemon_count
+FROM moves m
+JOIN pokemon_moves pm ON m.id = pm.move_id
+JOIN pokemon p ON pm.pokemon_id = p.id
+JOIN pokemon_types pt ON p.id = pt.pokemon_id
+JOIN types t ON pt.type_id = t.id
+WHERE t.identifier = 'water'
+GROUP BY m.id, m.identifier
+ORDER BY pokemon_count DESC
+LIMIT 15;

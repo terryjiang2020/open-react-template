@@ -18,8 +18,8 @@
   "paths": {
     "/pokemon/search": {
       "post": {
-        "summary": "Retrieve Pokémon by ID or name",
-        "tags": ["Pokémon"],
+        "summary": "Search for Pokémon by ID or name, with optional filters (height, weight, types, stats) and sorting options.",
+        "tags": ["pokemon", "search", "filter", "sort", "id", "name"],
         "requestBody": {
           "required": false,
           "content": {
@@ -27,52 +27,67 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "searchterm": { "type": "string" },
+                  "searchterm": { "type": "string", "description": "Search keyword for Pokémon name or ID." },
                   "filter": {
                     "type": "object",
+                    "description": "Optional filters for Pokémon search, including height, weight, types, moves, and stats.",
                     "properties": {
-                      "heightMin": { "type": "integer", "default": 0 },
-                      "heightMax": { "type": "integer", "default": -1 },
-                      "weightMin": { "type": "integer", "default": 0 },
-                      "weightMax": { "type": "integer", "default": -1 },
+                      "height": {
+                        "type": "object",
+                        "description": "Filter Pokémon by height range (in decimeters, 10 cm).",
+                        "properties": {
+                          "min": { "type": "integer", "description": "Minimum height in decimeters." },
+                          "max": { "type": "integer", "description": "Maximum height in decimeters." }
+                        }
+                      },
+                      "weight": {
+                        "type": "object",
+                        "description": "Filter Pokémon by weight range (in hectograms, 100 g).",
+                        "properties": {
+                          "min": { "type": "integer", "description": "Minimum weight in hectograms." },
+                          "max": { "type": "integer", "description": "Maximum weight in hectograms." }
+                        }
+                      },
                       "mustHaveTypes": {
                         "type": "array",
-                        "items": { "type": "integer" }
+                        "description": "List of type IDs that Pokémon must have.",
+                        "items": { "type": "integer", "description": "Type ID." }
                       },
                       "mustNotHaveTypes": {
                         "type": "array",
-                        "items": { "type": "integer" }
+                        "description": "List of type IDs that Pokémon must NOT have.",
+                        "items": { "type": "integer", "description": "Type ID." }
                       },
-                      "canLearnMove": { "type": "integer" },
                       "canLearnMoves": {
                         "type": "array",
+                        "description": "List of moves (with method) that Pokémon can learn.",
                         "items": {
                           "type": "object",
                           "properties": {
-                            "moveId": { "type": "integer" },
-                            "moveMethodId": { "type": "integer" }
+                            "moveId": { "type": "integer", "description": "Move ID." },
+                            "moveMethodId": { "type": "integer", "description": "Move method ID (e.g., level-up, TM, etc.)." }
                           }
                         }
                       },
                       "stats": {
-                        "type": "object",
-                        "properties": {
-                          "statId": {
-                            "type": "object",
-                            "properties": {
-                              "min": { "type": "integer" },
-                              "max": { "type": "integer" }
-                            }
+                        "type": "array",
+                        "description": "Filter Pokémon by stat ranges.",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "statId": { "type": "integer", "description": "Stat ID (e.g., HP, Attack, etc.)." },
+                            "min": { "type": "integer", "description": "Minimum stat value." },
+                            "max": { "type": "integer", "description": "Maximum stat value." }
                           }
                         }
                       }
                     }
                   },
-                  "page": { "type": "integer", "default": 0 },
+                  "page": { "type": "integer", "default": 0, "description": "Page number for paginated results (default: 0)." },
                   "sortby": {
                     "type": "integer",
                     "default": 0,
-                    "description": "Sorting option: 0 (A-Z), 1 (Z-A), 2 (Total stats high-low), 3 (Total stats low-high), 4 (HP high-low), 5 (HP low-high), ..., 15 (Speed low-high), 16 (Height high-low), 17 (Height low-high), 18 (Weight high-low), 19 (Weight low-high)"
+                    "description": "Sorting option for results: 0 (A-Z), 1 (Z-A), 2 (Total stats high-low), 3 (Total stats low-high), 4 (HP high-low), 5 (HP low-high), 6 (Attack high-low), 7 (Attack low-high), 8 (Defense high-low), 9 (Defense low-high), 10 (Special Attack high-low), 11 (Special Attack low-high), 12 (Special Defense high-low), 13 (Special Defense low-high), 14 (Speed high-low), 15 (Speed low-high), 16 (Height high-low), 17 (Height low-high), 18 (Weight high-low), 19 (Weight low-high)." 
                   }
                 }
               }
@@ -89,25 +104,26 @@
                   "properties": {
                     "results": {
                       "type": "array",
+                      "description": "List of Pokémon matching the search criteria.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "number" },
-                          "name": { "type": "string" },
-                          "type": { "type": "string" },
+                          "id": { "type": "number", "description": "Pokémon ID. Unique identifier for the Pokémon." },
+                          "name": { "type": "string", "description": "Pokémon name. The English name of the Pokémon." },
+                          "type": { "type": "string", "description": "Primary type of the Pokémon. For example: 'Fire', 'Water', etc." },
                           "abilities": {
-                            "type": "array",
-                            "items": { "type": "string" }
+                            "type": "array", "description": "List of ability names for the Pokémon. Each ability describes a special trait or power.",
+                            "items": { "type": "string", "description": "Ability name. For example: 'Overgrow', 'Blaze', etc." }
                           },
                           "sprite": {
-                            "type": "string",
+                            "type": "string", "description": "URL to the Pokémon sprite image. This is a direct link to the official artwork.",
                             "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png"
                           }
                         }
                       }
                     },
-                    "totalCount": { "type": "integer" },
-                    "totalPage": { "type": "integer" }
+                    "totalCount": { "type": "integer", "description": "Total number of Pokémon found. Indicates the total number of results matching the search criteria." },
+                    "totalPage": { "type": "integer", "description": "Total number of pages for paginated results. Calculated based on totalCount and page size." }
                   }
                 }
               }
@@ -121,8 +137,8 @@
     },
     "/pokemon/move/search": {
       "post": {
-        "summary": "Retrieve Move by ID or name",
-        "tags": ["Move"],
+        "summary": "Search for Pokémon moves by ID or name, with optional filters (type, power, pp, damage class, priority) and ordering.",
+        "tags": ["pokemon", "move", "search", "filter", "order", "id", "name"],
         "requestBody": {
           "required": false,
           "content": {
@@ -130,8 +146,45 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "searchterm": { "type": "string" },
-                  "page": { "type": "integer", "default": 0 }
+                  "searchterm": { "type": "string", "description": "Search keyword for move name or ID." },
+                  "page": { "type": "integer", "default": 0, "description": "Page number for paginated results (default: 0)." },
+                  "filters": {
+                    "type": "object",
+                    "description": "Optional filters for move search, including type, power, PP, damage class, and priority.",
+                    "properties": {
+                      "type": { "type": "integer", "description": "Filter by move type ID (e.g., 1 for Normal, 10 for Fire)." },
+                      "power": {
+                        "type": "object",
+                        "description": "Filter moves by power range. Power indicates the base damage of the move.",
+                        "properties": {
+                          "min": { "type": "integer", "description": "Minimum power value." },
+                          "max": { "type": "integer", "description": "Maximum power value." }
+                        }
+                      },
+                      "pp": {
+                        "type": "object",
+                        "description": "Filter moves by PP (Power Points) range. PP indicates how many times a move can be used.",
+                        "properties": {
+                          "min": { "type": "integer", "description": "Minimum PP value." },
+                          "max": { "type": "integer", "description": "Maximum PP value." }
+                        }
+                      },
+                      "damageClass": { "type": "integer", "description": "Filter by damage class ID: 1 for status moves, 2 for physical moves, 3 for special moves." },
+                      "priority": {
+                        "type": "object",
+                        "description": "Filter moves by priority range. Priority determines move order in battle (higher priority moves go first).",
+                        "properties": {
+                          "min": { "type": "integer", "description": "Minimum priority value (can be negative)." },
+                          "max": { "type": "integer", "description": "Maximum priority value." }
+                        }
+                      }
+                    }
+                  },
+                  "order": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Ordering options: 0 (A-Z), 1 (Z-A), 2 (Power high-low), 3 (Power low-high), 4 (PP high-low), 5 (PP low-high), 6 (Accuracy high-low), 7 (Accuracy low-high)"
+                  }
                 }
               }
             }
@@ -147,20 +200,26 @@
                   "properties": {
                     "results": {
                       "type": "array",
+                      "description": "List of moves matching the search criteria.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "number" },
-                          "name": { "type": "string" },
-                          "type": { "type": "string" },
-                          "power": { "type": "integer" },
-                          "pp": { "type": "integer" },
-                          "accuracy": { "type": "integer" }
+                          "id": { "type": "number", "description": "Unique move ID." },
+                          "identifier": { "type": "string", "description": "Move identifier (internal name in lowercase with hyphens)." },
+                          "type_id": { "type": "number", "description": "Type ID of the move (e.g., 1 for Normal, 10 for Fire)." },
+                          "type_name": { "type": "string", "description": "Localized name of the move's type." },
+                          "power": { "type": "integer", "description": "Base power/damage of the move. Null for status moves." },
+                          "pp": { "type": "integer", "description": "Power Points - the number of times this move can be used." },
+                          "accuracy": { "type": "integer", "description": "Move accuracy as a percentage (0-100). Null for moves that never miss." },
+                          "priority": { "type": "integer", "description": "Priority level in battle. Higher values move first. Range typically -7 to +5." },
+                          "damage_class_id": { "type": "number", "description": "Damage class ID: 1 (status), 2 (physical), 3 (special)." },
+                          "damage_class_name": { "type": "string", "description": "Localized name of the damage class (e.g., 'Physical', 'Special', 'Status')." },
+                          "localized_name": { "type": "string", "description": "Localized/translated name of the move in the user's language." }
                         }
                       }
                     },
-                    "totalCount": { "type": "integer" },
-                    "totalPage": { "type": "integer" }
+                    "totalCount": { "type": "integer", "description": "Total number of moves found matching the criteria." },
+                    "totalPage": { "type": "integer", "description": "Total number of pages available for pagination." }
                   }
                 }
               }
@@ -174,8 +233,8 @@
     },
     "/pokemon/ability/search": {
       "post": {
-        "summary": "Retrieve Ability by ID or name",
-        "tags": ["Ability"],
+        "summary": "Search for Pokémon abilities by ID or name.",
+        "tags": ["pokemon", "ability", "search", "id", "name"],
         "requestBody": {
           "required": false,
           "content": {
@@ -183,8 +242,8 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "searchterm": { "type": "string" },
-                  "page": { "type": "integer", "default": 0 }
+                  "searchterm": { "type": "string", "description": "Search keyword for ability name or ID." },
+                  "page": { "type": "integer", "default": 0, "description": "Page number for paginated results (default: 0)." }
                 }
               }
             }
@@ -200,17 +259,18 @@
                   "properties": {
                     "results": {
                       "type": "array",
+                      "description": "List of Pokémon abilities matching the search criteria.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "number" },
-                          "name": { "type": "string" },
-                          "effect": { "type": "string" }
+                          "id": { "type": "number", "description": "Unique ability ID." },
+                          "name": { "type": "string", "description": "Localized name of the ability." },
+                          "effect": { "type": "string", "description": "Detailed description of the ability's effect in battle and outside of battle." }
                         }
                       }
                     },
-                    "totalCount": { "type": "integer" },
-                    "totalPage": { "type": "integer" }
+                    "totalCount": { "type": "integer", "description": "Total number of abilities found matching the criteria." },
+                    "totalPage": { "type": "integer", "description": "Total number of pages available for pagination." }
                   }
                 }
               }
@@ -224,8 +284,8 @@
     },
     "/pokemon/watchlist": {
       "post": {
-        "summary": "Add Pokémon to watchlist",
-        "tags": ["Watchlist"],
+        "summary": "Add a Pokémon to the user's watchlist by Pokémon ID.",
+        "tags": ["pokemon", "watchlist", "user", "add", "favorite"],
         "requestBody": {
           "required": true,
           "content": {
@@ -233,7 +293,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "pokemonId": { "type": "number" }
+                  "pokemonId": { "type": "number", "description": "The ID of the Pokémon to add to the user's watchlist." }
                 }
               }
             }
@@ -241,35 +301,27 @@
         },
         "responses": {
           "201": {
-            "description": "Pokémon added to watchlist"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Remove Pokémon from watchlist",
-        "tags": ["Watchlist"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "pokemonId": { "type": "number" }
+            "description": "Pokémon added to watchlist or existing record returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "description": "Unique watchlist entry ID." },
+                    "user_id": { "type": "integer", "description": "ID of the user who owns this watchlist entry." },
+                    "pokemon_id": { "type": "integer", "description": "ID of the Pokémon added to the watchlist." },
+                    "created_at": { "type": "string", "format": "date-time", "description": "Timestamp when the Pokémon was added to the watchlist." },
+                    "deleted": { "type": "boolean", "description": "Soft delete flag. False indicates the entry is active." }
+                  }
                 }
               }
             }
           }
-        },
-        "responses": {
-          "200": {
-            "description": "Pokémon removed from watchlist"
-          }
         }
       },
       "get": {
-        "summary": "Get user's Pokémon watchlist",
-        "tags": ["Watchlist"],
+        "summary": "Retrieve the current user's Pokémon watchlist.",
+        "tags": ["pokemon", "watchlist", "user", "get", "favorite"],
         "responses": {
           "200": {
             "description": "User's watchlist retrieved",
@@ -277,129 +329,37 @@
               "application/json": {
                 "schema": {
                   "type": "array",
+                  "description": "List of Pokémon in the user's watchlist with detailed information.",
                   "items": {
                     "type": "object",
                     "properties": {
-                      "pokemonId": { "type": "number" },
-                      "createdAt": { "type": "string", "format": "date-time" }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/pokemon/teams": {
-      "post": {
-        "summary": "Create a Pokémon team",
-        "tags": ["Teams"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "teamName": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Team created"
-          }
-        }
-      },
-      "get": {
-        "summary": "Get user's Pokémon teams",
-        "tags": ["Teams"],
-        "responses": {
-          "200": {
-            "description": "User's teams retrieved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "teamId": { "type": "number" },
-                      "teamName": { "type": "string" },
-                      "createdAt": { "type": "string", "format": "date-time" }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/pokemon/teams/{teamId}/members": {
-      "post": {
-        "summary": "Add a member to a Pokémon team",
-        "tags": ["Teams"],
-        "parameters": [
-          {
-            "name": "teamId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "number" }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "pokemonId": { "type": "number" },
-                  "nickname": { "type": "string" },
-                  "level": { "type": "number" },
-                  "moves": { "type": "array", "items": { "type": "number" } },
-                  "shiny": { "type": "boolean" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Member added to team"
-          }
-        }
-      },
-      "get": {
-        "summary": "Get all members of a Pokémon team",
-        "tags": ["Teams"],
-        "parameters": [
-          {
-            "name": "teamId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "number" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Team members retrieved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "memberId": { "type": "number" },
-                      "pokemonId": { "type": "number" },
-                      "nickname": { "type": "string" },
-                      "level": { "type": "number" },
-                      "shiny": { "type": "boolean" }
+                      "id": { "type": "integer", "description": "Unique watchlist entry ID." },
+                      "user_id": { "type": "integer", "description": "ID of the user who owns this watchlist entry." },
+                      "pokemon_id": { "type": "integer", "description": "ID of the Pokémon in the watchlist." },
+                      "created_at": { "type": "string", "format": "date-time", "description": "Timestamp when the Pokémon was added to the watchlist." },
+                      "deleted": { "type": "boolean", "description": "Soft delete flag. False indicates the entry is active." },
+                      "identifier": { "type": "string", "description": "Pokémon identifier (internal name in lowercase with hyphens)." },
+                      "height": { "type": "integer", "description": "Height of the Pokémon in decimeters (10 cm)." },
+                      "weight": { "type": "integer", "description": "Weight of the Pokémon in hectograms (100 g)." },
+                      "total_stats": { "type": "integer", "description": "Sum of all base stats (HP + Attack + Defense + Special Attack + Special Defense + Speed)." },
+                      "hp": { "type": "integer", "description": "Base HP (Hit Points) stat value." },
+                      "attack": { "type": "integer", "description": "Base Attack stat value." },
+                      "defense": { "type": "integer", "description": "Base Defense stat value." },
+                      "special_attack": { "type": "integer", "description": "Base Special Attack stat value." },
+                      "special_defense": { "type": "integer", "description": "Base Special Defense stat value." },
+                      "speed": { "type": "integer", "description": "Base Speed stat value." },
+                      "types": {
+                        "type": "array",
+                        "description": "List of types the Pokémon has (e.g., Fire, Water, Grass).",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": { "type": "string", "description": "Type identifier." },
+                            "type_name": { "type": "string", "description": "Localized type name." }
+                          }
+                        }
+                      },
+                      "sprite": { "type": "string", "format": "url", "description": "URL to the Pokémon's sprite image." }
                     }
                   }
                 }
@@ -411,25 +371,33 @@
     },
     "/pokemon/type/search": {
       "post": {
-        "summary": "Retrieve Type by ID or name",
-        "tags": ["Type"],
+        "summary": "Search for Pokémon types by name or ID.",
+        "tags": ["pokemon", "type", "search"],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "searchterm": { "type": "string" },
-                  "page": { "type": "integer", "default": 0 }
-                }
+                  "searchterm": {
+                    "type": "string",
+                    "description": "The search keyword for the type name or ID."
+                  },
+                  "page": {
+                    "type": "integer",
+                    "description": "The page number for paginated results (default: 0).",
+                    "default": 0
+                  }
+                },
+                "required": ["searchterm"]
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Type details retrieved",
+            "description": "Type details retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -437,26 +405,502 @@
                   "properties": {
                     "results": {
                       "type": "array",
+                      "description": "List of Pokémon types matching the search criteria.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": { "type": "number" },
-                          "identifier": { "type": "string" },
-                          "generation_id": { "type": "number" },
-                          "localized_name": { "type": "string" },
-                          "local_language_id": { "type": "number" }
+                          "id": {
+                            "type": "number",
+                            "description": "Unique type ID."
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Localized name of the type."
+                          }
                         }
                       }
                     },
-                    "totalCount": { "type": "integer" },
-                    "totalPage": { "type": "integer" }
+                    "totalCount": {
+                      "type": "integer",
+                      "description": "Total number of types found matching the criteria."
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "Total number of pages available for pagination."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/pokemon/watchlist/{pokemonId}": {
+      "delete": {
+        "summary": "Remove a Pokémon from the watchlist",
+        "description": "Removes a specific Pokémon from the authenticated user's watchlist using the Pokémon ID.",
+        "tags": ["Watchlist"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pokemonId",
+            "in": "path",
+            "required": true,
+            "description": "The ID of the Pokémon to remove from the watchlist.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pokémon removed from watchlist successfully."
+          },
+          "401": {
+            "description": "Unauthorized. Token is invalid or expired."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/pokemon/allwatchlist": {
+      "delete": {
+        "summary": "Remove all Pokémon from the user's watchlist.",
+        "tags": ["pokemon", "watchlist", "delete", "user"],
+        "responses": {
+          "200": {
+            "description": "All Pokémon removed from the user's watchlist successfully."
+          },
+          "401": {
+            "description": "Unauthorized. The user is not logged in or the token has expired."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/pokemon/teams": {
+      "post": {
+        "summary": "Create a new Pokémon team for the user by specifying a team name.",
+        "tags": ["pokemon", "teams", "team", "create", "user"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "teamName": { "type": "string", "description": "The name for the new Pokémon team (e.g., 'My Competitive Team', 'Fire Types')." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Team created successfully"
+          }
+        }
+      },
+      "get": {
+        "summary": "Retrieve all Pokémon teams created by the user.",
+        "tags": ["pokemon", "teams", "team", "get", "user"],
+        "responses": {
+          "200": {
+            "description": "User's teams retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "description": "List of all teams created by the user.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "teamId": { "type": "number", "description": "Unique team ID." },
+                      "teamName": { "type": "string", "description": "Name of the team." },
+                      "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the team was created." }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pokemon/teams/{teamId}/members": {
+      "post": {
+        "summary": "Add a Pokémon to a team",
+        "description": "Adds a Pokémon to the specified team with details like nickname, level, moves, etc.",
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the team to which the Pokémon will be added."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pokemonId": { "type": "string" },
+                  "nickname": { "type": "string" },
+                  "level": { "type": "integer" },
+                  "moves": { "type": "array", "items": { "type": "string" } },
+                  "shiny": { "type": "boolean" },
+                  "orderIndex": { "type": "integer" }
+                },
+                "required": ["pokemonId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pokémon added successfully."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "400": {
+            "description": "Bad request."
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all Pokémon in a team",
+        "description": "Retrieves all Pokémon in the specified team.",
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the team whose members are to be retrieved."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of Pokémon in the team.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "pokemonId": { "type": "string" },
+                      "nickname": { "type": "string" },
+                      "level": { "type": "integer" },
+                      "moves": { "type": "array", "items": { "type": "string" } },
+                      "shiny": { "type": "boolean" },
+                      "orderIndex": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "400": {
+            "description": "Bad request."
+          }
+        }
+      }
+    },
+    "/pokemon/teams/members/{memberId}": {
+      "delete": {
+        "summary": "Remove a Pokémon from a team",
+        "description": "Removes the specified Pokémon from the team.",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string" },
+            "description": "The ID of the team member to remove."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pokémon removed successfully."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "400": {
+            "description": "Bad request."
+          }
+        }
+      }
+    },
+    "/pokemon/details/{id}": {
+      "get": {
+        "summary": "Get detailed information for a specific Pokémon by its ID, including stats, types, abilities, and moves.",
+        "tags": ["pokemon", "details", "id", "info", "get"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The ID of the Pokémon to retrieve details for."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pokémon details retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "description": "Unique Pokémon ID." },
+                    "name": { "type": "string", "description": "Localized name of the Pokémon." },
+                    "identifier": { "type": "string", "description": "Pokémon identifier (internal name in lowercase with hyphens)." },
+                    "order": { "type": "integer", "description": "Order index for sorting (matches National Pokédex order)." },
+                    "height": {
+                      "type": "integer",
+                      "description": "Height of the Pokémon in decimeters (10 cm)."
+                    },
+                    "weight": {
+                      "type": "integer",
+                      "description": "Weight of the Pokémon in hectograms (100 g)."
+                    },
+                    "baseExperience": { "type": "integer", "description": "Base experience points gained when defeating this Pokémon." },
+                    "flavorText": { "type": "string", "description": "Pokédex flavor text / description of the Pokémon." },
+                    "speciesId": { "type": "integer", "description": "ID of the Pokémon species." },
+                    "speciesName": { "type": "string", "description": "Name of the Pokémon species." },
+                    "isDefault": { "type": "boolean", "description": "Whether this is the default form of the species." },
+                    "totalStats": { "type": "string", "description": "Sum of all base stats as a string." },
+                    "hp": { "type": "integer", "description": "Base HP (Hit Points) stat value." },
+                    "attack": { "type": "integer", "description": "Base Attack stat value." },
+                    "defense": { "type": "integer", "description": "Base Defense stat value." },
+                    "speed": { "type": "integer", "description": "Base Speed stat value." },
+                    "specialAttack": { "type": "integer", "description": "Base Special Attack stat value." },
+                    "specialDefense": { "type": "integer", "description": "Base Special Defense stat value." },
+                    "types": {
+                      "type": "array",
+                      "description": "List of types the Pokémon has (primary and secondary types).",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "description": "Type identifier." },
+                          "type_name": { "type": "string", "description": "Localized type name." }
+                        }
+                      }
+                    },
+                    "pokemonTypeNames": {
+                      "type": "array",
+                      "description": "Array of type names as strings (e.g., ['Fire', 'Flying']).",
+                      "items": { "type": "string", "description": "Type name." }
+                    },
+                    "abilities": {
+                      "type": "array",
+                      "description": "List of abilities the Pokémon can have.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ability": { "type": "string", "description": "Ability identifier." },
+                          "ability_name": { "type": "string", "description": "Localized ability name." }
+                        }
+                      }
+                    },
+                    "moves": {
+                      "type": "array",
+                      "description": "List of moves the Pokémon can learn, with details about each move.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "move": { "type": "string", "description": "Move identifier." },
+                          "type_id": { "type": "integer", "description": "Type ID of the move." },
+                          "power": { "type": "integer", "description": "Base power of the move. Null for status moves." },
+                          "accuracy": { "type": "integer", "description": "Accuracy percentage (0-100). Null for moves that never miss." },
+                          "pp": { "type": "integer", "description": "Power Points - number of times the move can be used." },
+                          "priority": { "type": "integer", "description": "Priority level in battle. Higher values move first." },
+                          "name": { "type": "string", "description": "Localized move name." },
+                          "move_method": { "type": "string", "description": "How the Pokémon learns this move (e.g., 'level-up', 'machine', 'tutor')." },
+                          "level": { "type": "integer", "description": "Level at which the move is learned (for level-up moves). Null for other learn methods." },
+                          "type": { "type": "string", "description": "Type name of the move." }
+                        }
+                      }
+                    },
+                    "sprite": {
+                      "type": "string",
+                      "description": "URL to the Pokémon's sprite image.",
+                      "example": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{id}.png"
+                    }
                   }
                 }
               }
             }
           },
           "404": {
-            "description": "Type not found"
+            "description": "Pokémon not found"
+          }
+        }
+      }
+    },
+    "/pokemon/moves": {
+      "post": {
+        "summary": "Get all moves that a specific Pokémon can learn, with optional filters for type, learn method, and sorting.",
+        "tags": ["pokemon", "moves", "learn", "move", "get"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pokemonId": {
+                    "type": "integer",
+                    "description": "The ID of the Pokémon to retrieve moves for."
+                  },
+                  "typeId": {
+                    "type": "integer",
+                    "description": "Filter by move type ID (default: null).",
+                    "default": null
+                  },
+                  "learnMethodId": {
+                    "type": "integer",
+                    "description": "Filter by learn method ID (default: level-up).",
+                    "default": 1
+                  },
+                  "sortBy": {
+                    "type": "integer",
+                    "description": "Sorting option: 0 (Level low-high, default), 1 (Level high-low), 2 (Power low-high), 3 (Power high-low), 4 (PP low-high), 5 (PP low-high), 6 (Name A-Z), 7 (Name Z-A).",
+                    "default": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "description": "Page number for pagination (default: 0).",
+                    "default": 0
+                  }
+                },
+                "required": ["pokemonId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moves retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "description": "List of moves that the specified Pokémon can learn.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "move": { "type": "string", "description": "Move identifier (internal name)." },
+                          "type_id": { "type": "integer", "description": "Type ID of the move." },
+                          "type_name": { "type": "string", "description": "Localized type name of the move." },
+                          "power": { "type": "integer", "description": "Base power of the move. Null for status moves." },
+                          "accuracy": { "type": "integer", "description": "Accuracy percentage (0-100). Null for moves that never miss." },
+                          "pp": { "type": "integer", "description": "Power Points - number of times the move can be used." },
+                          "priority": { "type": "integer", "description": "Priority level in battle. Higher values move first." },
+                          "name": { "type": "string", "description": "Localized move name." },
+                          "move_method": { "type": "string", "description": "How the Pokémon learns this move (e.g., 'level-up', 'machine', 'tutor')." },
+                          "level": { "type": "integer", "description": "Level at which the move is learned (for level-up moves). Null for other learn methods." }
+                        }
+                      }
+                    },
+                    "page": { "type": "integer", "description": "Current page number." },
+                    "limit": { "type": "integer", "description": "Number of results per page." },
+                    "totalPages": { "type": "integer", "description": "Total number of pages available." }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters"
+          },
+          "404": {
+            "description": "Pokémon or moves not found"
+          }
+        }
+      }
+    },
+    "/pokemon/teams/{teamId}": {
+      "delete": {
+        "summary": "Delete a specific Pokémon team by its ID.",
+        "tags": ["pokemon", "teams", "delete", "user"],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the team to delete."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team deleted successfully."
+          },
+          "401": {
+            "description": "Unauthorized. The user is not logged in or the token has expired."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/pokemon/allteams": {
+      "delete": {
+        "summary": "Delete all Pokémon teams for the authenticated user",
+        "description": "Deletes all Pokémon teams associated with the authenticated user.",
+        "tags": ["Teams"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All teams deleted successfully."
+          },
+          "401": {
+            "description": "Unauthorized. Token is invalid or expired."
+          },
+          "500": {
+            "description": "Internal server error."
           }
         }
       }

@@ -47,36 +47,50 @@ const AbilityPage = () => {
   }, [currentPage]);
 
   return (
-    <div>
-      <h1>Abilities</h1>
+    <div className="space-y-6">
+      <div className="pb-6">
+        <h1 className="text-4xl font-semibold text-foreground">Abilities</h1>
+        <p className="mt-2 text-muted-foreground">Discover Pokémon abilities and their effects. Search and learn about each ability.</p>
+      </div>
       <form onSubmit={handleSearch} style={{ marginBottom: "1rem" }}>
         <input
           type="text"
           placeholder="Search Ability by name or ID"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "black" }} // Set text color to black
+          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "white" }} // Set text color to black
         />
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
+        <button type="submit" style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}>Search</button>
       </form>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
-        <thead>
-          <tr>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {abilities.map((ability, index) => (
-            <tr key={index}>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{ability.identifier}</td>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                <button style={{ marginRight: "8px" }}>View Detail</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {
+        abilities.length === 0 && (
+          <p style={{ marginTop: "1rem" }}>No abilities found.</p>
+        )
+      }
+      {
+        abilities.length > 0 && (       
+          <div className="border-border/50 bg-card">
+            <div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {abilities.map((ability) => (
+                  <div
+                    key={ability.id}
+                    className="flex flex-col gap-3 rounded-lg border border-white/50 bg-card p-4 transition-colors hover:border-primary/50"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-mono text-xs text-muted-foreground">ID: {ability.id}</div>
+                        <h3 className="text-lg font-semibold text-foreground">{ability.localized_name}</h3>
+                      </div>
+                    </div>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{ability.short_effect || "No description available."}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      }
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
         <button
           onClick={() => handlePageChange(currentPage - 1)}

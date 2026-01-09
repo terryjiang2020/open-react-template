@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { searchMove } from "@/services/pokemonService";
+import { getTypeClass } from "@/services/typeStyleService";
 
 const MovePage = () => {
   const [moves, setMoves] = useState<any[]>([]);
@@ -47,36 +48,61 @@ const MovePage = () => {
   }, []);
 
   return (
-    <div>
-      <h1>Moves</h1>
+    <div className="space-y-6">
+      <div className="pb-6">
+        <h1 className="text-4xl font-semibold text-foreground">Moves</h1>
+        <p className="mt-2 text-muted-foreground">Explore all available Pokémon moves. Search by name, type, and power.</p>
+      </div>
       <form onSubmit={handleSearch} style={{ marginBottom: "1rem" }}>
         <input
           type="text"
           placeholder="Search Move by name or ID"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "black" }} // Set text color to black
+          style={{ padding: "0.5rem", marginRight: "0.5rem", color: "white" }} // Set text color to black
         />
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>Search</button>
+        <button type="submit" style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}>Search</button>
       </form>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
-        <thead>
-          <tr>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Name</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {moves.map((move, index) => (
-            <tr key={index}>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>{move.identifier}</td>
-              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                <button style={{ marginRight: "8px" }}>View Detail</button>
-              </td>
-            </tr>
+      <div className="max-h-[600px] overflow-y-auto">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {moves.map((move: any, index: number) => (
+            <div key={index} className="flex flex-col gap-2 rounded-lg border border-border/50 p-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold capitalize">{move.localized_name}</span>
+                {
+                  <span
+                    key={index}
+                    className={`text-xs capitalize ${getTypeClass(move.type_name)}`}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      borderRadius: "12px",
+                      fontWeight: "bold",
+                      display: "inline-block",
+                      minWidth: "80px",
+                      textAlign: "center",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {move.type_name || "Unknown"}
+                  </span>
+                }
+              </div>
+              <div className="grid grid-cols-2 gap-2 font-mono text-xs text-muted-foreground">
+                <div>
+                  Power: <span className="text-foreground">{move.power ?? "-"}</span>
+                </div>
+                <div>
+                  Accuracy: <span className="text-foreground">{move.accuracy ?? "-"}%</span>
+                </div>
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
+          {moves.length === 0 && (
+            <div className="col-span-2 text-sm text-muted-foreground">No moves for this filter.</div>
+          )}
+        </div>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem" }}>
         <button
           onClick={() => handlePageChange(currentPage - 1)}

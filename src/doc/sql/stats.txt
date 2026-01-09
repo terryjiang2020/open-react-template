@@ -1,0 +1,18 @@
+Database Schema:
+Tables:
+stats(id, damage_class_id, identifier, is_battle_only, game_index)
+
+-- Example 1
+Question: Show all battle stats (non-battle-only stats).
+SQL: SELECT identifier
+FROM stats
+WHERE is_battle_only = FALSE
+ORDER BY game_index;
+
+-- Example 2
+Question: Find which damage classes are associated with which stats.
+SQL: SELECT s.identifier as stat, mdc.identifier as damage_class
+FROM stats s
+LEFT JOIN move_damage_classes mdc ON s.damage_class_id = mdc.id
+WHERE s.damage_class_id IS NOT NULL
+ORDER BY s.identifier;

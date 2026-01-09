@@ -1,0 +1,19 @@
+Database Schema:
+Tables:
+language_names(id, language_id, local_language_id, name)
+
+-- Example 1
+Question: Get language names in English (local_language_id = 9).
+SQL: SELECT l.identifier, ln.name as english_name
+FROM languages l
+JOIN language_names ln ON l.id = ln.language_id
+WHERE ln.local_language_id = 9
+ORDER BY l.identifier;
+
+-- Example 2
+Question: Find how many localized names each language has.
+SQL: SELECT l.identifier, COUNT(*) as translation_count
+FROM languages l
+JOIN language_names ln ON l.id = ln.language_id
+GROUP BY l.id, l.identifier
+ORDER BY translation_count DESC;

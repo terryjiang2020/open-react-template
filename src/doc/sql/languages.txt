@@ -1,0 +1,17 @@
+Database Schema:
+Tables:
+languages(id, iso639, iso3166, identifier, official, order)
+
+-- Example 1
+Question: List all official languages.
+SQL: SELECT identifier, iso639, iso3166
+FROM languages
+WHERE official = TRUE
+ORDER BY "order";
+
+-- Example 2
+Question: Find languages used in Japan.
+SQL: SELECT identifier, iso639
+FROM languages
+WHERE iso3166 = 'jp'
+ORDER BY "order";
